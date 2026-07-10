@@ -1,0 +1,6 @@
+{
+  "name": "Henry IX DJ Portal",
+  "description": "Interactive DJ portfolio for Henry IX utilizing the Venture OS aesthetic with physics-driven animations.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

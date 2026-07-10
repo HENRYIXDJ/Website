@@ -1,0 +1,309 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #D8163F;
+  --font-sans: var(--font-avathe), "sans-serif";
+  --font-serif: var(--font-avathe), "serif";
+}
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Hide scrollbar for IE, Edge and Firefox */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* ─── CRT / VHS PAGE OVERLAY ──────────────────────────────────── */
+.crt-scanlines {
+  position: fixed;
+  inset: 0;
+  z-index: 9990;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 3px,
+    rgba(0, 0, 0, 0.05) 3px,
+    rgba(0, 0, 0, 0.05) 4px
+  );
+}
+
+.crt-vignette {
+  position: fixed;
+  inset: 0;
+  z-index: 9992;
+  pointer-events: none;
+  background: radial-gradient(circle, transparent 65%, rgba(0, 0, 0, 0.22) 100%);
+  box-shadow: inset 0 0 80px rgba(0, 0, 0, 0.35);
+}
+
+.crt-roll {
+  position: fixed;
+  inset: 0;
+  z-index: 9993;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgba(255, 255, 255, 0) 15%,
+    rgba(255, 255, 255, 0.015) 17%,
+    rgba(255, 255, 255, 0) 19%,
+    transparent 40%,
+    transparent 100%
+  );
+  background-size: 100% 300%;
+  animation: crt-roll-anim 18s linear infinite;
+}
+
+@keyframes crt-roll-anim {
+  0% { background-position: 0 0%; }
+  100% { background-position: 0 300%; }
+}
+
+.vhs-glitch-bar {
+  position: fixed;
+  inset: 0;
+  z-index: 9991;
+  pointer-events: none;
+  opacity: 0;
+  animation: vhs-bars 4.2s infinite steps(1);
+}
+
+@keyframes vhs-bars {
+  0%, 100% { opacity: 0; transform: none; }
+
+  /* Event 1 — drift with 9+ strips of 7 colors and horizontal skew */
+  7% {
+    opacity: 1;
+    transform: translateX(5px) skewX(2deg);
+    background: linear-gradient(
+      transparent 5%,     rgba(0, 255, 255, 0.07) 5%,    rgba(0, 255, 255, 0.07) 6.5%,
+      transparent 6.5%,
+      transparent 14%,    rgba(255, 0, 255, 0.06) 14%,   rgba(255, 0, 255, 0.06) 15%,
+      transparent 15%,
+      transparent 23%,    rgba(255, 255, 0, 0.06) 23%,   rgba(255, 255, 0, 0.06) 24.5%,
+      transparent 24.5%,
+      transparent 35%,    rgba(0, 255, 0, 0.05) 35%,     rgba(0, 255, 0, 0.05) 36%,
+      transparent 36%,
+      transparent 47%,    rgba(255, 0, 0, 0.07) 47%,     rgba(255, 0, 0, 0.07) 48.5%,
+      transparent 48.5%,
+      transparent 58%,    rgba(0, 0, 255, 0.05) 58%,     rgba(0, 0, 255, 0.05) 59%,
+      transparent 59%,
+      transparent 69%,    rgba(255, 165, 0, 0.06) 69%,   rgba(255, 165, 0, 0.06) 70.5%,
+      transparent 70.5%,
+      transparent 80%,    rgba(0, 255, 255, 0.07) 80%,    rgba(0, 255, 255, 0.07) 81.5%,
+      transparent 81.5%,
+      transparent 90%,    rgba(255, 0, 255, 0.06) 90%,   rgba(255, 0, 255, 0.06) 91%,
+      transparent 91%
+    );
+  }
+  7.4% { opacity: 0; transform: none; }
+
+  /* Event 2 — left skew and drift */
+  28% {
+    opacity: 1;
+    transform: translateX(-7px) skewX(-2deg);
+    background: linear-gradient(
+      transparent 2%,     rgba(255, 0, 255, 0.06) 2%,    rgba(255, 0, 255, 0.06) 3%,
+      transparent 3%,
+      transparent 11%,    rgba(0, 255, 255, 0.05) 11%,   rgba(0, 255, 255, 0.05) 12.5%,
+      transparent 12.5%,
+      transparent 20%,    rgba(255, 0, 0, 0.05) 20%,     rgba(255, 0, 0, 0.05) 21.5%,
+      transparent 21.5%,
+      transparent 31%,    rgba(255, 255, 0, 0.05) 31%,   rgba(255, 255, 0, 0.05) 32%,
+      transparent 32%,
+      transparent 42%,    rgba(0, 255, 0, 0.05) 42%,     rgba(0, 255, 0, 0.05) 43.5%,
+      transparent 43.5%,
+      transparent 53%,    rgba(0, 0, 255, 0.05) 53%,     rgba(0, 0, 255, 0.05) 54%,
+      transparent 54%,
+      transparent 64%,    rgba(255, 165, 0, 0.05) 64%,   rgba(255, 165, 0, 0.05) 65.5%,
+      transparent 65.5%,
+      transparent 75%,    rgba(0, 255, 255, 0.07) 75%,    rgba(0, 255, 255, 0.07) 76%,
+      transparent 76%,
+      transparent 86%,    rgba(255, 0, 255, 0.05) 86%,   rgba(255, 0, 255, 0.05) 87.5%,
+      transparent 87.5%
+    );
+  }
+  28.4% { opacity: 0; transform: none; }
+
+  /* Event 3 — intense tracking tear and drift */
+  54% {
+    opacity: 1;
+    transform: translateX(9px) skewX(3deg);
+    background: linear-gradient(
+      transparent 1%,     rgba(0, 255, 255, 0.08) 1%,    rgba(0, 255, 255, 0.08) 2.5%,
+      transparent 2.5%,
+      transparent 9%,     rgba(255, 0, 255, 0.07) 9%,    rgba(255, 0, 255, 0.07) 10.5%,
+      transparent 10.5%,
+      transparent 18%,    rgba(255, 255, 0, 0.07) 18%,   rgba(255, 255, 0, 0.07) 19.5%,
+      transparent 19.5%,
+      transparent 28%,    rgba(0, 255, 0, 0.06) 28%,     rgba(0, 255, 0, 0.06) 29%,
+      transparent 29%,
+      transparent 38%,    rgba(255, 0, 0, 0.07) 38%,     rgba(255, 0, 0, 0.07) 40%,
+      transparent 40%,
+      transparent 49%,    rgba(0, 0, 255, 0.07) 49%,     rgba(0, 0, 255, 0.07) 50%,
+      transparent 50%,
+      transparent 59%,    rgba(255, 165, 0, 0.06) 59%,   rgba(255, 165, 0, 0.06) 60.5%,
+      transparent 60.5%,
+      transparent 69%,    rgba(0, 255, 255, 0.07) 69%,    rgba(0, 255, 255, 0.07) 70%,
+      transparent 70%,
+      transparent 78%,    rgba(255, 0, 255, 0.07) 78%,   rgba(255, 0, 255, 0.07) 79.5%,
+      transparent 79.5%,
+      transparent 88%,    rgba(255, 255, 0, 0.07) 88%,   rgba(255, 255, 0, 0.07) 89%,
+      transparent 89%
+    );
+  }
+  54.2% { transform: translateX(-4px) skewX(-1deg); }
+  54.5% { opacity: 0; transform: none; }
+
+  /* Event 4 — fast horizontal twitch */
+  76% {
+    opacity: 0.9;
+    transform: translateX(-8px) skewX(2deg);
+    background: linear-gradient(
+      transparent 12%, rgba(0, 255, 255, 0.08) 12%, rgba(0, 255, 255, 0.08) 14%,
+      transparent 14%, transparent 45%, rgba(255, 0, 255, 0.08) 45%, rgba(255, 0, 255, 0.08) 47%,
+      transparent 47%, transparent 78%, rgba(255, 255, 0, 0.07) 78%, rgba(255, 255, 0, 0.07) 80%,
+      transparent 80%
+    );
+  }
+  76.3% { opacity: 0; transform: none; }
+}
+
+/* ─── GLITCH TEXT EFFECT ─────────────────────────────────────── */
+.glitch {
+  position: relative;
+}
+
+.glitch::before,
+.glitch::after {
+  content: attr(data-text);
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+  white-space: nowrap;
+  overflow: hidden;
+  opacity: 0;
+}
+
+.glitch::before {
+  color: #00ffff;
+  text-shadow: 
+    2.5px 0 #ff0000, 
+    -2.5px 0 #00ff00,
+    5px 0 #ffff00;
+}
+.glitch::after {
+  color: #ff00ff;
+  text-shadow: 
+    -2.5px 0 #0000ff, 
+    2.5px 0 #ff7f00,
+    -5px 0 #00ffff;
+}
+
+/* Trigger on hover */
+.glitch:hover::before { animation: glitch-before 0.7s steps(1) forwards; }
+.glitch:hover::after  { animation: glitch-after  0.7s steps(1) forwards; }
+
+/* Trigger when pinned in header — made significantly more frequent (2.2s cycle instead of 3.5s) */
+.glitch-active::before { animation: glitch-before 2.2s infinite steps(1); }
+.glitch-active::after  { animation: glitch-after  2.2s infinite steps(1); }
+
+@keyframes glitch-before {
+  0%   { opacity: 0; }
+
+  /* Burst 1 – top region, rapid multi-strip and horizontal skew sync */
+  8%   { opacity: 1; transform: translate(-7px, 0) skewX(4deg); clip-path: polygon(0 2%,  100% 2%,  100% 8%,  0 8%);  }
+  9%   { transform: translate(5px,  0) skewX(-3deg); clip-path: polygon(0 10%, 100% 10%, 100% 16%, 0 16%); }
+  10%  { transform: translate(-4px, 0) skewX(2deg); clip-path: polygon(0 5%,  100% 5%,  100% 12%, 0 12%); }
+  11%  { transform: translate(6px,  0) skewX(-4deg); clip-path: polygon(0 18%, 100% 18%, 100% 23%, 0 23%); }
+  12%  { opacity: 0; }
+
+  /* Burst 2 – mid region */
+  40%  { opacity: 1; transform: translate(6px,  0) skewX(-3deg); clip-path: polygon(0 30%, 100% 30%, 100% 38%, 0 38%); }
+  41%  { transform: translate(-5px, 0) skewX(4deg); clip-path: polygon(0 35%, 100% 35%, 100% 44%, 0 44%); }
+  42%  { transform: translate(8px,  0) skewX(-5deg); clip-path: polygon(0 40%, 100% 40%, 100% 50%, 0 50%); }
+  43%  { transform: translate(-4px, 0) skewX(3deg); clip-path: polygon(0 25%, 100% 25%, 100% 33%, 0 33%); }
+  44%  { opacity: 0; }
+
+  /* Burst 3 – lower region */
+  72%  { opacity: 1; transform: translate(-8px, 0) skewX(5deg); clip-path: polygon(0 58%, 100% 58%, 100% 65%, 0 65%); }
+  73%  { transform: translate(5px,  0) skewX(-4deg); clip-path: polygon(0 63%, 100% 63%, 100% 72%, 0 72%); }
+  74%  { transform: translate(-4px, 0) skewX(3deg); clip-path: polygon(0 70%, 100% 70%, 100% 78%, 0 78%); }
+  75%  { transform: translate(6px,  0) skewX(-5deg); clip-path: polygon(0 55%, 100% 55%, 100% 62%, 0 62%); }
+  76%  { transform: translate(-5px, 0) skewX(4deg); clip-path: polygon(0 75%, 100% 75%, 100% 82%, 0 82%); }
+  77%  { opacity: 0; }
+
+  100% { opacity: 0; }
+}
+
+@keyframes glitch-after {
+  0%   { opacity: 0; }
+
+  /* Burst 1 */
+  8%   { opacity: 1; transform: translate(7px,  0) skewX(-4deg); clip-path: polygon(0 3%,  100% 3%,  100% 10%, 0 10%); }
+  9%   { transform: translate(-5px, 0) skewX(3deg); clip-path: polygon(0 12%, 100% 12%, 100% 19%, 0 19%); }
+  10%  { transform: translate(4px,  0) skewX(-2deg); clip-path: polygon(0 7%,  100% 7%,  100% 15%, 0 15%); }
+  11%  { transform: translate(-6px, 0) skewX(4deg); clip-path: polygon(0 20%, 100% 20%, 100% 26%, 0 26%); }
+  12%  { opacity: 0; }
+
+  /* Burst 2 */
+  40%  { opacity: 1; transform: translate(-5px, 0) skewX(3deg); clip-path: polygon(0 32%, 100% 32%, 100% 40%, 0 40%); }
+  41%  { transform: translate(6px,  0) skewX(-4deg); clip-path: polygon(0 37%, 100% 37%, 100% 47%, 0 47%); }
+  42%  { transform: translate(-8px, 0) skewX(5deg); clip-path: polygon(0 43%, 100% 43%, 100% 52%, 0 52%); }
+  43%  { transform: translate(4px,  0) skewX(-3deg); clip-path: polygon(0 28%, 100% 28%, 100% 36%, 0 36%); }
+  44%  { opacity: 0; }
+
+  /* Burst 3 */
+  72%  { opacity: 1; transform: translate(8px,  0) skewX(-5deg); clip-path: polygon(0 60%, 100% 60%, 100% 68%, 0 68%); }
+  73%  { transform: translate(-5px, 0) skewX(4deg); clip-path: polygon(0 65%, 100% 65%, 100% 74%, 0 74%); }
+  74%  { transform: translate(4px,  0) skewX(-3deg); clip-path: polygon(0 72%, 100% 72%, 100% 80%, 0 80%); }
+  75%  { transform: translate(-6px, 0) skewX(5deg); clip-path: polygon(0 57%, 100% 57%, 100% 64%, 0 64%); }
+  76%  { transform: translate(5px,  0) skewX(-4deg); clip-path: polygon(0 78%, 100% 78%, 100% 85%, 0 85%); }
+  77%  { opacity: 0; }
+
+  100% { opacity: 0; }
+}
+
+/* ─── GPU ACCELERATED DJ CONTROLLER ROTATIONS ──────────────────── */
+@keyframes gpu-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.animate-gpu-spin {
+  animation: gpu-spin 4.8s linear infinite;
+  backface-visibility: hidden;
+  perspective: 1000px;
+  will-change: transform;
+}
+.animate-gpu-spin-paused {
+  animation-play-state: paused;
+}
+
+/* ─── FULLSCREEN SECTION NAVIGATOR ──────────────────────────────── */
+.section-nav-link {
+  display: block;
+  width: 100%;
+  text-align: center;
+  cursor: pointer;
+  text-decoration: none;
+  transition: letter-spacing 0.2s ease;
+}
+.section-nav-link:hover .section-nav-text {
+  letter-spacing: 0.15em;
+  text-shadow: 0 0 40px rgba(216, 22, 63, 0.5);
+}
+.section-nav-text {
+  display: inline-block;
+  transition: letter-spacing 0.2s ease, text-shadow 0.2s ease;
+}
+
