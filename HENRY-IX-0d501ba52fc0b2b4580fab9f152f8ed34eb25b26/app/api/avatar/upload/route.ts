@@ -14,9 +14,9 @@ export async function POST(request: Request): Promise<NextResponse> {
       return NextResponse.json({ error: 'File body is required' }, { status: 400 });
     }
 
-    // Securely upload using public read permissions
+    // Securely upload using private read permissions
     const blob = await put(filename, request.body, {
-      access: 'public',
+      access: 'private',
     });
 
     return NextResponse.json(blob);

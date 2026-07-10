@@ -13,7 +13,7 @@ export default function AvatarUploadPage() {
     <PageShell>
       <div className="max-w-md mx-auto my-12 p-8 bg-zinc-950/80 border border-zinc-900 rounded-2xl shadow-2xl backdrop-blur-md">
         <h1 className="font-sans font-black text-2xl text-zinc-100 tracking-wider uppercase mb-6 text-center">
-          Upload Your Avatar
+          Upload Your Avatar (Private)
         </h1>
 
         <form
