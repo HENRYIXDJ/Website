@@ -1692,12 +1692,12 @@ function MixArchive({
                 <img 
                   src={sessionImg} 
                   alt="Track Artwork" 
-                  className="absolute inset-0 w-full h-full object-cover opacity-80 mix-blend-luminosity filter brightness-110 contrast-125 saturate-50 pointer-events-none"
+                  className="absolute inset-0 w-full h-full object-cover opacity-90 pointer-events-none"
                 />
               )}
 
               {/* Tint Overlay to keep UI legible */}
-              <div className="absolute inset-0 bg-black/40 pointer-events-none rounded-full" />
+              <div className="absolute inset-0 bg-black/20 pointer-events-none rounded-full" />
 
               {/* Grooves */}
               <div className="absolute inset-2 rounded-full border border-dashed border-zinc-800/60 pointer-events-none" />
@@ -1822,7 +1822,7 @@ function MixArchive({
           </div>
           
           <div className="flex flex-col mt-0.5 min-w-0">
-            <span className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold leading-none mb-1">SELECT MIX</span>
+              <span className="text-xs md:text-sm text-zinc-400 uppercase tracking-widest font-bold leading-none mb-1">SELECT MIX</span>
             {isLocked ? (
               <span className="font-bold truncate tracking-wider text-yellow-500 font-mono text-[9px] py-1">
                 COMING SOON // LCK
@@ -1878,7 +1878,14 @@ function MixArchive({
                 </button>
 
                 <button
-                  onClick={() => togglePlayGlobal(deckId)}
+                  onClick={() => {
+                    const track = mixGroups.flatMap(g => g.mixes).find(m => m.id === deck.id);
+                    if (track && !deck.isPlaying && (!deck.isReady || deck.progress === 0)) {
+                      playTrack(track, deckId);
+                    } else {
+                      togglePlayGlobal(deckId);
+                    }
+                  }}
                   className="p-2.5 px-3.5 border border-zinc-900 hover:border-zinc-700 bg-zinc-950 rounded-xl transition-all duration-300 flex items-center justify-center shrink-0 cursor-pointer active:scale-95 shadow-md"
                   style={{
                     color: isPlaying ? themeColor : 'rgb(161, 161, 170)',
@@ -2074,7 +2081,14 @@ function MixArchive({
         {/* Play mechanical button */}
         <div className="w-full flex justify-center items-center shrink-0 z-10 select-none mt-1">
           <motion.button
-            onClick={() => togglePlayGlobal(deckId)}
+            onClick={() => {
+              const track = mixGroups.flatMap(g => g.mixes).find(m => m.id === deck.id);
+              if (track && !deck.isPlaying && (!deck.isReady || deck.progress === 0)) {
+                playTrack(track, deckId);
+              } else {
+                togglePlayGlobal(deckId);
+              }
+            }}
             whileHover={{ scale: 1.04 }}
             whileTap={{ scale: 0.98 }}
             className={cn(
@@ -2532,8 +2546,8 @@ function MixArchive({
         <AudioVisualizerBackground isDepth={isDepth} mouseX={mouseX} mouseY={mouseY} isPlaying={activeVisualizer.isPlaying} />
 
         {/* Persistent Retro-Futuristic Header with Toggle Button */}
-        <div className="w-full flex justify-between items-center z-30 font-mono select-none px-3 py-2 shrink-0 border-b border-zinc-900 bg-black/60 backdrop-blur rounded-lg mb-1">
-          <div className="flex items-center gap-3">
+        <div className="w-full relative flex justify-center items-center z-30 font-mono select-none px-3 py-2 shrink-0 border-b border-zinc-900 bg-black/60 backdrop-blur rounded-lg mb-1">
+          <div className="absolute left-3 flex items-center gap-3">
             <span className="w-2 h-2 rounded-full bg-primary animate-pulse shadow-[0_0_8px_#D8163F]" />
             <span className="text-primary font-black uppercase tracking-[0.3em] text-[10px] md:text-xs glitch" data-text="HENRY IX // CDJ PORTFOLIO">
               HENRY IX // CDJ PORTFOLIO
