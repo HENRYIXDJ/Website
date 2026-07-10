@@ -13,29 +13,48 @@ export async function GET(request: Request) {
     return new NextResponse('Invalid source domain', { status: 400 });
   }
 
+  const fetchHeaders = new Headers();
+  const rangeHeader = request.headers.get('range');
+  if (rangeHeader) {
+    fetchHeaders.set('range', rangeHeader);
+  }
+  fetchHeaders.set('Authorization', `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}`);
+
   try {
     const response = await fetch(url, {
-      headers: {
-        'Authorization': `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}`,
-      },
+      headers: fetchHeaders,
     });
 
-    if (!response.ok) {
+    if (!response.ok && response.status !== 206) {
       return new NextResponse(`Error fetching asset from source: ${response.statusText}`, { status: response.status });
     }
     
     // Create headers based on the response
     const headers = new Headers();
-    const contentType = response.headers.get('content-type');
-    if (contentType) headers.set('content-type', contentType);
-    const contentLength = response.headers.get('content-length');
-    if (contentLength) headers.set('content-length', contentLength);
+    
+    const headersToForward = [
+      'content-type',
+      'content-length',
+      'content-range',
+      'accept-ranges',
+      'etag',
+      'last-modified'
+    ];
+
+    for (const headerName of headersToForward) {
+      const val = response.headers.get(headerName);
+      if (val) {
+        headers.set(headerName, val);
+      }
+    }
     
     // Cache control to make loading fast and browser-cachable
     headers.set('cache-control', 'public, max-age=31536000, immutable');
 
-    // Return the readable stream directly
+    // Return the response status and body stream directly
     return new NextResponse(response.body, {
+      status: response.status,
+      statusText: response.statusText,
       headers,
     });
   } catch (error) {
