@@ -34,44 +34,51 @@ const ME_IMAGES: GalleryItem[] = [
   },
 ];
 
+const proxyUrl = (url: string) => `/api/assets?url=${encodeURIComponent(url)}`;
+
 const ARTWORK_IMAGES: GalleryItem[] = [
   {
-    src: '/Knight Club Artwork/Session 1.jpg',
+    src: proxyUrl('https://tegbbmt42xpyzcnx.private.blob.vercel-storage.com/Mixes/Knight%20Club/KC%20Artwork/Session%201.jpg'),
     title: 'KNIGHT CLUB: SESSION 1',
     gridClass: 'col-span-1 aspect-square',
   },
   {
-    src: '/Knight Club Artwork/Session 2.jpg',
+    src: proxyUrl('https://tegbbmt42xpyzcnx.private.blob.vercel-storage.com/Mixes/Knight%20Club/KC%20Artwork/Session%202.jpg'),
     title: 'KNIGHT CLUB: SESSION 2',
     gridClass: 'col-span-1 aspect-square',
   },
   {
-    src: '/Knight Club Artwork/Session 3.jpg',
+    src: proxyUrl('https://tegbbmt42xpyzcnx.private.blob.vercel-storage.com/Mixes/Knight%20Club/KC%20Artwork/Session%203.jpg'),
     title: 'KNIGHT CLUB: SESSION 3',
     gridClass: 'col-span-1 aspect-square',
   },
   {
-    src: '/Knight Club Artwork/Session 4.jpg',
+    src: proxyUrl('https://tegbbmt42xpyzcnx.private.blob.vercel-storage.com/Mixes/Knight%20Club/KC%20Artwork/Session%204.jpg'),
     title: 'KNIGHT CLUB: SESSION 4',
     gridClass: 'col-span-1 aspect-square',
   },
   {
-    src: 'https://6pnumwdmtebaxkbr.public.blob.vercel-storage.com/Royal%20Court%20Artwork/Royal%20Court%20Session%201%20Track%20Artwork.png',
+    src: proxyUrl('https://tegbbmt42xpyzcnx.private.blob.vercel-storage.com/Mixes/Knight%20Club/KC%20Artwork/Session%205.jpg'),
+    title: 'KNIGHT CLUB: SESSION 5',
+    gridClass: 'col-span-1 aspect-square',
+  },
+  {
+    src: proxyUrl('https://tegbbmt42xpyzcnx.private.blob.vercel-storage.com/Mixes/Royal%20Court/RC%20Artwork/Royal%20Court%20Session%201%20Track%20Artwork.jpg'),
     title: 'ROYAL COURT S1',
     gridClass: 'col-span-1 aspect-square',
   },
   {
-    src: 'https://6pnumwdmtebaxkbr.public.blob.vercel-storage.com/Royal%20Court%20Artwork/Royal%20Court%20Session%202%20Track%20Artwork.png',
+    src: proxyUrl('https://tegbbmt42xpyzcnx.private.blob.vercel-storage.com/Mixes/Royal%20Court/RC%20Artwork/Royal%20Court%20Session%202%20Track%20Artwork.jpg'),
     title: 'ROYAL COURT S2',
     gridClass: 'col-span-1 aspect-square',
   },
   {
-    src: 'https://6pnumwdmtebaxkbr.public.blob.vercel-storage.com/Corner%20New%20Cross%20Artwork/CNC%20N1%20Artwork.png',
+    src: proxyUrl('https://tegbbmt42xpyzcnx.private.blob.vercel-storage.com/Mixes/Corner%20New%20Cross/CNC%20Artwork/CNC%20N1%20Artwork.png'),
     title: 'CORNER NEW CROSS N1',
     gridClass: 'col-span-1 aspect-square',
   },
   {
-    src: 'https://6pnumwdmtebaxkbr.public.blob.vercel-storage.com/Corner%20New%20Cross%20Artwork/CNC%20N2%20Artwork.png',
+    src: proxyUrl('https://tegbbmt42xpyzcnx.private.blob.vercel-storage.com/Mixes/Corner%20New%20Cross/CNC%20Artwork/CNC%20N2%20Artwork.png'),
     title: 'CORNER NEW CROSS N2',
     gridClass: 'col-span-1 aspect-square',
   }

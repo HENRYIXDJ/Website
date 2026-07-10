@@ -353,7 +353,7 @@ const logLines = [
 ];
 
 export function Preloader({ onComplete, onEnter }: { onComplete: () => void; onEnter?: () => void }) {
-  const [stage, setStage] = useState(-1);
+  const [stage, setStage] = useState(0);
   const [displayedLogs, setDisplayedLogs] = useState<string[]>([]);
 
   useEffect(() => {
@@ -361,7 +361,7 @@ export function Preloader({ onComplete, onEnter }: { onComplete: () => void; onE
     const t = setTimeout(() => {
       setStage(1);
       playClick(800, 'sine', 0.05);
-    }, 2000);
+    }, 1500);
     return () => clearTimeout(t);
   }, [stage]);
 
