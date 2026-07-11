@@ -462,6 +462,9 @@ export function Preloader({ onComplete, onEnter }: { onComplete: () => void; onE
                 playClick(400, 'sawtooth', 0.08);
                 if (onEnter) onEnter();
                 setStage(0);
+                if (typeof window !== 'undefined') {
+                  sessionStorage.setItem('hasVisited', 'true');
+                }
               }}
               className="px-6 py-2 border border-primary text-primary font-bold text-xs uppercase tracking-widest hover:bg-primary/10 transition-colors cursor-pointer select-none rounded bg-transparent active:scale-95"
             >

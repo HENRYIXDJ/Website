@@ -259,9 +259,17 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
 
   // ── Initialize Audio DSP and preload on mount ────────────────────────────
   useEffect(() => {
-    initAudioDSP();
+    // Defer heavy DSP initialization to avoid blocking FCP and Hydration
+    const initTimer = setTimeout(() => {
+      if (!audioContextRef.current) {
+        initAudioDSP();
+      }
+    }, 500);
 
     const unlockAudio = () => {
+      if (!audioContextRef.current) {
+        initAudioDSP();
+      }
       if (audioContextRef.current) {
         if (audioContextRef.current.state === 'suspended') {
           audioContextRef.current.resume().catch(() => {});
@@ -290,6 +298,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     document.addEventListener('touchstart', unlockAudio);
 
     return () => {
+      clearTimeout(initTimer);
       document.removeEventListener('click', unlockAudio);
       document.removeEventListener('touchstart', unlockAudio);
     };

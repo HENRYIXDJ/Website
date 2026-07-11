@@ -2553,23 +2553,33 @@ function MixArchive({
               HENRY IX // CDJ PORTFOLIO
             </span>
           </div>
-          <button
-            onClick={() => {
-              if (setActiveView) {
-                setActiveView(activeView === 'cdj' ? 'tracklist' : 'cdj');
-                playClick(800, 'sine', 0.02);
-              }
-            }}
-            className={cn(
-              "px-4 py-1.5 rounded-md font-mono text-[9px] md:text-[10px] tracking-widest font-black uppercase border transition-all cursor-pointer active:scale-95 flex items-center gap-2",
-              activeView === 'tracklist'
-                ? "bg-primary border-primary text-black shadow-[0_0_10px_rgba(216,22,63,0.4)]"
-                : "bg-zinc-950 border-zinc-900 text-zinc-400 hover:text-zinc-200 hover:border-zinc-700"
-            )}
-          >
-            <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", activeView === 'tracklist' ? "bg-black animate-pulse" : "bg-zinc-600")} />
-            {activeView === 'cdj' ? 'TRACKLIST VIEW' : 'DECK VIEW'}
-          </button>
+          <div className="relative flex p-1 bg-zinc-950/80 border border-zinc-900/80 rounded-lg backdrop-blur-md">
+            {(['cdj', 'tracklist'] as const).map((view) => (
+              <button
+                key={view}
+                onClick={() => {
+                  if (setActiveView && activeView !== view) {
+                    setActiveView(view);
+                    playClick(800, 'sine', 0.02);
+                  }
+                }}
+                className={cn(
+                  "relative px-4 py-1.5 rounded-md font-mono text-[9px] md:text-[10px] tracking-widest font-black uppercase transition-colors cursor-pointer flex items-center justify-center gap-2 w-32 md:w-36",
+                  activeView === view ? "text-black" : "text-zinc-400 hover:text-zinc-200"
+                )}
+              >
+                {activeView === view && (
+                  <motion.div
+                    layoutId="view-toggle-highlight"
+                    className="absolute inset-0 bg-primary rounded-md shadow-[0_0_10px_rgba(216,22,63,0.4)]"
+                    transition={{ type: "spring", bounce: 0.2, duration: 0.5 }}
+                  />
+                )}
+                <span className={cn("relative z-10 w-1.5 h-1.5 rounded-full shrink-0 transition-colors duration-300", activeView === view ? "bg-black animate-pulse" : "bg-zinc-600")} />
+                <span className="relative z-10">{view === 'cdj' ? 'DECK VIEW' : 'TRACKLIST VIEW'}</span>
+              </button>
+            ))}
+          </div>
         </div>
 
         {activeView === 'cdj' ? (
