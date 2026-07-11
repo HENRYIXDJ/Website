@@ -22,6 +22,14 @@ const HeroNode = React.memo(function HeroNode({
 }) {
   const { scrollY } = useScroll();
   const smoothScrollY = useSpring(scrollY, { stiffness: 100, damping: 20, mass: 0.2 });
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
   
   // Hardware-accelerated parallax layers
   const yText = useTransform(smoothScrollY, [0, 1000], [0, -350]);
@@ -41,7 +49,7 @@ const HeroNode = React.memo(function HeroNode({
       {/* Dynamic Parallax Background Grid */}
       <motion.div 
         className="absolute inset-0 pointer-events-none z-0 opacity-5"
-        style={{ y: yBackgroundGrid, willChange: "transform" }}
+        style={isMobile ? undefined : { y: yBackgroundGrid, willChange: "transform" }}
       >
         <div className="w-full h-full bg-[linear-gradient(to_right,#808080_1px,transparent_1px),linear-gradient(to_bottom,#808080_1px,transparent_1px)] bg-[size:5rem_5rem]" />
       </motion.div>
@@ -49,7 +57,7 @@ const HeroNode = React.memo(function HeroNode({
       {/* Premium Parallax Background Rings */}
       <motion.div
         className="absolute inset-0 z-0 flex items-center justify-center opacity-[0.03] pointer-events-none"
-        style={{ y: yBackgroundRing, rotate: rotateRing, willChange: "transform" }}
+        style={isMobile ? undefined : { y: yBackgroundRing, rotate: rotateRing, willChange: "transform" }}
       >
         <div className="w-[80vw] h-[80vw] border border-primary rounded-full absolute" />
         <div className="w-[60vw] h-[60vw] border border-dashed border-primary rounded-full absolute" />

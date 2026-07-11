@@ -174,16 +174,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
           const audio = new Audio();
           audio.crossOrigin = 'anonymous';
           audio.loop = false;
-          audio.preload = 'auto';
-
-          // Map initial URLs to pre-cache them
-          const state = useAudioStore.getState();
-          const deck = state.decks[deckId];
-          if (deck?.url) {
-            audio.src = new URL(deck.url, window.location.origin).href;
-            loadedUrlsRef.current[deckId] = deck.url;
-            audio.load();
-          }
+          audio.preload = 'none';
 
           audioElementsRef.current[deckId] = audio;
 
@@ -304,6 +295,26 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ── Defer audio loading until preloader is complete to prioritize LCP ────────────
+  useEffect(() => {
+    if (preloaderComplete) {
+      // Delay slightly to ensure LCP has painted and main thread is idle
+      const timer = setTimeout(() => {
+        [1, 2, 3, 4].forEach(deckId => {
+          const audio = audioElementsRef.current[deckId];
+          const deck = useAudioStore.getState().decks[deckId];
+          if (audio && deck?.url && !loadedUrlsRef.current[deckId]) {
+            audio.preload = 'auto';
+            audio.src = new URL(deck.url, window.location.origin).href;
+            loadedUrlsRef.current[deckId] = deck.url;
+            audio.load();
+          }
+        });
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [preloaderComplete]);
 
   // ── getQuantizedDelay (Micro-snapping for Quantized Cues/Play) ─────────────
   const getQuantizedDelay = (targetDeckId: number): number => {

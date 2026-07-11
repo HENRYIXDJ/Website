@@ -361,7 +361,7 @@ export function Preloader({ onComplete, onEnter }: { onComplete: () => void; onE
     const t = setTimeout(() => {
       setStage(1);
       playClick(800, 'sine', 0.05);
-    }, 1500);
+    }, 200);
     return () => clearTimeout(t);
   }, [stage]);
 
@@ -410,7 +410,7 @@ export function Preloader({ onComplete, onEnter }: { onComplete: () => void; onE
           currentLogs.push("");
         }
       }
-    }, 10);
+    }, 3);
 
     return () => clearInterval(interval);
   }, [stage]); // logLines is a module-level constant — safe to omit
@@ -470,6 +470,20 @@ export function Preloader({ onComplete, onEnter }: { onComplete: () => void; onE
             >
               ENTER KINGDOM
             </button>
+          </motion.div>
+        )}
+
+        {stage === 0 && (
+          <motion.div 
+            initial={{ opacity: 1, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, filter: 'blur(10px)' }}
+            transition={{ duration: 0.15 }}
+            className="fixed inset-0 flex justify-center items-center z-10 pointer-events-none"
+          >
+            <h1 className="glitch font-sans text-[clamp(2rem,15vw,15vw)] w-full font-bold tracking-wider leading-none text-center select-none text-primary whitespace-nowrap">
+              HENRY IX
+            </h1>
           </motion.div>
         )}
 
