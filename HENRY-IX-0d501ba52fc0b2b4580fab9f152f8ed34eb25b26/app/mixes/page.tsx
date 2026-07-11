@@ -1,11 +1,11 @@
 'use client';
 
-import CDJPortal from '@/components/CDJPortal';
+import MixPortfolio from '@/components/MixPortfolio';
 
 export default function MixesPage() {
   return (
-    <div className="min-h-screen bg-black text-white pt-16">
-      <CDJPortal isDepth={true} />
+    <div className="h-screen flex flex-col bg-black text-white pt-16">
+      <MixPortfolio isDepth={true} />
     </div>
   );
 }
