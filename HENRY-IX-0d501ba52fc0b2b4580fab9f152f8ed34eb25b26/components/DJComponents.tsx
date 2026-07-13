@@ -356,34 +356,31 @@ export function Preloader({ onComplete, onEnter }: { onComplete: () => void; onE
   const [stage, setStage] = useState(0);
   const [displayedLogs, setDisplayedLogs] = useState<string[]>([]);
 
+  // Start stage 0: Play CRT turn-on click and display horizontal line
   useEffect(() => {
-    if (stage !== 0) return;
-    const t = setTimeout(() => {
-      setStage(1);
+    if (stage === 0) {
       playClick(800, 'sine', 0.05);
-    }, 200);
-    return () => clearTimeout(t);
+      const t = setTimeout(() => {
+        setStage(1);
+      }, 200);
+      return () => clearTimeout(t);
+    }
   }, [stage]);
 
+  // Stage 1: Play click and transition to terminal vertical expansion
   useEffect(() => {
-    if (stage !== 1) return;
-    const t = setTimeout(() => {
-      setStage(2);
+    if (stage === 1) {
       playClick(600, 'triangle', 0.08);
-    }, 200);
-    return () => clearTimeout(t);
+      const t = setTimeout(() => {
+        setStage(2);
+      }, 150);
+      return () => clearTimeout(t);
+    }
   }, [stage]);
 
+  // Stage 2: Code logs type out character-by-character
   useEffect(() => {
     if (stage !== 2) return;
-    const t = setTimeout(() => {
-      setStage(3);
-    }, 150);
-    return () => clearTimeout(t);
-  }, [stage]);
-
-  useEffect(() => {
-    if (stage !== 3) return;
 
     let currentLineIdx = 0;
     let currentCharIdx = 0;
@@ -392,7 +389,7 @@ export function Preloader({ onComplete, onEnter }: { onComplete: () => void; onE
     const interval = setInterval(() => {
       if (currentLineIdx >= logLines.length) {
         clearInterval(interval);
-        setStage(4);
+        setStage(3); // transition to showing HENRY IX logo
         return;
       }
 
@@ -413,8 +410,20 @@ export function Preloader({ onComplete, onEnter }: { onComplete: () => void; onE
     }, 3);
 
     return () => clearInterval(interval);
-  }, [stage]); // logLines is a module-level constant — safe to omit
+  }, [stage]);
 
+  // Stage 3: Henry IX glitch logo displays
+  useEffect(() => {
+    if (stage === 3) {
+      playClick(1000, 'sawtooth', 0.06);
+      const t = setTimeout(() => {
+        setStage(4); // transition to degauss
+      }, 1200);
+      return () => clearTimeout(t);
+    }
+  }, [stage]);
+
+  // Stage 4: Degauss & Complete
   useEffect(() => {
     if (stage !== 4) return;
     
@@ -475,20 +484,6 @@ export function Preloader({ onComplete, onEnter }: { onComplete: () => void; onE
 
         {stage === 0 && (
           <motion.div 
-            initial={{ opacity: 1, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, filter: 'blur(10px)' }}
-            transition={{ duration: 0.15 }}
-            className="fixed inset-0 flex justify-center items-center z-10 pointer-events-none"
-          >
-            <h1 className="glitch font-sans text-[clamp(2rem,15vw,15vw)] w-full font-bold tracking-wider leading-none text-center select-none text-primary whitespace-nowrap">
-              HENRY IX
-            </h1>
-          </motion.div>
-        )}
-
-        {stage === 1 && (
-          <motion.div 
             animate={{ 
               scaleX: [0.1, 1, 0.95, 1],
               opacity: [0.3, 0.9, 0.7, 1] 
@@ -498,7 +493,7 @@ export function Preloader({ onComplete, onEnter }: { onComplete: () => void; onE
           />
         )}
 
-        {(stage === 2 || stage === 3) && (
+        {(stage === 1 || stage === 2) && (
           <motion.div
             initial={{ scaleY: 0.005, width: "80%" }}
             animate={{ 
@@ -517,8 +512,27 @@ export function Preloader({ onComplete, onEnter }: { onComplete: () => void; onE
                   <span>{log}</span>
                 </div>
               ))}
-              <span className="animate-pulse bg-primary w-2 h-4 inline-block mt-0.5" />
+              {stage === 2 && (
+                <span className="animate-pulse bg-primary w-2 h-4 inline-block mt-0.5" />
+              )}
             </div>
+          </motion.div>
+        )}
+
+        {stage === 3 && (
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.8, filter: 'blur(4px)' }}
+            animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
+            exit={{ opacity: 0, filter: 'blur(10px)' }}
+            transition={{ duration: 0.2, type: "spring", stiffness: 200, damping: 20 }}
+            className="fixed inset-0 flex justify-center items-center z-10 pointer-events-none"
+          >
+            <h1 
+              className="glitch glitch-active font-sans text-[clamp(2rem,15vw,15vw)] w-full font-bold tracking-wider leading-none text-center select-none text-primary whitespace-nowrap"
+              data-text="HENRY IX"
+            >
+              HENRY IX
+            </h1>
           </motion.div>
         )}
 
