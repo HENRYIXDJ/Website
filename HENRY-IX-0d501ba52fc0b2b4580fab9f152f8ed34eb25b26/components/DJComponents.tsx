@@ -389,7 +389,7 @@ export function Preloader({ onComplete, onEnter }: { onComplete: () => void; onE
     const interval = setInterval(() => {
       if (currentLineIdx >= logLines.length) {
         clearInterval(interval);
-        setStage(3); // transition to showing HENRY IX logo
+        setStage(3); // transition to degauss
         return;
       }
 
@@ -412,28 +412,27 @@ export function Preloader({ onComplete, onEnter }: { onComplete: () => void; onE
     return () => clearInterval(interval);
   }, [stage]);
 
-  // Stage 3: Henry IX glitch logo displays
+  // Stage 3: CRT Degauss flash & screen collapse effect
   useEffect(() => {
     if (stage === 3) {
-      playClick(1000, 'sawtooth', 0.06);
+      playDegauss();
       const t = setTimeout(() => {
-        setStage(4); // transition to degauss
-      }, 1200);
+        setStage(4); // transition to showing Henry IX logo card
+      }, 450);
       return () => clearTimeout(t);
     }
   }, [stage]);
 
-  // Stage 4: Degauss & Complete
+  // Stage 4: Henry IX glitch logo displays
   useEffect(() => {
-    if (stage !== 4) return;
-    
-    playDegauss();
-
-    const t = setTimeout(() => {
-      setStage(5);
-      onComplete();
-    }, 450);
-    return () => clearTimeout(t);
+    if (stage === 4) {
+      playClick(1000, 'sawtooth', 0.06);
+      const t = setTimeout(() => {
+        setStage(5); // preloader completes, fades out
+        onComplete();
+      }, 1200);
+      return () => clearTimeout(t);
+    }
   }, [stage, onComplete]);
 
   if (stage === 5) return null;
@@ -520,6 +519,19 @@ export function Preloader({ onComplete, onEnter }: { onComplete: () => void; onE
         )}
 
         {stage === 3 && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ 
+              opacity: [1, 0.8, 1, 0.4, 0.8, 0],
+              scaleY: [1, 0.05, 1, 0.01, 0],
+              skewX: [0, 15, -15, 5, 0]
+            }}
+            transition={{ duration: 0.7, ease: "easeInOut" }}
+            className="w-full h-full bg-cyan-100 shadow-[inset_0_0_100px_#22d3ee] z-50 flex items-center justify-center"
+          />
+        )}
+
+        {stage === 4 && (
           <motion.div 
             initial={{ opacity: 0, scale: 0.8, filter: 'blur(4px)' }}
             animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
@@ -534,19 +546,6 @@ export function Preloader({ onComplete, onEnter }: { onComplete: () => void; onE
               HENRY IX
             </h1>
           </motion.div>
-        )}
-
-        {stage === 4 && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ 
-              opacity: [1, 0.8, 1, 0.4, 0.8, 0],
-              scaleY: [1, 0.05, 1, 0.01, 0],
-              skewX: [0, 15, -15, 5, 0]
-            }}
-            transition={{ duration: 0.7, ease: "easeInOut" }}
-            className="w-full h-full bg-cyan-100 shadow-[inset_0_0_100px_#22d3ee] z-50 flex items-center justify-center"
-          />
         )}
       </motion.div>
     </AnimatePresence>
