@@ -32,7 +32,7 @@ export async function POST(req: Request) {
     const { data, error } = await resend.emails.send({
       from: 'Henry IX Website <contact@henryix.com>',
       to: ['contact@henryix.com'],
-      replyTo: email,
+      reply_to: email,
       subject: `New Booking Inquiry from ${name}`,
       text: `
 You have received a new message from your website contact form.
