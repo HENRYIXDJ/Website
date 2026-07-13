@@ -225,8 +225,8 @@ export default function LandingPage() {
     >
       {/* Seamless Page-Wide Parallax Background Grid */}
       <motion.div 
-        className="absolute inset-0 pointer-events-none z-0 opacity-5"
-        style={isMobile ? undefined : { y: yBackgroundGrid, willChange: "transform" }}
+        className="absolute inset-x-0 top-0 pointer-events-none z-0 opacity-5"
+        style={isMobile ? { bottom: -300 } : { y: yBackgroundGrid, bottom: -300, willChange: "transform" }}
       >
         <div className="w-full h-full bg-[linear-gradient(to_right,#808080_1px,transparent_1px),linear-gradient(to_bottom,#808080_1px,transparent_1px)] bg-[size:5rem_5rem]" />
       </motion.div>
