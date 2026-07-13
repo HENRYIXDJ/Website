@@ -37,6 +37,9 @@ const nextConfig: NextConfig = {
         ignored: /.*/,
       };
     }
+    config.plugins.push(new webpack.DefinePlugin({
+      'require.main.filename': JSON.stringify('/tmp/dummy.js'),
+    }));
     return config;
   },
 };
