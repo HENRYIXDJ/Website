@@ -22,47 +22,19 @@ const HeroNode = React.memo(function HeroNode({
 }) {
   const { scrollY } = useScroll();
   const smoothScrollY = useSpring(scrollY, { stiffness: 100, damping: 20, mass: 0.2 });
-  const [isMobile, setIsMobile] = useState(false);
 
-  useEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth < 768);
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
-  
   // Hardware-accelerated parallax layers
   const yText = useTransform(smoothScrollY, [0, 1000], [0, -350]);
   const scaleText = useTransform(smoothScrollY, [0, 800], [1, 0.82]);
   const opacityText = useTransform(smoothScrollY, [0, 600], [1, 0]);
   
   // Layered parallax background elements for 3D depth feeling
-  const yBackgroundRing = useTransform(smoothScrollY, [0, 1000], [0, 180]);
-  const yBackgroundGrid = useTransform(smoothScrollY, [0, 1000], [0, -80]);
-  const rotateRing = useTransform(smoothScrollY, [0, 1000], [0, 45]);
   const yFloatLeft = useTransform(smoothScrollY, [0, 1000], [0, -150]);
   const yFloatRight = useTransform(smoothScrollY, [0, 1000], [0, -220]);
 
   return (
     <section className="min-h-screen flex flex-col justify-center items-center w-full px-6 relative pt-20 overflow-hidden" style={{ scrollSnapAlign: 'start' }}>
       
-      {/* Dynamic Parallax Background Grid */}
-      <motion.div 
-        className="absolute inset-0 pointer-events-none z-0 opacity-5"
-        style={isMobile ? undefined : { y: yBackgroundGrid, willChange: "transform" }}
-      >
-        <div className="w-full h-full bg-[linear-gradient(to_right,#808080_1px,transparent_1px),linear-gradient(to_bottom,#808080_1px,transparent_1px)] bg-[size:5rem_5rem]" />
-      </motion.div>
-
-      {/* Premium Parallax Background Rings */}
-      <motion.div
-        className="absolute inset-0 z-0 flex items-center justify-center opacity-[0.03] pointer-events-none"
-        style={isMobile ? undefined : { y: yBackgroundRing, rotate: rotateRing, willChange: "transform" }}
-      >
-        <div className="w-[80vw] h-[80vw] border border-primary rounded-full absolute" />
-        <div className="w-[60vw] h-[60vw] border border-dashed border-primary rounded-full absolute" />
-      </motion.div>
-
       {/* Foreground decorative floating elements (Negative Parallax for high-end 3D depth) */}
       <motion.div 
         className="absolute bottom-1/4 left-8 md:left-16 font-mono text-[10px] tracking-[0.2em] opacity-20 text-primary z-10 select-none pointer-events-none hidden sm:flex flex-col gap-1.5"
@@ -230,6 +202,20 @@ export default function LandingPage() {
   const isDepth = true;
   const { preloaderComplete } = useAudio();
 
+  const { scrollY } = useScroll();
+  const smoothScrollY = useSpring(scrollY, { stiffness: 100, damping: 20, mass: 0.2 });
+  
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  const yBackgroundGrid = useTransform(smoothScrollY, [0, 2000], [0, -160]);
+
   return (
     <motion.main
       initial={{ opacity: 0 }}
@@ -237,23 +223,19 @@ export default function LandingPage() {
       transition={{ duration: 1.5 }}
       className="relative w-full bg-black text-zinc-100 min-h-[200vh] overflow-x-hidden selection:bg-primary/30 selection:text-primary font-sans"
     >
+      {/* Seamless Page-Wide Parallax Background Grid */}
+      <motion.div 
+        className="absolute inset-0 pointer-events-none z-0 opacity-5"
+        style={isMobile ? undefined : { y: yBackgroundGrid, willChange: "transform" }}
+      >
+        <div className="w-full h-full bg-[linear-gradient(to_right,#808080_1px,transparent_1px),linear-gradient(to_bottom,#808080_1px,transparent_1px)] bg-[size:5rem_5rem]" />
+      </motion.div>
+
       <HeroNode isDepth={isDepth} preloaderComplete={preloaderComplete} />
 
       {/* ── FULLSCREEN SECTION NAVIGATOR ── */}
-      <section className="min-h-screen flex flex-col items-center justify-center relative w-full overflow-hidden bg-black z-20" style={{ scrollSnapAlign: 'start' }}>
+      <section className="min-h-screen flex flex-col items-center justify-center relative w-full overflow-hidden z-20" style={{ scrollSnapAlign: 'start' }}>
         
-        {/* CDJ Teaser Background */}
-        <div className="absolute inset-0 z-0 flex items-center justify-center opacity-[0.03] pointer-events-none overflow-hidden mix-blend-screen">
-            <div className="w-[120vw] h-[120vw] border-[1px] border-primary rounded-full absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-[spin_60s_linear_infinite]" />
-            <div className="w-[100vw] h-[100vw] border-[1px] border-dashed border-primary rounded-full absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-[spin_40s_linear_infinite_reverse]" />
-            <div className="w-[80vw] h-[80vw] border-[2px] border-primary rounded-full absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
-        </div>
-
-        {/* Dynamic Background Grid matching Section 1 */}
-        <div className="absolute inset-0 pointer-events-none z-0 opacity-5">
-          <div className="w-full h-full bg-[linear-gradient(to_right,#808080_1px,transparent_1px),linear-gradient(to_bottom,#808080_1px,transparent_1px)] bg-[size:5rem_5rem]" />
-        </div>
-
         <motion.nav 
           variants={navContainerVariants}
           initial="hidden"
