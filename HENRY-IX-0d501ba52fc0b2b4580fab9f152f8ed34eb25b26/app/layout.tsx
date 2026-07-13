@@ -18,7 +18,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Henry IX - CDJ Portfolio',
+  title: 'HENRY IX',
   description: 'Interactive CDJ Portfolio for Henry IX',
 };
 
