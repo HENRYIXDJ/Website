@@ -2,20 +2,30 @@ import { NextResponse } from 'next/server';
 import { issueSignedToken, presignUrl } from '@vercel/blob';
 
 export async function GET() {
-  const token = process.env.BLOB_READ_WRITE_TOKEN;
+  let token = process.env.BLOB_READ_WRITE_TOKEN;
+  let resolvedKey = 'BLOB_READ_WRITE_TOKEN';
+  if (!token) {
+    const key = Object.keys(process.env).find(k => k.endsWith('_READ_WRITE_TOKEN'));
+    if (key) {
+      token = process.env[key];
+      resolvedKey = key;
+    }
+  }
+
   const envKeys = Object.keys(process.env);
   
   const debugInfo = {
     hasToken: !!token,
-    tokenPrefix: token ? token.substring(0, 15) : null,
+    resolvedKey,
+    tokenPrefix: token ? token.substring(0, 20) : null,
     tokenPartsCount: token ? token.split('_').length : 0,
     extractedStoreId: token ? token.split('_')[3] : null,
-    availableEnvKeys: envKeys.filter(k => k.includes('BLOB') || k.includes('STORE') || k.includes('VERCEL')),
+    availableEnvKeys: envKeys.filter(k => k.includes('BLOB') || k.includes('STORE') || k.includes('VERCEL') || k.includes('TOKEN') || k.includes('READ_WRITE')),
   };
 
   if (!token) {
     return NextResponse.json({
-      error: "BLOB_READ_WRITE_TOKEN is missing in Vercel environment variables.",
+      error: "BLOB_READ_WRITE_TOKEN (or dynamic fallback) is missing in Vercel environment variables.",
       debugInfo
     }, { status: 500 });
   }

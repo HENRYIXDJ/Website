@@ -9,7 +9,14 @@ async function handleAssetRequest(request: Request) {
     return new NextResponse('Missing url parameter', { status: 400 });
   }
 
-  const token = process.env.BLOB_READ_WRITE_TOKEN;
+  let token = process.env.BLOB_READ_WRITE_TOKEN;
+  if (!token) {
+    const key = Object.keys(process.env).find(k => k.endsWith('_READ_WRITE_TOKEN'));
+    if (key) {
+      token = process.env[key];
+    }
+  }
+
   if (!token) {
     console.error('BLOB_READ_WRITE_TOKEN is not configured');
     return new NextResponse('BLOB_READ_WRITE_TOKEN is not configured', { status: 500 });
