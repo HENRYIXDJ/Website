@@ -6,6 +6,7 @@ import { playClick, playLockoutBlip, setMutedGlobal } from '@/lib/audioUtils';
 import { trackWaveforms } from '@/app/trackWaveforms';
 import { useAudioStore, generateStaticPeaks } from '@/store/audioStore';
 import { audioEngine, type DeckDSPNodes } from '@/lib/AudioEngine';
+import { getStorageUrl } from '@/lib/storage';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -21,27 +22,27 @@ const formatTime = (secs: number) => {
 const proxyUrl = (url: string) => `/api/assets?url=${encodeURIComponent(url)}`;
 
 const getSessionImage = (title: string) => {
-  if (!title) return proxyUrl('https://tegbbmt42xpyzcnx.private.blob.vercel-storage.com/Mixes/Knight%20Club/KC%20Artwork/Session%201.jpg');
-  if (title.includes('Knight Club') && title.includes('Session 1')) return proxyUrl('https://tegbbmt42xpyzcnx.private.blob.vercel-storage.com/Mixes/Knight%20Club/KC%20Artwork/Session%201.jpg');
-  if (title.includes('Knight Club') && title.includes('Session 2')) return proxyUrl('https://tegbbmt42xpyzcnx.private.blob.vercel-storage.com/Mixes/Knight%20Club/KC%20Artwork/Session%202.jpg');
-  if (title.includes('Knight Club') && title.includes('Session 3')) return proxyUrl('https://tegbbmt42xpyzcnx.private.blob.vercel-storage.com/Mixes/Knight%20Club/KC%20Artwork/Session%203.jpg');
-  if (title.includes('Knight Club') && title.includes('Session 4')) return proxyUrl('https://tegbbmt42xpyzcnx.private.blob.vercel-storage.com/Mixes/Knight%20Club/KC%20Artwork/Session%204.jpg');
-  if (title.includes('Knight Club') && title.includes('Session 5')) return proxyUrl('https://tegbbmt42xpyzcnx.private.blob.vercel-storage.com/Mixes/Knight%20Club/KC%20Artwork/Session%205.jpg');
+  if (!title) return proxyUrl(getStorageUrl('/Mixes/Knight%20Club/KC%20Artwork/Session%201.jpg'));
+  if (title.includes('Knight Club') && title.includes('Session 1')) return proxyUrl(getStorageUrl('/Mixes/Knight%20Club/KC%20Artwork/Session%201.jpg'));
+  if (title.includes('Knight Club') && title.includes('Session 2')) return proxyUrl(getStorageUrl('/Mixes/Knight%20Club/KC%20Artwork/Session%202.jpg'));
+  if (title.includes('Knight Club') && title.includes('Session 3')) return proxyUrl(getStorageUrl('/Mixes/Knight%20Club/KC%20Artwork/Session%203.jpg'));
+  if (title.includes('Knight Club') && title.includes('Session 4')) return proxyUrl(getStorageUrl('/Mixes/Knight%20Club/KC%20Artwork/Session%204.jpg'));
+  if (title.includes('Knight Club') && title.includes('Session 5')) return proxyUrl(getStorageUrl('/Mixes/Knight%20Club/KC%20Artwork/Session%205.jpg'));
   
-  if (title.includes('Royal Court') && title.includes('Session 1')) return proxyUrl('https://tegbbmt42xpyzcnx.private.blob.vercel-storage.com/Mixes/Royal%20Court/RC%20Artwork/Royal%20Court%20Session%201%20Track%20Artwork.jpg');
-  if (title.includes('Royal Court') && title.includes('Session 2')) return proxyUrl('https://tegbbmt42xpyzcnx.private.blob.vercel-storage.com/Mixes/Royal%20Court/RC%20Artwork/Royal%20Court%20Session%202%20Track%20Artwork.jpg');
+  if (title.includes('Royal Court') && title.includes('Session 1')) return proxyUrl(getStorageUrl('/Mixes/Royal%20Court/RC%20Artwork/Royal%20Court%20Session%201%20Track%20Artwork.jpg'));
+  if (title.includes('Royal Court') && title.includes('Session 2')) return proxyUrl(getStorageUrl('/Mixes/Royal%20Court/RC%20Artwork/Royal%20Court%20Session%202%20Track%20Artwork.jpg'));
   
-  if (title.includes('Corner New Cross') && title.includes('Night 1')) return proxyUrl('https://tegbbmt42xpyzcnx.private.blob.vercel-storage.com/Mixes/Corner%20New%20Cross/CNC%20Artwork/CNC%20N1%20Artwork.png');
-  if (title.includes('Corner New Cross') && title.includes('Night 2')) return proxyUrl('https://tegbbmt42xpyzcnx.private.blob.vercel-storage.com/Mixes/Corner%20New%20Cross/CNC%20Artwork/CNC%20N2%20Artwork.png');
+  if (title.includes('Corner New Cross') && title.includes('Night 1')) return proxyUrl(getStorageUrl('/Mixes/Corner%20New%20Cross/CNC%20Artwork/CNC%20N1%20Artwork.png'));
+  if (title.includes('Corner New Cross') && title.includes('Night 2')) return proxyUrl(getStorageUrl('/Mixes/Corner%20New%20Cross/CNC%20Artwork/CNC%20N2%20Artwork.png'));
 
   // Fallbacks if just matching session
-  if (title.includes('Session 1')) return proxyUrl('https://tegbbmt42xpyzcnx.private.blob.vercel-storage.com/Mixes/Knight%20Club/KC%20Artwork/Session%201.jpg');
-  if (title.includes('Session 2')) return proxyUrl('https://tegbbmt42xpyzcnx.private.blob.vercel-storage.com/Mixes/Knight%20Club/KC%20Artwork/Session%202.jpg');
-  if (title.includes('Session 3')) return proxyUrl('https://tegbbmt42xpyzcnx.private.blob.vercel-storage.com/Mixes/Knight%20Club/KC%20Artwork/Session%203.jpg');
-  if (title.includes('Session 4')) return proxyUrl('https://tegbbmt42xpyzcnx.private.blob.vercel-storage.com/Mixes/Knight%20Club/KC%20Artwork/Session%204.jpg');
-  if (title.includes('Session 5')) return proxyUrl('https://tegbbmt42xpyzcnx.private.blob.vercel-storage.com/Mixes/Knight%20Club/KC%20Artwork/Session%205.jpg');
+  if (title.includes('Session 1')) return proxyUrl(getStorageUrl('/Mixes/Knight%20Club/KC%20Artwork/Session%201.jpg'));
+  if (title.includes('Session 2')) return proxyUrl(getStorageUrl('/Mixes/Knight%20Club/KC%20Artwork/Session%202.jpg'));
+  if (title.includes('Session 3')) return proxyUrl(getStorageUrl('/Mixes/Knight%20Club/KC%20Artwork/Session%203.jpg'));
+  if (title.includes('Session 4')) return proxyUrl(getStorageUrl('/Mixes/Knight%20Club/KC%20Artwork/Session%204.jpg'));
+  if (title.includes('Session 5')) return proxyUrl(getStorageUrl('/Mixes/Knight%20Club/KC%20Artwork/Session%205.jpg'));
   
-  return proxyUrl('https://tegbbmt42xpyzcnx.private.blob.vercel-storage.com/Mixes/Knight%20Club/KC%20Artwork/Session%201.jpg');
+  return proxyUrl(getStorageUrl('/Mixes/Knight%20Club/KC%20Artwork/Session%201.jpg'));
 };
 
 // ---------------------------------------------------------------------------
