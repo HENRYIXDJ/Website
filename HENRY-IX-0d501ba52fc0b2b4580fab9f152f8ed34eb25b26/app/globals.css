@@ -335,3 +335,9 @@ body::-webkit-scrollbar {
   transition: letter-spacing 0.2s ease, text-shadow 0.2s ease;
 }
 
+/* ─── SCROLL SNAPPING ────────────────────────────────────────── */
+html:has(.home-snap-container) {
+  scroll-snap-type: y mandatory;
+  scroll-behavior: smooth;
+}
+

@@ -1,6 +1,6 @@
 'use client';
 import React, { useState, useEffect, useRef } from 'react';
-import { motion, useScroll, useSpring, useTransform, AnimatePresence } from 'framer-motion';
+import { motion, useScroll, useSpring, useTransform, AnimatePresence, useMotionValueEvent } from 'framer-motion';
 import { useAudio } from '@/components/AudioProvider';
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -21,10 +21,10 @@ const HeroNode = React.memo(function HeroNode({
   preloaderComplete: boolean;
 }) {
   const { scrollY } = useScroll();
-  const smoothScrollY = useSpring(scrollY, { stiffness: 100, damping: 20, mass: 0.2 });
+  const smoothScrollY = useSpring(scrollY, { stiffness: 250, damping: 30, mass: 0.1 });
 
   // Dynamically calculate the target scale and Y offset to match the SiteHeader
-  const [targetDims, setTargetDims] = useState({ scale: 0.15, y: -300 });
+  const [targetDims, setTargetDims] = useState({ scale: 0.15, y: -300, range: 800 });
 
   useEffect(() => {
     const calculateDims = () => {
@@ -41,7 +41,7 @@ const HeroNode = React.memo(function HeroNode({
       // Header is 96px tall (h-24) at the top of the screen. Its center is 48px from the top.
       const targetY = -(height / 2) + 48;
 
-      setTargetDims({ scale: targetSize / initialSize, y: targetY });
+      setTargetDims({ scale: targetSize / initialSize, y: targetY, range: height });
     };
 
     calculateDims();
@@ -49,15 +49,22 @@ const HeroNode = React.memo(function HeroNode({
     return () => window.removeEventListener('resize', calculateDims);
   }, []);
 
+  const [isBigText, setIsBigText] = useState(true);
+  
+  useMotionValueEvent(scrollY, "change", (latest) => {
+    setIsBigText(latest < 100);
+  });
+
   // Hardware-accelerated parallax layers
-  const yText = useTransform(smoothScrollY, [0, 800], [0, targetDims.y]);
-  const scaleText = useTransform(smoothScrollY, [0, 800], [1, targetDims.scale]);
+  const opacityEnterKingdom = useTransform(scrollY, [0, 200], [1, 0]);
+  const yText = useTransform(smoothScrollY, [0, targetDims.range], [0, targetDims.y]);
+  const scaleText = useTransform(smoothScrollY, [0, targetDims.range], [1, targetDims.scale]);
   // Keep opacity at 1 so it doesn't fade out and acts as the sticky header
-  const opacityText = useTransform(smoothScrollY, [0, 800], [1, 1]);
+  const opacityText = useTransform(scrollY, [0, targetDims.range], [1, 1]);
   
   // Layered parallax background elements for 3D depth feeling
-  const yFloatLeft = useTransform(smoothScrollY, [0, 1000], [0, -150]);
-  const yFloatRight = useTransform(smoothScrollY, [0, 1000], [0, -220]);
+  const yFloatLeft = useTransform(smoothScrollY, [0, targetDims.range + 200], [0, -150]);
+  const yFloatRight = useTransform(smoothScrollY, [0, targetDims.range + 200], [0, -220]);
 
   return (
     <section className="min-h-screen flex flex-col justify-center items-center w-full px-6 relative pt-20 overflow-hidden" style={{ scrollSnapAlign: 'start' }}>
@@ -88,10 +95,17 @@ const HeroNode = React.memo(function HeroNode({
         style={{ y: yText, scale: scaleText, opacity: opacityText, willChange: "transform, opacity" }}
       >
         <motion.h1 
-          className="glitch font-sans text-[clamp(2rem,15vw,15vw)] w-full font-bold tracking-wider leading-none text-center select-none text-primary whitespace-nowrap magnetic-snap"
+          className="glitch font-sans text-[clamp(2rem,15vw,15vw)] w-full font-bold tracking-wider leading-none text-center select-none text-primary whitespace-nowrap magnetic-snap cursor-pointer pointer-events-auto"
+          onClick={() => {
+            if (isBigText) {
+              window.scrollTo({ top: window.innerHeight, behavior: 'smooth' });
+            } else {
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+          }}
           data-text="HENRY IX"
-          initial={{ y: 100, opacity: 0, scale: 0.95 }}
-          animate={preloaderComplete ? { y: 0, opacity: 1, scale: 1 } : { y: 100, opacity: 0, scale: 0.95 }}
+          initial={{ y: 100, opacity: 0, scale: 0.95, x: 0 }}
+          animate={preloaderComplete ? { y: 0, opacity: 1, scale: 1, x: 0 } : { y: 100, opacity: 0, scale: 0.95, x: 0 }}
           style={{ willChange: "transform, opacity" }}
           transition={{ type: "spring", stiffness: 300, damping: 25, delay: 0.15 }}
         >
@@ -100,23 +114,28 @@ const HeroNode = React.memo(function HeroNode({
       </motion.div>
 
       <motion.div 
-         initial={{ opacity: 0, y: 20 }}
-         animate={preloaderComplete ? { opacity: 0.4, y: 0 } : { opacity: 0, y: 20 }}
-         transition={{ ...SPRING_CONFIG, delay: 1.2 }}
-         whileHover={{ opacity: 1, y: 5 }}
-         className="absolute bottom-20 font-mono text-xs tracking-widest uppercase flex flex-col items-center gap-2 cursor-pointer z-10 magnetic-snap"
-         onClick={() => {
-           window.scrollTo({ top: window.innerHeight, behavior: 'smooth' });
-         }}
+        style={{ opacity: opacityEnterKingdom, willChange: 'opacity' }} 
+        className="absolute bottom-20 z-10 w-full flex justify-center pointer-events-none"
       >
-         <span>Enter Kingdom</span>
-         <motion.div 
-           animate={{ scaleY: [1, 1.5, 1] }} 
-           transition={{ duration: 2, repeat: Infinity, ease: "anticipate" }}
-           className="flex justify-center items-start origin-top h-8"
-         >
-           <div className={cn("w-[1px] h-full", isDepth ? "bg-zinc-500" : "bg-black")} />
-         </motion.div>
+        <motion.div 
+           initial={{ opacity: 0, y: 20 }}
+           animate={preloaderComplete ? { opacity: 0.4, y: 0 } : { opacity: 0, y: 20 }}
+           transition={{ ...SPRING_CONFIG, delay: 1.2 }}
+           whileHover={{ opacity: 1, y: 5 }}
+           className="font-mono text-xs tracking-widest uppercase flex flex-col items-center gap-2 cursor-pointer magnetic-snap pointer-events-auto"
+           onClick={() => {
+             window.scrollTo({ top: window.innerHeight, behavior: 'smooth' });
+           }}
+        >
+           <span>Enter Kingdom</span>
+           <motion.div 
+             animate={{ scaleY: [1, 1.5, 1] }} 
+             transition={{ duration: 2, repeat: Infinity, ease: "anticipate" }}
+             className="flex justify-center items-start origin-top h-8"
+           >
+             <div className={cn("w-[1px] h-full", isDepth ? "bg-zinc-500" : "bg-black")} />
+           </motion.div>
+        </motion.div>
       </motion.div>
     </section>
   );
@@ -175,14 +194,11 @@ const NavigationNode = React.memo(function NavigationNode() {
               onClick={() => playNavSwoosh()}
             >
               <span
-                className="glitch font-sans font-bold text-primary text-[clamp(2.5rem,10vw,8rem)] leading-none tracking-wider uppercase select-none transition-all duration-300 group-hover:tracking-[0.15em] inline-block"
+                className="glitch font-sans font-bold text-primary text-[clamp(2.5rem,10vw,8rem)] leading-none tracking-wider uppercase select-none inline-block"
                 data-text={label}
               >
                 {label}
               </span>
-              <div className="h-0 group-hover:h-6 overflow-hidden transition-all duration-300 opacity-0 group-hover:opacity-100 mt-2">
-                <span className="font-mono text-zinc-500 text-xs tracking-[0.3em] uppercase">{desc}</span>
-              </div>
             </Link>
           </motion.div>
         ))}
@@ -196,14 +212,44 @@ export default function LandingPage() {
   const { preloaderComplete } = useAudio();
 
   const { scrollY } = useScroll();
-  const smoothScrollY = useSpring(scrollY, { stiffness: 100, damping: 20, mass: 0.2 });
+  
+  useEffect(() => {
+    let isScrolling = false;
+    let scrollTimeout: NodeJS.Timeout;
+    
+    const handleWheel = (e: WheelEvent) => {
+      if (Math.abs(e.deltaY) < 15) return; // Ignore tiny trackpad micro-movements
+      
+      e.preventDefault(); // Stop normal slow scrolling
+      if (isScrolling) return;
+
+      isScrolling = true;
+      if (e.deltaY > 0) {
+        window.scrollTo({ top: window.innerHeight, behavior: 'smooth' });
+      } else {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+      
+      // Debounce to prevent momentum from re-triggering instantly
+      clearTimeout(scrollTimeout);
+      scrollTimeout = setTimeout(() => {
+        isScrolling = false;
+      }, 800);
+    };
+
+    window.addEventListener('wheel', handleWheel, { passive: false });
+    return () => {
+      window.removeEventListener('wheel', handleWheel);
+      clearTimeout(scrollTimeout);
+    };
+  }, []);
   
   return (
     <motion.main
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 1.5 }}
-      className="relative w-full text-zinc-100 min-h-[200vh] overflow-x-hidden selection:bg-primary/30 selection:text-primary font-sans"
+      className="home-snap-container relative w-full text-zinc-100 min-h-[200vh] overflow-x-hidden selection:bg-primary/30 selection:text-primary font-sans"
     >
       <HeroNode isDepth={isDepth} preloaderComplete={preloaderComplete} />
       <NavigationNode />
