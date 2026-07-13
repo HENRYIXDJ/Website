@@ -1,64 +1,65 @@
+import { issueSignedToken, presignUrl } from '@vercel/blob';
 import { NextResponse } from 'next/server';
 
-export async function GET(request: Request) {
+const PRIVATE_BLOB_HOST = 'tegbbmt42xpyzcnx.private.blob.vercel-storage.com';
+const SIGNED_URL_TTL_MS = 15 * 60 * 1000;
+
+type BlobOperation = 'get' | 'head';
+
+function getPrivateBlobPathname(request: Request): string | NextResponse {
   const { searchParams } = new URL(request.url);
-  const url = searchParams.get('url');
-  
-  if (!url) {
+  const sourceUrl = searchParams.get('url');
+
+  if (!sourceUrl) {
     return new NextResponse('Missing url parameter', { status: 400 });
   }
 
-  // Basic security check: make sure the url belongs to vercel-storage
-  if (!url.includes('.private.blob.vercel-storage.com')) {
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(sourceUrl);
+  } catch {
+    return new NextResponse('Invalid url parameter', { status: 400 });
+  }
+
+  if (parsedUrl.protocol !== 'https:' || parsedUrl.hostname !== PRIVATE_BLOB_HOST) {
     return new NextResponse('Invalid source domain', { status: 400 });
   }
 
-  const fetchHeaders = new Headers();
-  const rangeHeader = request.headers.get('range');
-  if (rangeHeader) {
-    fetchHeaders.set('range', rangeHeader);
+  return decodeURIComponent(parsedUrl.pathname.replace(/^\//, ''));
+}
+
+async function redirectToSignedBlobUrl(request: Request, operation: BlobOperation) {
+  const pathname = getPrivateBlobPathname(request);
+  if (pathname instanceof NextResponse) {
+    return pathname;
   }
-  fetchHeaders.set('Authorization', `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}`);
 
   try {
-    const response = await fetch(url, {
-      headers: fetchHeaders,
+    const validUntil = Date.now() + SIGNED_URL_TTL_MS;
+    const token = await issueSignedToken({
+      pathname,
+      operations: [operation],
+      validUntil,
+    });
+    const { presignedUrl } = await presignUrl(token, {
+      pathname,
+      operation,
+      validUntil,
     });
 
-    if (!response.ok && response.status !== 206) {
-      return new NextResponse(`Error fetching asset from source: ${response.statusText}`, { status: response.status });
-    }
-    
-    // Create headers based on the response
-    const headers = new Headers();
-    
-    const headersToForward = [
-      'content-type',
-      'content-length',
-      'content-range',
-      'accept-ranges',
-      'etag',
-      'last-modified'
-    ];
-
-    for (const headerName of headersToForward) {
-      const val = response.headers.get(headerName);
-      if (val) {
-        headers.set(headerName, val);
-      }
-    }
-    
-    // Cache control to make loading fast and browser-cachable
-    headers.set('cache-control', 'public, max-age=31536000, immutable');
-
-    // Return the response status and body stream directly
-    return new NextResponse(response.body, {
-      status: response.status,
-      statusText: response.statusText,
-      headers,
-    });
+    const response = NextResponse.redirect(presignedUrl, 307);
+    response.headers.set('cache-control', 'private, max-age=300');
+    return response;
   } catch (error) {
-    console.error('Error proxying asset:', error);
-    return new NextResponse('Error fetching asset', { status: 500 });
+    console.error('Error signing private blob URL:', error);
+    return new NextResponse('Error signing asset URL', { status: 500 });
   }
+}
+
+export async function GET(request: Request) {
+  return redirectToSignedBlobUrl(request, 'get');
+}
+
+export async function HEAD(request: Request) {
+  return redirectToSignedBlobUrl(request, 'head');
 }
