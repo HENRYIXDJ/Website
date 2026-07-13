@@ -122,29 +122,157 @@ const VinylStack = ({ group, onClick, playTick }: { group: any, onClick: () => v
 
 // RotaryKnob is imported from @/components/DJComponents
 
-// A custom responsive double-deck horizontal scrolling waveform monitor - Stacked Beatgrid Controller
-function DualDeckWaveforms({ 
-  leftDeck, 
-  rightDeck, 
+// Helper for deterministic hash to generate unique waveform for each track
+const hashCode = (str: string) => {
+  let hash = 0;
+  if (!str) return hash;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash << 5) - hash + str.charCodeAt(i);
+    hash |= 0;
+  }
+  return hash;
+};
+
+// Get waveform height at a specific time sample (deterministic audio fingerprinting mimicking real mastered EDM)
+const getWaveformHeight = (trackId: string, idx: number, duration = 300) => {
+  if (!trackId) return 0.02;
+  
+  // Convert idx back to track progress
+  const barTime = idx / 14;
+  const progress = Math.max(0, Math.min(1, barTime / duration));
+  
+  // Deterministic seed based on trackId
+  let hash = 0;
+  for (let i = 0; i < trackId.length; i++) {
+    hash = (hash << 5) - hash + trackId.charCodeAt(i);
+    hash |= 0;
+  }
+  const seed = Math.abs(hash);
+  
+  // Deterministic variations in structure based on seed
+  const introLen = 0.1 + (seed % 5) * 0.02; // 0.10 to 0.18
+  const breakdownStart = 0.45 + ((seed >> 2) % 5) * 0.03; // 0.45 to 0.57
+  const breakdownLen = 0.12 + ((seed >> 4) % 4) * 0.03; // 0.12 to 0.21
+  const secondDropStart = breakdownStart + breakdownLen;
+  const outroStart = 0.85 + ((seed >> 6) % 3) * 0.03; // 0.85 to 0.91
+  
+  let envelope = 0.15;
+  let transientFrequency = 8; // ticks spacing
+  let transientStrength = 0.4;
+  let compressIntensity = 1.0; // multiplier to represent high limiter density
+  
+  if (progress < introLen) {
+    // 1. Intro Beats: periodic kicks
+    envelope = 0.25;
+    transientFrequency = 14; // every 1 second
+    transientStrength = 0.65;
+    compressIntensity = 0.4;
+  } else if (progress < breakdownStart - 0.08) {
+    // 2. Main Drop 1 / Verse: dense beats
+    envelope = 0.7;
+    transientFrequency = 7; // double speed kicks
+    transientStrength = 0.35;
+    compressIntensity = 1.0;
+  } else if (progress < breakdownStart) {
+    // 3. Build-up 1: accelerating transients, ramping volume
+    const buildProgress = (progress - (breakdownStart - 0.08)) / 0.08;
+    envelope = 0.3 + 0.5 * buildProgress;
+    transientFrequency = buildProgress > 0.75 ? 2 : buildProgress > 0.4 ? 4 : 7;
+    transientStrength = 0.3 + 0.35 * buildProgress;
+    compressIntensity = 0.6 + 0.4 * buildProgress;
+  } else if (progress < secondDropStart - 0.08) {
+    // 4. Breakdown / Melodic section: quiet, no heavy transients
+    const breakProgress = (progress - breakdownStart) / (breakdownLen - 0.08);
+    envelope = 0.18 + 0.12 * Math.sin(breakProgress * Math.PI);
+    transientFrequency = 28; // very sparse
+    transientStrength = 0.15;
+    compressIntensity = 0.3;
+  } else if (progress < secondDropStart) {
+    // 5. Build-up 2: massive accelerating rise
+    const buildProgress = (progress - (secondDropStart - 0.08)) / 0.08;
+    envelope = 0.25 + 0.65 * buildProgress;
+    transientFrequency = buildProgress > 0.8 ? 1 : buildProgress > 0.5 ? 2 : 4;
+    transientStrength = 0.2 + 0.5 * buildProgress;
+    compressIntensity = 0.5 + 0.5 * buildProgress;
+  } else if (progress < outroStart) {
+    // 6. Main Climax / Drop 2: ultimate heavy compressed energy
+    envelope = 0.85;
+    transientFrequency = 7;
+    transientStrength = 0.25;
+    compressIntensity = 1.2;
+  } else {
+    // 7. Outro: sparse decay
+    const outroProgress = (progress - outroStart) / (1 - outroStart);
+    envelope = 0.4 * (1 - outroProgress) + 0.05;
+    transientFrequency = 14;
+    transientStrength = 0.5 * (1 - outroProgress);
+    compressIntensity = 0.4 * (1 - outroProgress);
+  }
+  
+  // Add multi-layered pink/white noise for real analog master tracks
+  const t1 = Math.sin(idx * 0.47 + seed) * 0.15;
+  const t2 = Math.cos(idx * 0.93 - seed) * 0.10;
+  const t3 = Math.sin(idx * 3.17 + (seed % 10)) * 0.06;
+  const t4 = Math.sin(idx * 9.71) * 0.04;
+  const spectralNoise = t1 + t2 + t3 + t4;
+  
+  // Add kick drum transient spikes (pure vertical impulses)
+  const isKick = (idx % transientFrequency === 0);
+  const kickTransient = isKick ? (transientStrength + 0.08 * Math.sin(idx * 1.3)) : 0.0;
+  
+  // Calculate final composite height
+  let value = (envelope + spectralNoise) * compressIntensity + kickTransient;
+  
+  // Add extra random tiny organic micro-variation (simulate minor ambient instruments)
+  const organicJitter = Math.sin(idx * 0.015) * 0.05 + (Math.sin(idx * 12.5) * 0.02);
+  value += organicJitter;
+  
+  // Apply compressor ceiling to emulate dynamic range compression of masters
+  const compressed = value > 0.75 
+    ? 0.75 + (value - 0.75) * 0.25 // smooth soft-knee limiter
+    : value;
+    
+  // Return clamped amplitude
+  return Math.max(0.02, Math.min(0.98, compressed));
+};
+
+function SingleDeckWaveform({
+  deckId,
+  deck,
   isDepth,
   audioElementsRef
-}: { 
-  leftDeck: any; 
-  rightDeck: any; 
+}: {
+  deckId: 1 | 2 | 3 | 4;
+  deck: any;
   isDepth: boolean;
   audioElementsRef?: React.RefObject<Record<number, HTMLAudioElement | null>>;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const leftDeckRef = useRef(leftDeck);
-  const rightDeckRef = useRef(rightDeck);
-  const hashCacheRef = useRef<Record<string, { f1: number; f2: number; f3: number }>>({});
+  const deckRef = useRef(deck);
+  const smoothProgressRef = useRef<number>(deck?.progress || 0);
+  const lastReportedProgressRef = useRef<number>(deck?.progress || 0);
 
-  const lastFrameTimeRef = useRef<number>(0);
-  const smoothProgressRef = useRef<Record<number, number>>({ 1: 0, 2: 0, 3: 0, 4: 0 });
-  const lastReportedProgressRef = useRef<Record<number, number>>({ 1: 0, 2: 0, 3: 0, 4: 0 });
+  // References for ultra-smooth jitter-free interpolation
+  const isPlayingRef = useRef<boolean>(false);
+  const anchorAudioTimeRef = useRef<number>(0);
+  const anchorSystemTimeRef = useRef<number>(0);
+
+  // Subscribe to Zustand state for real-time phase sync calculations
+  const allDecks = useAudioStore(s => s.decks);
+  const leftActiveDeck = useAudioStore(s => s.leftActiveDeck);
+  const rightActiveDeck = useAudioStore(s => s.rightActiveDeck);
+
+  const allDecksRef = useRef(allDecks);
+  const leftActiveDeckRef = useRef(leftActiveDeck);
+  const rightActiveDeckRef = useRef(rightActiveDeck);
+
+  useEffect(() => {
+    allDecksRef.current = allDecks;
+    leftActiveDeckRef.current = leftActiveDeck;
+    rightActiveDeckRef.current = rightActiveDeck;
+  }, [allDecks, leftActiveDeck, rightActiveDeck]);
 
   const [dragState, setDragState] = useState<{
-    deckNum: number;
     startX: number;
     startTime: number;
     duration: number;
@@ -158,125 +286,11 @@ function DualDeckWaveforms({
     dragStateRef.current = dragState;
   }, [dragState]);
 
-  // Sync refs to prevent canvas useEffect re-triggering and starving browser repaint
   useEffect(() => {
-    leftDeckRef.current = leftDeck;
-    rightDeckRef.current = rightDeck;
-  }, [leftDeck, rightDeck]);
+    deckRef.current = deck;
+  }, [deck]);
 
-  // Helper for deterministic hash to generate unique waveform for each track
-  const hashCode = (str: string) => {
-    let hash = 0;
-    if (!str) return hash;
-    for (let i = 0; i < str.length; i++) {
-      hash = (hash << 5) - hash + str.charCodeAt(i);
-      hash |= 0;
-    }
-    return hash;
-  };
-
-  // Get waveform height at a specific time sample (deterministic audio fingerprinting mimicking real mastered EDM)
-  const getWaveformHeight = (trackId: string, idx: number, duration = 300) => {
-    if (!trackId) return 0.02;
-    
-    // Convert idx back to track progress
-    const barTime = idx / 14;
-    const progress = Math.max(0, Math.min(1, barTime / duration));
-    
-    // Deterministic seed based on trackId
-    let hash = 0;
-    for (let i = 0; i < trackId.length; i++) {
-      hash = (hash << 5) - hash + trackId.charCodeAt(i);
-      hash |= 0;
-    }
-    const seed = Math.abs(hash);
-    
-    // Deterministic variations in structure based on seed
-    const introLen = 0.1 + (seed % 5) * 0.02; // 0.10 to 0.18
-    const breakdownStart = 0.45 + ((seed >> 2) % 5) * 0.03; // 0.45 to 0.57
-    const breakdownLen = 0.12 + ((seed >> 4) % 4) * 0.03; // 0.12 to 0.21
-    const secondDropStart = breakdownStart + breakdownLen;
-    const outroStart = 0.85 + ((seed >> 6) % 3) * 0.03; // 0.85 to 0.91
-    
-    let envelope = 0.15;
-    let transientFrequency = 8; // ticks spacing
-    let transientStrength = 0.4;
-    let compressIntensity = 1.0; // multiplier to represent high limiter density
-    
-    if (progress < introLen) {
-      // 1. Intro Beats: periodic kicks
-      envelope = 0.25;
-      transientFrequency = 14; // every 1 second
-      transientStrength = 0.65;
-      compressIntensity = 0.4;
-    } else if (progress < breakdownStart - 0.08) {
-      // 2. Main Drop 1 / Verse: dense beats
-      envelope = 0.7;
-      transientFrequency = 7; // double speed kicks
-      transientStrength = 0.35;
-      compressIntensity = 1.0;
-    } else if (progress < breakdownStart) {
-      // 3. Build-up 1: accelerating transients, ramping volume
-      const buildProgress = (progress - (breakdownStart - 0.08)) / 0.08;
-      envelope = 0.3 + 0.5 * buildProgress;
-      transientFrequency = buildProgress > 0.75 ? 2 : buildProgress > 0.4 ? 4 : 7;
-      transientStrength = 0.3 + 0.35 * buildProgress;
-      compressIntensity = 0.6 + 0.4 * buildProgress;
-    } else if (progress < secondDropStart - 0.08) {
-      // 4. Breakdown / Melodic section: quiet, no heavy transients
-      const breakProgress = (progress - breakdownStart) / (breakdownLen - 0.08);
-      envelope = 0.18 + 0.12 * Math.sin(breakProgress * Math.PI);
-      transientFrequency = 28; // very sparse
-      transientStrength = 0.15;
-      compressIntensity = 0.3;
-    } else if (progress < secondDropStart) {
-      // 5. Build-up 2: massive accelerating rise
-      const buildProgress = (progress - (secondDropStart - 0.08)) / 0.08;
-      envelope = 0.25 + 0.65 * buildProgress;
-      transientFrequency = buildProgress > 0.8 ? 1 : buildProgress > 0.5 ? 2 : 4;
-      transientStrength = 0.2 + 0.5 * buildProgress;
-      compressIntensity = 0.5 + 0.5 * buildProgress;
-    } else if (progress < outroStart) {
-      // 6. Main Climax / Drop 2: ultimate heavy compressed energy
-      envelope = 0.85;
-      transientFrequency = 7;
-      transientStrength = 0.25;
-      compressIntensity = 1.2;
-    } else {
-      // 7. Outro: sparse decay
-      const outroProgress = (progress - outroStart) / (1 - outroStart);
-      envelope = 0.4 * (1 - outroProgress) + 0.05;
-      transientFrequency = 14;
-      transientStrength = 0.5 * (1 - outroProgress);
-      compressIntensity = 0.4 * (1 - outroProgress);
-    }
-    
-    // Add multi-layered pink/white noise for real analog master tracks
-    const t1 = Math.sin(idx * 0.47 + seed) * 0.15;
-    const t2 = Math.cos(idx * 0.93 - seed) * 0.10;
-    const t3 = Math.sin(idx * 3.17 + (seed % 10)) * 0.06;
-    const t4 = Math.sin(idx * 9.71) * 0.04;
-    const spectralNoise = t1 + t2 + t3 + t4;
-    
-    // Add kick drum transient spikes (pure vertical impulses)
-    const isKick = (idx % transientFrequency === 0);
-    const kickTransient = isKick ? (transientStrength + 0.08 * Math.sin(idx * 1.3)) : 0.0;
-    
-    // Calculate final composite height
-    let value = (envelope + spectralNoise) * compressIntensity + kickTransient;
-    
-    // Add extra random tiny organic micro-variation (simulate minor ambient instruments)
-    const organicJitter = Math.sin(idx * 0.015) * 0.05 + (Math.sin(idx * 12.5) * 0.02);
-    value += organicJitter;
-    
-    // Apply compressor ceiling to emulate dynamic range compression of masters
-    const compressed = value > 0.75 
-      ? 0.75 + (value - 0.75) * 0.25 // smooth soft-knee limiter
-      : value;
-      
-    // Return clamped amplitude
-    return Math.max(0.02, Math.min(0.98, compressed));
-  };
+  const pixelsPerSecond = 55;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -288,445 +302,387 @@ function DualDeckWaveforms({
     let frameId: number;
 
     const render = () => {
-      // Ensure canvas matches dynamic container dimensions
-      const width = canvas.parentElement?.clientWidth || 800;
-      const height = 100;
-      if (canvas.width !== width || canvas.height !== height) {
-        canvas.width = width;
-        canvas.height = height;
+      const currentDeck = deckRef.current;
+      if (!currentDeck) {
+        frameId = requestAnimationFrame(render);
+        return;
       }
 
-      ctx.clearRect(0, 0, width, height);
+      const width = canvas.parentElement?.clientWidth || 300;
+      const height = 48;
+      const dpr = window.devicePixelRatio || 1;
+
+      if (canvas.width !== width * dpr || canvas.height !== height * dpr) {
+        canvas.width = width * dpr;
+        canvas.height = height * dpr;
+        canvas.style.width = `${width}px`;
+        canvas.style.height = `${height}px`;
+      }
+
+      ctx.clearRect(0, 0, width * dpr, height * dpr);
+
+      // Support High-DPI screen drawing scale
+      ctx.save();
+      ctx.scale(dpr, dpr);
 
       // 1. CHASSIS BACKGROUND
-      ctx.fillStyle = '#070709'; // Deep dark chassis background
+      ctx.fillStyle = '#070709'; 
       ctx.fillRect(0, 0, width, height);
 
       // Horizontal central splits
       ctx.strokeStyle = '#18181b';
       ctx.lineWidth = 1;
-      
-      const topLaneHeight = 44;
-      const bottomLaneHeight = 44;
-      const gutterHeight = 12;
-      const topLaneY = 0;
-      const gutterY = topLaneHeight;
-      const bottomLaneY = gutterY + gutterHeight;
-
-      // Draw gutters
-      ctx.fillStyle = '#040405';
-      ctx.fillRect(0, gutterY, width, gutterHeight);
-      ctx.strokeStyle = '#1a1a1f';
       ctx.beginPath();
-      ctx.moveTo(0, gutterY);
-      ctx.lineTo(width, gutterY);
-      ctx.moveTo(0, gutterY + gutterHeight);
-      ctx.lineTo(width, gutterY + gutterHeight);
+      ctx.moveTo(0, 0);
+      ctx.lineTo(width, 0);
+      ctx.moveTo(0, height);
+      ctx.lineTo(width, height);
       ctx.stroke();
 
-      // Middle Sync Beat-align guidelines
-      ctx.strokeStyle = '#27272a';
-      ctx.beginPath();
-      ctx.moveTo(width / 2, 0);
-      ctx.lineTo(width / 2, height);
-      ctx.stroke();
+      const sysTime = performance.now();
 
-      const pixelsPerSecond = 55;
-      const barWidth = 4;
-      const gap = 1;
-      const step = barWidth + gap;
+      // Calculate smooth progress
+      let targetProgress = currentDeck.progress || 0;
+      let isCurrentlyPlaying = currentDeck.isPlaying;
 
-      const now = performance.now();
-      if (!lastFrameTimeRef.current) {
-        lastFrameTimeRef.current = now;
+      if (!currentDeck.scMode && audioElementsRef?.current) {
+        const audio = audioElementsRef.current[deckId];
+        if (audio && audio.src) {
+          targetProgress = audio.currentTime;
+          isCurrentlyPlaying = !audio.paused;
+        }
       }
-      const rawDt = (now - lastFrameTimeRef.current) / 1000;
-      const dt = Math.min(0.1, rawDt); // clamp to avoid giant jumps
-      lastFrameTimeRef.current = now;
 
-      // Calculate smooth progresses for both decks
-      const getSmoothProgress = (deck: any, dtVal: number) => {
-        if (!deck) return 0;
-        const deckNum = deck.deckNum;
-        
-        let targetProgress = deck.progress || 0;
-        let isCurrentlyPlaying = deck.isPlaying;
+      const pitchModifier = 1 + (currentDeck.pitch || 0) / 100;
 
-        if (!deck.scMode && audioElementsRef?.current) {
-          const audio = audioElementsRef.current[deckNum];
-          if (audio && audio.src) {
-            targetProgress = audio.currentTime;
-            isCurrentlyPlaying = !audio.paused;
+      // Ultra-smooth interpolation using high-resolution monotonic system clock
+      if (isCurrentlyPlaying) {
+        if (!isPlayingRef.current) {
+          isPlayingRef.current = true;
+          anchorAudioTimeRef.current = targetProgress;
+          anchorSystemTimeRef.current = sysTime;
+        }
+
+        const elapsed = (sysTime - anchorSystemTimeRef.current) / 1000;
+        let estProgress = anchorAudioTimeRef.current + elapsed * pitchModifier;
+
+        const drift = targetProgress - estProgress;
+        if (Math.abs(drift) > 0.3) {
+          // Seek/Jump event: instantly snap anchors
+          anchorAudioTimeRef.current = targetProgress;
+          anchorSystemTimeRef.current = sysTime;
+          estProgress = targetProgress;
+        } else {
+          // Soft nudge: adjusts the system reference time back into alignment
+          // to absorb any clock tick jitter from the browser's audio thread
+          anchorSystemTimeRef.current += drift * 0.05 * 1000;
+        }
+
+        smoothProgressRef.current = estProgress;
+      } else {
+        isPlayingRef.current = false;
+        anchorAudioTimeRef.current = targetProgress;
+        anchorSystemTimeRef.current = sysTime;
+        smoothProgressRef.current = targetProgress;
+      }
+
+      const progress = smoothProgressRef.current;
+
+      const isLocked = currentDeck.id === 'locked';
+
+      // Phase sync calculation (Deck A vs Deck B / Left vs Right active deck)
+      let isSyncGlow = false;
+      const otherActiveDeckId = (deckId === 1 || deckId === 2) ? rightActiveDeckRef.current : leftActiveDeckRef.current;
+      const otherDeck = allDecksRef.current[otherActiveDeckId];
+      if (otherDeck && otherDeck.id !== 'locked' && currentDeck.id !== 'locked') {
+        const bpmCurrent = currentDeck.bpm * (1 + (currentDeck.pitch || 0) / 100);
+        const bpmOther = otherDeck.bpm * (1 + (otherDeck.pitch || 0) / 100);
+
+        const beatIntervalCurrent = 60 / bpmCurrent;
+        const beatIntervalOther = 60 / bpmOther;
+
+        // Get actual progress of other deck (considering raw elements if loaded locally)
+        let progressOther = otherDeck.progress || 0;
+        if (!otherDeck.scMode && audioElementsRef?.current) {
+          const audioOther = audioElementsRef.current[otherActiveDeckId];
+          if (audioOther && audioOther.src) {
+            progressOther = audioOther.currentTime;
           }
         }
 
-        const currentSmooth = smoothProgressRef.current[deckNum] ?? targetProgress;
-        const reportedLast = lastReportedProgressRef.current[deckNum] ?? targetProgress;
+        const phaseCurrent = ((progress - (currentDeck.firstBeatOffset || 0)) % beatIntervalCurrent) / beatIntervalCurrent;
+        const phaseOther = ((progressOther - (otherDeck.firstBeatOffset || 0)) % beatIntervalOther) / beatIntervalOther;
+
+        const isBothPlaying = isCurrentlyPlaying && (otherDeck.isPlaying || (audioElementsRef?.current?.[otherActiveDeckId] && !audioElementsRef.current[otherActiveDeckId]?.paused));
+
+        if (isBothPlaying) {
+          const diff = Math.abs(phaseCurrent - phaseOther);
+          isSyncGlow = diff < 0.08 || Math.abs(diff - 1) < 0.08 || Math.abs(diff + 1) < 0.08;
+        }
+      }
+
+      if (isLocked) {
+        ctx.fillStyle = 'rgba(234, 179, 8, 0.02)';
+        ctx.fillRect(0, 0, width, height);
         
-        const hasJumped = Math.abs(targetProgress - reportedLast) > 0.3 || Math.abs(currentSmooth - targetProgress) > 0.5;
-
-        if (hasJumped) {
-          smoothProgressRef.current[deckNum] = targetProgress;
-          lastReportedProgressRef.current[deckNum] = targetProgress;
-          return targetProgress;
+        ctx.strokeStyle = 'rgba(234, 179, 8, 0.05)';
+        ctx.lineWidth = 3;
+        const stripeWidth = 24;
+        const stripeOffset = (progress * 15) % stripeWidth;
+        ctx.beginPath();
+        for (let x = -stripeWidth; x < width + stripeWidth; x += stripeWidth) {
+          ctx.moveTo(x + stripeOffset, 0);
+          ctx.lineTo(x + stripeOffset + 12, height);
         }
+        ctx.stroke();
 
-        lastReportedProgressRef.current[deckNum] = targetProgress;
-
-        if (isCurrentlyPlaying) {
-          const pitchModifier = 1 + (deck.pitch || 0) / 100;
-          let nextSmooth = currentSmooth + dtVal * pitchModifier;
-
-          // Nudge drift correction
-          const drift = targetProgress - nextSmooth;
-          nextSmooth += drift * 0.05;
-
-          smoothProgressRef.current[deckNum] = nextSmooth;
-          return nextSmooth;
-        } else {
-          smoothProgressRef.current[deckNum] = targetProgress;
-          return targetProgress;
-        }
-      };
-
-      const progressLeft = getSmoothProgress(leftDeckRef.current, dt);
-      const progressRight = getSmoothProgress(rightDeckRef.current, dt);
-
-      // Check phase alignment (kick drums match)
-      const bpmLeft = leftDeckRef.current ? leftDeckRef.current.bpm * (1 + (leftDeckRef.current.pitch || 0) / 100) : 120;
-      const bpmRight = rightDeckRef.current ? rightDeckRef.current.bpm * (1 + (rightDeckRef.current.pitch || 0) / 100) : 120;
-
-      const beatIntervalLeft = 60 / bpmLeft;
-      const beatIntervalRight = 60 / bpmRight;
-
-      const phaseLeft = (progressLeft % beatIntervalLeft) / beatIntervalLeft;
-      const phaseRight = (progressRight % beatIntervalRight) / beatIntervalRight;
-      const isPhaseAligned = Math.abs(phaseLeft - phaseRight) < 0.08 || 
-                             Math.abs(phaseLeft - phaseRight - 1) < 0.08 || 
-                             Math.abs(phaseLeft - phaseRight + 1) < 0.08;
-
-      const drawDeckWave = (deck: any, progress: number, laneY: number, laneH: number, isLeft: boolean) => {
-        if (!deck) return;
-        const isLocked = deck.id === 'locked';
-
-        ctx.save();
-        ctx.translate(0, laneY);
-
-        // Grid lines behind waveform
-        ctx.strokeStyle = 'rgba(39, 39, 42, 0.2)';
-        ctx.lineWidth = 0.5;
-
-        // Current adjusted BPM
-        const currentBpm = deck.bpm * (1 + (deck.pitch || 0) / 100);
+        ctx.fillStyle = 'rgba(234, 179, 8, 0.4)';
+        ctx.font = 'bold 8px monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText("COMING SOON", width / 2, height / 2);
+      } else {
+        // Draw Beatgrid lines and BAR numbers
+        const currentBpm = currentDeck.bpm * (1 + (currentDeck.pitch || 0) / 100);
         const beatInterval = 60 / currentBpm;
         const beatFreq = (2 * Math.PI) / beatInterval;
-
         const centerX = width / 2;
-
-        const offset = deck.firstBeatOffset || 0;
+        const offset = currentDeck.firstBeatOffset || 0;
         const visibleRangeSec = centerX / pixelsPerSecond;
         const startBeat = Math.floor((progress - offset - visibleRangeSec) / beatInterval);
         const endBeat = Math.ceil((progress - offset + visibleRangeSec) / beatInterval);
 
-        // Draw Beatgrid lines and BAR numbers / ticks
         for (let b = startBeat; b <= endBeat; b++) {
           const beatTime = offset + b * beatInterval;
-          const x = centerX + (beatTime - progress) * pixelsPerSecond;
+          const x = Math.round(centerX + (beatTime - progress) * pixelsPerSecond);
           if (x >= 0 && x <= width) {
             const isMajorBar = b % 4 === 0;
-            ctx.strokeStyle = isMajorBar ? 'rgba(255, 255, 255, 0.22)' : 'rgba(255, 255, 255, 0.07)';
-            ctx.lineWidth = isMajorBar ? 1.5 : 0.75;
+            ctx.strokeStyle = isMajorBar ? 'rgba(255, 255, 255, 0.15)' : 'rgba(255, 255, 255, 0.05)';
+            ctx.lineWidth = isMajorBar ? 1.25 : 0.5;
             ctx.beginPath();
-            ctx.moveTo(x, 2);
-            ctx.lineTo(x, laneH - 2);
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, height);
             ctx.stroke();
 
-            // Draw BAR label or small triangle ticks on outer boundaries
             if (isMajorBar && b >= 0) {
-              ctx.fillStyle = 'rgba(255, 255, 255, 1)';
-              ctx.font = 'bold 8.5px monospace';
-              ctx.shadowColor = 'rgba(0,0,0,1)';
-              ctx.shadowBlur = 4;
+              ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+              ctx.font = 'bold 7.5px monospace';
               ctx.textAlign = 'center';
               ctx.textBaseline = 'top';
-              const barNum = Math.floor(b / 4) + 1;
-              ctx.fillText(`BAR ${barNum}`, x, 3);
-              ctx.shadowBlur = 0; // reset
+              ctx.fillText(`BAR ${Math.floor(b / 4) + 1}`, x, 2);
             } else {
-              ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+              // Non-major ticks on top and bottom boundaries
+              ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
               ctx.beginPath();
-              if (isLeft) {
-                // Top boundary pointing down
-                ctx.moveTo(x - 2, 0);
-                ctx.lineTo(x + 2, 0);
-                ctx.lineTo(x, 3);
-              } else {
-                // Bottom boundary pointing up
-                ctx.moveTo(x - 2, laneH);
-                ctx.lineTo(x + 2, laneH);
-                ctx.lineTo(x, laneH - 3);
-              }
+              // Top boundary tick
+              ctx.moveTo(x - 2, 0);
+              ctx.lineTo(x + 2, 0);
+              ctx.lineTo(x, 2.5);
+              ctx.fill();
+
+              // Bottom boundary tick
+              ctx.beginPath();
+              ctx.moveTo(x - 2, height);
+              ctx.lineTo(x + 2, height);
+              ctx.lineTo(x, height - 2.5);
               ctx.fill();
             }
           }
         }
 
-        if (isLocked) {
-          ctx.fillStyle = 'rgba(234, 179, 8, 0.02)';
-          ctx.fillRect(0, 0, width, laneH);
+        // Draw Waveform peaks
+        const halfH = height / 2;
+        const PEAK_DENSITY = 4;
+
+        const getPeakHeight = (time: number) => {
+          if (time < 0 || time > (currentDeck.duration || 300)) return 0.02;
+          if (currentDeck.waveformPeaks && currentDeck.waveformPeaks.length > 0) {
+            const exactIdx = time * PEAK_DENSITY;
+            const idxBase = Math.floor(exactIdx);
+            const fract = exactIdx - idxBase;
+            
+            const p0 = currentDeck.waveformPeaks[idxBase] !== undefined 
+              ? currentDeck.waveformPeaks[idxBase] 
+              : 0.02;
+            const p1 = currentDeck.waveformPeaks[idxBase + 1] !== undefined 
+              ? currentDeck.waveformPeaks[idxBase + 1] 
+              : p0;
+            return p0 + (p1 - p0) * fract;
+          } else {
+            const idx = Math.floor(time * 14);
+            const seedStr = currentDeck.link || currentDeck.id || '';
+            return getWaveformHeight(seedStr, idx, currentDeck.duration || 300);
+          }
+        };
+
+        const points: { drawX: number; lowH: number; midH: number; highH: number }[] = [];
+
+        for (let drawX = 0; drawX < width; drawX += 2) {
+          const barTime = progress + (drawX - centerX) / pixelsPerSecond;
+          const hVal = getPeakHeight(barTime);
+
+          const eqLow = currentDeck.eqLow ?? 50;
+          const eqMid = currentDeck.eqMid ?? 50;
+          const eqHi = currentDeck.eqHi ?? 50;
+          const volume = currentDeck.volume ?? 80;
           
-          ctx.strokeStyle = 'rgba(234, 179, 8, 0.1)';
-          ctx.lineWidth = 4;
-          const stripeWidth = 24;
-          const stripeOffset = (progress * 15) % stripeWidth;
-          ctx.beginPath();
-          for (let x = -stripeWidth; x < width + stripeWidth; x += stripeWidth) {
-            ctx.moveTo(x + stripeOffset, 0);
-            ctx.lineTo(x + stripeOffset + 12, laneH);
-          }
-          ctx.stroke();
+          const lowMod = eqLow / 50;
+          const midMod = eqMid / 50;
+          const hiMod = eqHi / 50;
+          const volumeMod = volume / 80;
+          
+          const baseLow = hVal * (0.6 + 0.4 * Math.abs(Math.cos((barTime - offset) * beatFreq)));
+          const baseMid = hVal * (0.55 + 0.45 * Math.abs(Math.cos((barTime - offset) * 1.8 + 0.5)));
+          const baseHigh = hVal * (0.4 + 0.6 * Math.abs(Math.cos((barTime - offset) * beatFreq * 4 + 1.2)));
 
-          ctx.fillStyle = 'rgba(234, 179, 8, 0.35)';
-          ctx.font = 'bold 8px monospace';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText("COMING SOON // PRE-SEQUENCER LOCK", width / 2, laneH / 2);
-        } else {
-          const halfH = laneH / 2;
-          const PEAK_DENSITY = 4; // Matches the generated trackWaveforms density
+          const lowHeight = Math.max(1, baseLow * (height - 4) * lowMod * volumeMod);
+          const midHeight = Math.max(1, baseMid * (height - 8) * midMod * volumeMod);
+          const highHeight = Math.max(1, baseHigh * (height - 12) * hiMod * volumeMod);
 
-          const getPeakHeight = (time: number) => {
-            if (time < 0 || time > (deck.duration || 300)) return 0.02;
-            if (deck.waveformPeaks && deck.waveformPeaks.length > 0) {
-              const exactIdx = time * PEAK_DENSITY;
-              const idxBase = Math.floor(exactIdx);
-              const fract = exactIdx - idxBase;
-              
-              const p0 = deck.waveformPeaks[idxBase] !== undefined 
-                ? deck.waveformPeaks[idxBase] 
-                : 0.02;
-              const p1 = deck.waveformPeaks[idxBase + 1] !== undefined 
-                ? deck.waveformPeaks[idxBase + 1] 
-                : p0;
-              return p0 + (p1 - p0) * fract;
-            } else {
-              const idx = Math.floor(time * 14);
-              return getWaveformHeight(deck.id, idx, deck.duration || 300);
-            }
-          };
-
-          const points: { drawX: number; lowH: number; midH: number; highH: number }[] = [];
-
-          for (let drawX = 0; drawX < width; drawX += 2) {
-            const barTime = progress + (drawX - centerX) / pixelsPerSecond;
-            const hVal = getPeakHeight(barTime);
-
-            const eqLow = deck.eqLow ?? 50;
-            const eqMid = deck.eqMid ?? 50;
-            const eqHi = deck.eqHi ?? 50;
-            const volume = deck.volume ?? 80;
-            
-            const lowMod = eqLow / 50;
-            const midMod = eqMid / 50;
-            const hiMod = eqHi / 50;
-            const volumeMod = volume / 80;
-            
-            // Dynamic frequency decomposition: Low, Mid, High stacked waves
-            // Align low-frequency volume peak with exactly the beat line (using Math.cos instead of Math.sin)
-            const baseLow = hVal * (0.6 + 0.4 * Math.abs(Math.cos((barTime - offset) * beatFreq)));
-            const baseMid = hVal * (0.55 + 0.45 * Math.abs(Math.cos((barTime - offset) * 1.8 + 0.5)));
-            const baseHigh = hVal * (0.4 + 0.6 * Math.abs(Math.cos((barTime - offset) * beatFreq * 4 + 1.2)));
-
-            const lowHeight = Math.max(1, baseLow * (laneH - 6) * lowMod * volumeMod);
-            const midHeight = Math.max(1, baseMid * (laneH - 10) * midMod * volumeMod);
-            const highHeight = Math.max(1, baseHigh * (laneH - 14) * hiMod * volumeMod);
-
-            points.push({ drawX, lowH: lowHeight, midH: midHeight, highH: highHeight });
-          }
-
-          // 1. Low Band (Vivid Cyan/Blue foundation)
-          ctx.fillStyle = 'rgba(0, 162, 255, 1)';
-          ctx.beginPath();
-          ctx.moveTo(0, halfH);
-          for (let i = 0; i < points.length; i++) {
-            ctx.lineTo(points[i].drawX, halfH - points[i].lowH / 2);
-          }
-          for (let i = points.length - 1; i >= 0; i--) {
-            ctx.lineTo(points[i].drawX, halfH + points[i].lowH / 2);
-          }
-          ctx.closePath();
-          ctx.fill();
-
-          // 2. Mid Band (Vivid Neon Orange)
-          ctx.fillStyle = 'rgba(255, 120, 0, 1)';
-          ctx.beginPath();
-          ctx.moveTo(0, halfH);
-          for (let i = 0; i < points.length; i++) {
-            ctx.lineTo(points[i].drawX, halfH - points[i].midH / 2);
-          }
-          for (let i = points.length - 1; i >= 0; i--) {
-            ctx.lineTo(points[i].drawX, halfH + points[i].midH / 2);
-          }
-          ctx.closePath();
-          ctx.fill();
-
-          // 3. High Band (Pure Bright White)
-          ctx.fillStyle = 'rgba(255, 255, 255, 1)';
-          ctx.beginPath();
-          ctx.moveTo(0, halfH);
-          for (let i = 0; i < points.length; i++) {
-            ctx.lineTo(points[i].drawX, halfH - points[i].highH / 2);
-          }
-          for (let i = points.length - 1; i >= 0; i--) {
-            ctx.lineTo(points[i].drawX, halfH + points[i].highH / 2);
-          }
-          ctx.closePath();
-          ctx.fill();
+          points.push({ drawX, lowH: lowHeight, midH: midHeight, highH: highHeight });
         }
 
-        ctx.restore();
-      };
+        // Use Math.round/Math.floor in path plotting to avoid sub-pixel anti-aliasing blur
+        // 1. Low Band (Vivid Cyan/Blue foundation: rgba(0, 162, 255, 1))
+        ctx.fillStyle = 'rgba(0, 162, 255, 0.25)';
+        ctx.beginPath();
+        ctx.moveTo(0, halfH);
+        for (let i = 0; i < points.length; i++) {
+          ctx.lineTo(Math.round(points[i].drawX), Math.round(halfH - points[i].lowH / 2));
+        }
+        for (let i = points.length - 1; i >= 0; i--) {
+          ctx.lineTo(Math.round(points[i].drawX), Math.round(halfH + points[i].lowH / 2));
+        }
+        ctx.closePath();
+        ctx.fill();
 
-      drawDeckWave(leftDeckRef.current, progressLeft, topLaneY, topLaneHeight, true);
-      drawDeckWave(rightDeckRef.current, progressRight, bottomLaneY, bottomLaneHeight, false);
+        // 2. Mid Band (Vivid Neon Orange: rgba(255, 120, 0, 1))
+        ctx.fillStyle = 'rgba(255, 120, 0, 0.55)';
+        ctx.beginPath();
+        ctx.moveTo(0, halfH);
+        for (let i = 0; i < points.length; i++) {
+          ctx.lineTo(Math.round(points[i].drawX), Math.round(halfH - points[i].midH / 2));
+        }
+        for (let i = points.length - 1; i >= 0; i--) {
+          ctx.lineTo(Math.round(points[i].drawX), Math.round(halfH + points[i].midH / 2));
+        }
+        ctx.closePath();
+        ctx.fill();
 
-      const isSyncGlow = leftDeckRef.current?.isPlaying && rightDeckRef.current?.isPlaying && isPhaseAligned;
+        // 3. High Band (Pure Bright White: rgba(255, 255, 255, 1))
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+        ctx.beginPath();
+        ctx.moveTo(0, halfH);
+        for (let i = 0; i < points.length; i++) {
+          ctx.lineTo(Math.round(points[i].drawX), Math.round(halfH - points[i].highH / 2));
+        }
+        for (let i = points.length - 1; i >= 0; i--) {
+          ctx.lineTo(Math.round(points[i].drawX), Math.round(halfH + points[i].highH / 2));
+        }
+        ctx.closePath();
+        ctx.fill();
+      }
 
-      // 2. CENTER PLAYHEAD LINE (GLOWING CRIMSON)
+      // CENTER PLAYHEAD LINE (GLOWING CRIMSON or GREEN SYNC)
       ctx.save();
-      ctx.strokeStyle = '#d8163f';
-      ctx.lineWidth = 2;
-      ctx.shadowColor = '#d8163f';
-      ctx.shadowBlur = 6;
+      const playheadColor = isSyncGlow ? '#10b981' : '#d8163f';
+      ctx.strokeStyle = playheadColor;
+      ctx.lineWidth = 1.5;
+      ctx.shadowColor = playheadColor;
+      ctx.shadowBlur = 5;
+      
+      const playheadX = Math.round(width / 2);
       ctx.beginPath();
-      ctx.moveTo(width / 2, 0);
-      ctx.lineTo(width / 2, height);
+      ctx.moveTo(playheadX, 0);
+      ctx.lineTo(playheadX, height);
       ctx.stroke();
       ctx.restore();
 
-      // Top tip indicator (Deck A)
-      ctx.save();
-      ctx.fillStyle = isSyncGlow ? '#10b981' : '#ef4444';
-      if (isSyncGlow) {
-        ctx.shadowColor = '#10b981';
-        ctx.shadowBlur = 8;
-      }
+      // Playhead triangle top/bottom
+      ctx.fillStyle = playheadColor;
       ctx.beginPath();
-      ctx.moveTo(width / 2 - 5, 0);
-      ctx.lineTo(width / 2 + 5, 0);
-      ctx.lineTo(width / 2, 6);
+      ctx.moveTo(playheadX - 4, 0);
+      ctx.lineTo(playheadX + 4, 0);
+      ctx.lineTo(playheadX, 5);
       ctx.fill();
-      ctx.restore();
 
-      // Bottom tip indicator (Deck B)
-      ctx.save();
-      ctx.fillStyle = isSyncGlow ? '#10b981' : '#06b6d4';
-      if (isSyncGlow) {
-        ctx.shadowColor = '#10b981';
-        ctx.shadowBlur = 8;
-      }
       ctx.beginPath();
-      ctx.moveTo(width / 2 - 5, height);
-      ctx.lineTo(width / 2 + 5, height);
-      ctx.lineTo(width / 2, height - 6);
+      ctx.moveTo(playheadX - 4, height);
+      ctx.lineTo(playheadX + 4, height);
+      ctx.lineTo(playheadX, height - 5);
       ctx.fill();
-      ctx.restore();
 
-      // Sleek phase sync diamond in the center gutter
+      // Central Sync diamond
       ctx.save();
-      ctx.fillStyle = isSyncGlow ? '#10b981' : '#27272a';
-      if (isSyncGlow) {
-        ctx.shadowColor = '#10b981';
-        ctx.shadowBlur = 10;
-      }
+      ctx.fillStyle = playheadColor;
+      ctx.shadowColor = playheadColor;
+      ctx.shadowBlur = isSyncGlow ? 6 : 0;
       ctx.beginPath();
-      ctx.moveTo(width / 2 - 4, gutterY + 4);
-      ctx.lineTo(width / 2, gutterY + 1);
-      ctx.lineTo(width / 2 + 4, gutterY + 4);
-      ctx.lineTo(width / 2, gutterY + 7);
+      ctx.moveTo(playheadX - 4.5, Math.round(height / 2));
+      ctx.lineTo(playheadX, Math.round(height / 2 - 4.5));
+      ctx.lineTo(playheadX + 4.5, Math.round(height / 2));
+      ctx.lineTo(playheadX, Math.round(height / 2 + 4.5));
       ctx.closePath();
       ctx.fill();
       ctx.restore();
 
-      // 3. GLOSSY HUD BADGE OVERLAY DURING DRAGGING
+      // Drag overlay HUD (milliseconds precision)
       const drag = dragStateRef.current;
       if (drag) {
         ctx.save();
         ctx.fillStyle = 'rgba(10, 10, 12, 0.9)';
+        ctx.shadowBlur = 0;
         ctx.strokeStyle = drag.isShift ? '#f59e0b' : '#3b82f6';
-        ctx.lineWidth = 1.5;
-        ctx.font = 'bold 9px monospace';
+        ctx.lineWidth = 1;
+        ctx.font = 'bold 8px monospace';
         
-        const badgeY = drag.deckNum === leftDeckRef.current?.deckNum ? 8 : height - 22;
-        const offsetVal = (leftDeckRef.current?.deckNum === drag.deckNum 
-          ? leftDeckRef.current?.firstBeatOffset 
-          : rightDeckRef.current?.firstBeatOffset) || 0;
-          
-        const timeVal = leftDeckRef.current?.deckNum === drag.deckNum ? progressLeft : progressRight;
+        const badgeY = height - 14;
         
-        const text = drag.isShift 
-          ? `[SHIFT] GRID ADJUST: Offset ${offsetVal.toFixed(3)}s (Release to save)` 
-          : `[DRAG] SCRATCH SEEK: ${timeVal.toFixed(2)}s`;
-          
-        const textWidth = ctx.measureText(text).width;
-        const badgeW = textWidth + 16;
-        const badgeH = 14;
-        const badgeX = (width - badgeW) / 2;
-        
-        if (ctx.roundRect) {
-          ctx.beginPath();
-          ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 4);
-          ctx.fill();
-          ctx.stroke();
+        let text = '';
+        if (drag.isShift) {
+          const dragOffset = currentDeck.firstBeatOffset || 0;
+          text = `[SHIFT] GRID ADJUST: Offset ${dragOffset.toFixed(3)}s`;
         } else {
-          ctx.beginPath();
-          ctx.rect(badgeX, badgeY, badgeW, badgeH);
-          ctx.fill();
-          ctx.stroke();
+          const dragTime = progress;
+          text = `[DRAG] SCRATCH SEEK: ${dragTime.toFixed(3)}s`;
         }
         
-        ctx.fillStyle = drag.isShift ? '#f59e0b' : '#3b82f6';
+        const textWidth = ctx.measureText(text).width;
+        const badgeW = textWidth + 12;
+        const badgeH = 11;
+        const badgeX = (width - badgeW) / 2;
+        
+        ctx.beginPath();
+        ctx.rect(badgeX, badgeY, badgeW, badgeH);
+        ctx.fill();
+        ctx.stroke();
+        
+        ctx.fillStyle = '#ffffff';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(text, width / 2, badgeY + badgeH / 2 + 0.5);
         ctx.restore();
       }
 
+      ctx.restore(); // Restore DPR scaling matrix
+
       frameId = requestAnimationFrame(render);
     };
 
     frameId = requestAnimationFrame(render);
     return () => cancelAnimationFrame(frameId);
-  }, [audioElementsRef]);
+  }, [audioElementsRef, deckId]);
 
-  const pixelsPerSecond = 55;
+  const handleStart = (clientX: number, isShift: boolean) => {
+    const currentDeck = deckRef.current;
+    if (!currentDeck || currentDeck.id === 'locked') return;
 
-  const handleStart = (clientX: number, clientY: number, isShift: boolean) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    const x = clientX - rect.left;
-    const y = clientY - rect.top;
-
-    const scaleY = y * (100 / rect.height);
-    let targetDeck: any = null;
-
-    if (scaleY >= 0 && scaleY <= 44) {
-      targetDeck = leftDeckRef.current;
-    } else if (scaleY >= 56 && scaleY <= 100) {
-      targetDeck = rightDeckRef.current;
-    }
-
-    if (!targetDeck || targetDeck.id === 'locked') return;
-
-    const deckNum = targetDeck.deckNum;
-    const audio = audioElementsRef?.current?.[deckNum];
-    const startTime = audio ? audio.currentTime : (targetDeck.progress || 0);
-    const duration = audio ? audio.duration : (targetDeck.duration || 300);
-    const startOffset = targetDeck.firstBeatOffset || 0;
+    const audio = audioElementsRef?.current?.[deckId];
+    const startTime = audio ? audio.currentTime : (currentDeck.progress || 0);
+    const duration = audio ? audio.duration : (currentDeck.duration || 300);
+    const startOffset = currentDeck.firstBeatOffset || 0;
 
     setDragState({
-      deckNum,
       startX: clientX,
       startTime,
       duration,
@@ -743,15 +699,14 @@ function DualDeckWaveforms({
 
     if (drag.isShift) {
       const newOffset = drag.startOffset + deltaSec;
-      useAudioStore.getState().setDeck(drag.deckNum, { firstBeatOffset: newOffset });
+      useAudioStore.getState().setDeck(deckId, { firstBeatOffset: newOffset });
     } else {
-      const audio = audioElementsRef?.current?.[drag.deckNum];
+      const audio = audioElementsRef?.current?.[deckId];
       const newTime = Math.max(0, Math.min(drag.duration, drag.startTime - deltaSec));
       if (audio) {
-        // eslint-disable-next-line react-hooks/immutability
         audio.currentTime = newTime;
       }
-      useAudioStore.getState().setDeck(drag.deckNum, { progress: newTime });
+      useAudioStore.getState().setDeck(deckId, { progress: newTime });
     }
   };
 
@@ -759,100 +714,25 @@ function DualDeckWaveforms({
     setDragState(null);
   };
 
-  const onPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    e.currentTarget.setPointerCapture(e.pointerId);
-    handleStart(e.clientX, e.clientY, e.shiftKey);
-  };
-
-  const onPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    handleMove(e.clientX);
-  };
-
-  const onPointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    try {
-      e.currentTarget.releasePointerCapture(e.pointerId);
-    } catch (err) {}
-    handleEnd();
-  };
-
-  const onPointerCancel = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    try {
-      e.currentTarget.releasePointerCapture(e.pointerId);
-    } catch (err) {}
-    handleEnd();
-  };
-
-  const cursorClass = dragState 
-    ? (dragState.isShift ? 'cursor-ew-resize' : 'cursor-grabbing') 
-    : 'cursor-grab';
-
-  const leftBpm = leftDeck ? (leftDeck.bpm * (1 + (leftDeck.pitch || 0) / 100)).toFixed(2) : "0.00";
-  const rightBpm = rightDeck ? (rightDeck.bpm * (1 + (rightDeck.pitch || 0) / 100)).toFixed(2) : "0.00";
-
   return (
-    <div className={cn(
-      "w-full rounded-xl bg-zinc-950 border p-2 md:p-2.5 z-10 shrink-0 select-none shadow-2xl relative flex flex-col gap-1 overflow-hidden",
-      isDepth ? "border-zinc-900" : "border-black/10"
-    )}>
-      <div className="flex justify-between items-center w-full shrink-0 font-mono text-[9px] md:text-[10px]">
-        <div className="flex items-center gap-3 font-bold text-zinc-500 uppercase tracking-widest leading-none">
-          <div className="flex items-center gap-1">
-            <span className="text-orange-500 font-black">DECK A</span>
-            <span className="text-zinc-700">{"//"}</span>
-            <span className="text-zinc-300 max-w-[150px] truncate">{leftDeck?.title || "EMPTY"}</span>
-          </div>
-          <div className="bg-zinc-900/60 px-2 py-0.5 rounded border border-zinc-800/80 text-orange-400 font-bold">
-            {leftBpm} <span className="text-[7px] text-zinc-500 font-normal">BPM</span>
-          </div>
-        </div>
-
-        <div className="text-[7.5px] text-zinc-600 font-black tracking-[0.25em] uppercase text-center hidden lg:block">
-          STACKED BEATGRID CONTROLLER v9.5
-        </div>
-
-        <div className="flex items-center gap-3 font-bold text-zinc-500 uppercase tracking-widest leading-none">
-          <div className="bg-zinc-900/60 px-2 py-0.5 rounded border border-zinc-800/80 text-cyan-400 font-bold">
-            {rightBpm} <span className="text-[7px] text-zinc-500 font-normal">BPM</span>
-          </div>
-          <div className="flex items-center gap-1 text-right">
-            <span className="text-zinc-300 max-w-[150px] truncate">{rightDeck?.title || "EMPTY"}</span>
-            <span className="text-zinc-700">{"//"}</span>
-            <span className="text-cyan-400 font-black">DECK B</span>
-          </div>
-        </div>
-      </div>
-
-      <div className="relative w-full h-[100px] bg-black rounded border border-zinc-900 overflow-hidden shadow-inner flex items-center justify-center">
-        <div className="absolute inset-0 bg-primary/[0.005] pointer-events-none z-10" />
-        <canvas 
-          ref={canvasRef} 
-          className={cn("w-full h-full block touch-none", cursorClass)} 
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
-          onPointerCancel={onPointerCancel}
-        />
-      </div>
-
-      <div className="flex justify-between items-center w-full font-mono text-[7px] text-zinc-500 tracking-wider shrink-0 uppercase border-t border-zinc-900/50 pt-1.5 px-1 select-none">
-        <div className="flex items-center gap-2">
-          <span className="text-orange-500/80 font-bold">GRID QUANTIZE 1/4</span>
-          <span className="text-zinc-700">|</span>
-          <span className={cn("font-bold", leftDeck?.isPlaying ? "text-green-500" : "text-zinc-600")}>
-            {leftDeck?.isPlaying ? "● MASTER_SYNC_LOCKED" : "○ SYNC_READY"}
-          </span>
-        </div>
-        <div className="hidden sm:block text-zinc-600">
-          <span>PLAYHEAD CENTRAL SNAP INDEX</span>
-        </div>
-        <div className="flex items-center gap-2 text-right">
-          <span className={cn("font-bold", rightDeck?.isPlaying ? "text-green-500" : "text-zinc-600")}>
-            {rightDeck?.isPlaying ? "● SLAVE_SYNC_LOCKED" : "○ SYNC_READY"}
-          </span>
-          <span className="text-zinc-700">|</span>
-          <span className="text-cyan-500/80 font-bold">GRID QUANTIZE 1/4</span>
-        </div>
-      </div>
+    <div className="relative w-full h-[48px] bg-black rounded border border-zinc-900 overflow-hidden shadow-inner flex items-center justify-center mb-1 select-none shrink-0 z-10">
+      <canvas 
+        ref={canvasRef} 
+        className={cn("w-full h-full block touch-none", dragState ? 'cursor-grabbing' : 'cursor-grab')} 
+        onPointerDown={(e) => {
+          e.currentTarget.setPointerCapture(e.pointerId);
+          handleStart(e.clientX, e.shiftKey);
+        }}
+        onPointerMove={(e) => handleMove(e.clientX)}
+        onPointerUp={(e) => {
+          try { e.currentTarget.releasePointerCapture(e.pointerId); } catch(err){}
+          handleEnd();
+        }}
+        onPointerCancel={(e) => {
+          try { e.currentTarget.releasePointerCapture(e.pointerId); } catch(err){}
+          handleEnd();
+        }}
+      />
     </div>
   );
 }
@@ -1490,6 +1370,14 @@ function MixArchive({
             </button>
           )}
         </div>
+
+        {/* Scrolling Waveform */}
+        <SingleDeckWaveform
+          deckId={deckId}
+          deck={deck}
+          isDepth={isDepth}
+          audioElementsRef={audioElementsRef}
+        />
 
         {/* Jogwheel, Sync/Master, and Pitch Slider area */}
         <div className="w-full flex items-center justify-between gap-2.5 my-1 z-10 relative">
@@ -2641,14 +2529,6 @@ function MixArchive({
 
         {activeView === 'cdj' ? (
           <>
-            {/* Stacked Dual Deck Waveforms at the top */}
-            <DualDeckWaveforms 
-              leftDeck={{ ...decks[leftActiveDeck], deckNum: leftActiveDeck }} 
-              rightDeck={{ ...decks[rightActiveDeck], deckNum: rightActiveDeck }} 
-              isDepth={isDepth} 
-              audioElementsRef={audioElementsRef}
-            />
-
             {/* DJ Controller Panel (Always Horizontal Layout) */}
             <div className="w-full flex gap-1 md:gap-4 items-stretch justify-center relative select-none flex-grow min-h-0 h-full flex-nowrap overflow-hidden">
               
