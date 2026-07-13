@@ -417,25 +417,14 @@ export function Preloader({ onComplete, onEnter }: { onComplete: () => void; onE
     if (stage === 3) {
       playDegauss();
       const t = setTimeout(() => {
-        setStage(4); // transition to showing Henry IX logo card
-      }, 450);
-      return () => clearTimeout(t);
-    }
-  }, [stage]);
-
-  // Stage 4: Henry IX glitch logo displays
-  useEffect(() => {
-    if (stage === 4) {
-      playClick(1000, 'sawtooth', 0.06);
-      const t = setTimeout(() => {
-        setStage(5); // preloader completes, fades out
+        setStage(4); // preloader completes, fades out
         onComplete();
-      }, 1200);
+      }, 450);
       return () => clearTimeout(t);
     }
   }, [stage, onComplete]);
 
-  if (stage === 5) return null;
+  if (stage === 4) return null;
 
   return (
     <AnimatePresence>
@@ -529,23 +518,6 @@ export function Preloader({ onComplete, onEnter }: { onComplete: () => void; onE
             transition={{ duration: 0.7, ease: "easeInOut" }}
             className="w-full h-full bg-cyan-100 shadow-[inset_0_0_100px_#22d3ee] z-50 flex items-center justify-center"
           />
-        )}
-
-        {stage === 4 && (
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.8, filter: 'blur(4px)' }}
-            animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
-            exit={{ opacity: 0, filter: 'blur(10px)' }}
-            transition={{ duration: 0.2, type: "spring", stiffness: 200, damping: 20 }}
-            className="fixed inset-0 flex justify-center items-center z-10 pointer-events-none"
-          >
-            <h1 
-              className="glitch glitch-active font-sans text-[clamp(2rem,15vw,15vw)] w-full font-bold tracking-wider leading-none text-center select-none text-primary whitespace-nowrap"
-              data-text="HENRY IX"
-            >
-              HENRY IX
-            </h1>
-          </motion.div>
         )}
       </motion.div>
     </AnimatePresence>
