@@ -76,6 +76,12 @@ export default function AudioVisualizerBackground({
         dataArrayRef.current = new Uint8Array(bufferLength);
 
         const tick = () => {
+          // When not playing, throttle to ~4fps to save idle CPU cycles.
+          // The isPlaying sync effect (below) will kick a fresh rAF when playback resumes.
+          if (!isPlayingRef.current) {
+            rafRef.current = window.setTimeout(tick, 250) as unknown as number;
+            return;
+          }
           if (analyser && dataArrayRef.current) {
             analyser.getByteFrequencyData(dataArrayRef.current);
           }
@@ -106,6 +112,7 @@ export default function AudioVisualizerBackground({
 
         return () => {
           cancelAnimationFrame(rafRef.current);
+          clearTimeout(rafRef.current);
           window.removeEventListener('resize', handleResize);
           worker.postMessage({ type: 'stop' });
           worker.terminate();
@@ -141,6 +148,25 @@ export default function AudioVisualizerBackground({
 
       const renderFallback = () => {
         ctx2d.clearRect(0, 0, width, height);
+
+        if (!isPlayingRef.current) {
+          const barCount = 48;
+          const barWidth = width / barCount;
+          const themeColor = isDepthRef.current ? 'rgba(216, 22, 63,' : 'rgba(24, 24, 27,';
+          ctx2d.save();
+          ctx2d.globalAlpha = 0.07;
+          for (let i = 0; i < barCount; i++) {
+            const barHeight = 4;
+            const grad = ctx2d.createLinearGradient(i * barWidth, height, i * barWidth, height - barHeight);
+            grad.addColorStop(0, `${themeColor} 0.8)`);
+            grad.addColorStop(1, `${themeColor} 0.0)`);
+            ctx2d.fillStyle = grad;
+            ctx2d.fillRect(i * barWidth + 2, height - barHeight, barWidth - 4, barHeight);
+          }
+          ctx2d.restore();
+          rafRef.current = requestAnimationFrame(renderFallback);
+          return;
+        }
 
         let bass = 0, mid = 0, high = 0;
         if (analyser && isPlayingRef.current) {

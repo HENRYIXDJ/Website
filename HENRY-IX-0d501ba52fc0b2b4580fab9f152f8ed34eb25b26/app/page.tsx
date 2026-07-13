@@ -23,10 +23,37 @@ const HeroNode = React.memo(function HeroNode({
   const { scrollY } = useScroll();
   const smoothScrollY = useSpring(scrollY, { stiffness: 100, damping: 20, mass: 0.2 });
 
+  // Dynamically calculate the target scale and Y offset to match the SiteHeader
+  const [targetDims, setTargetDims] = useState({ scale: 0.15, y: -300 });
+
+  useEffect(() => {
+    const calculateDims = () => {
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      
+      // The hero text uses text-[clamp(2rem,15vw,15vw)]
+      // clamp(32px, 15vw, 15vw)
+      const initialSize = Math.max(32, width * 0.15);
+      
+      // The header text uses text-2xl (24px) on mobile, text-3xl (30px) on desktop
+      const targetSize = width < 768 ? 24 : 30;
+      
+      // Header is 96px tall (h-24) at the top of the screen. Its center is 48px from the top.
+      const targetY = -(height / 2) + 48;
+
+      setTargetDims({ scale: targetSize / initialSize, y: targetY });
+    };
+
+    calculateDims();
+    window.addEventListener('resize', calculateDims);
+    return () => window.removeEventListener('resize', calculateDims);
+  }, []);
+
   // Hardware-accelerated parallax layers
-  const yText = useTransform(smoothScrollY, [0, 1000], [0, -350]);
-  const scaleText = useTransform(smoothScrollY, [0, 800], [1, 0.82]);
-  const opacityText = useTransform(smoothScrollY, [0, 600], [1, 0]);
+  const yText = useTransform(smoothScrollY, [0, 800], [0, targetDims.y]);
+  const scaleText = useTransform(smoothScrollY, [0, 800], [1, targetDims.scale]);
+  // Keep opacity at 1 so it doesn't fade out and acts as the sticky header
+  const opacityText = useTransform(smoothScrollY, [0, 800], [1, 1]);
   
   // Layered parallax background elements for 3D depth feeling
   const yFloatLeft = useTransform(smoothScrollY, [0, 1000], [0, -150]);
@@ -54,88 +81,10 @@ const HeroNode = React.memo(function HeroNode({
         <span>COORD_Y: 0.1278° W</span>
       </motion.div>
 
-      {/* Sleek Floating Social HUD */}
-      <motion.div 
-        initial={{ opacity: 0, y: -20 }}
-        animate={preloaderComplete ? { opacity: 1, y: 0 } : { opacity: 0, y: -20 }}
-        transition={{ type: "spring", stiffness: 300, damping: 25, delay: 0.9 }}
-        className="absolute top-8 md:top-10 left-1/2 -translate-x-1/2 md:left-auto md:right-8 md:translate-x-0 z-30 flex items-center gap-3 md:gap-4 font-mono text-[9px] md:text-[10px] tracking-[0.25em] text-zinc-400 select-none whitespace-nowrap"
-      >
-        <a 
-          href="https://www.facebook.com/HenryIXDJ/" 
-          target="_blank" 
-          rel="noopener noreferrer" 
-          className="text-zinc-500 hover:text-primary transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer"
-          onMouseEnter={() => playTick()}
-          onClick={() => playClick(800, 'sine', 0.03)}
-        >
-          <span className="hidden md:inline">FACEBOOK</span>
-          <span className="md:hidden">FB</span>
-        </a>
-        <span className="text-zinc-800 font-light">/</span>
-        <a 
-          href="https://www.instagram.com/henryixdj/" 
-          target="_blank" 
-          rel="noopener noreferrer" 
-          className="text-zinc-500 hover:text-primary transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer"
-          onMouseEnter={() => playTick()}
-          onClick={() => playClick(800, 'sine', 0.03)}
-        >
-          <span className="hidden md:inline">INSTAGRAM</span>
-          <span className="md:hidden">IG</span>
-        </a>
-        <span className="text-zinc-800 font-light">/</span>
-        <a 
-          href="https://soundcloud.com/henryixdj" 
-          target="_blank" 
-          rel="noopener noreferrer" 
-          className="text-zinc-500 hover:text-primary transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer"
-          onMouseEnter={() => playTick()}
-          onClick={() => playClick(800, 'sine', 0.03)}
-        >
-          <span className="hidden md:inline">SOUNDCLOUD</span>
-          <span className="md:hidden">SC</span>
-        </a>
-        <span className="text-zinc-800 font-light">/</span>
-        <a 
-          href="https://www.mixcloud.com/HenryIXDJ/" 
-          target="_blank" 
-          rel="noopener noreferrer" 
-          className="text-zinc-500 hover:text-primary transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer"
-          onMouseEnter={() => playTick()}
-          onClick={() => playClick(800, 'sine', 0.03)}
-        >
-          <span className="hidden md:inline">MIXCLOUD</span>
-          <span className="md:hidden">MC</span>
-        </a>
-        <span className="text-zinc-800 font-light">/</span>
-        <a 
-          href="https://www.tiktok.com/@henryixdj" 
-          target="_blank" 
-          rel="noopener noreferrer" 
-          className="text-zinc-500 hover:text-primary transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer"
-          onMouseEnter={() => playTick()}
-          onClick={() => playClick(800, 'sine', 0.03)}
-        >
-          <span className="hidden md:inline">TIKTOK</span>
-          <span className="md:hidden">TT</span>
-        </a>
-        <span className="text-zinc-800 font-light">/</span>
-        <a 
-          href="https://www.youtube.com/@HenryIXDJ" 
-          target="_blank" 
-          rel="noopener noreferrer" 
-          className="text-zinc-500 hover:text-primary transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer"
-          onMouseEnter={() => playTick()}
-          onClick={() => playClick(800, 'sine', 0.03)}
-        >
-          <span className="hidden md:inline">YOUTUBE</span>
-          <span className="md:hidden">YT</span>
-        </a>
-      </motion.div>
+      {/* Social links have been extracted to SiteHeader */}
 
       <motion.div 
-        className="fixed inset-0 flex justify-center items-center z-0 pointer-events-none"
+        className="fixed inset-0 flex justify-center items-center z-40 pointer-events-none"
         style={{ y: yText, scale: scaleText, opacity: opacityText, willChange: "transform, opacity" }}
       >
         <motion.h1 
@@ -198,6 +147,50 @@ const navItemVariants = {
   }
 };
 
+const NavigationNode = React.memo(function NavigationNode() {
+  return (
+    <section className="min-h-screen flex flex-col items-center justify-center relative w-full overflow-hidden z-20" style={{ scrollSnapAlign: 'start' }}>
+      <motion.nav 
+        variants={navContainerVariants}
+        initial="hidden"
+        whileInView="show"
+        viewport={{ once: false, margin: "-100px" }}
+        className="flex flex-col items-center gap-6 md:gap-10 w-full px-6 max-w-4xl mx-auto z-10 relative"
+      >
+        {[
+          { label: 'MIXES', href: '/mixes', desc: 'Enter the CDJ Portfolio' },
+          { label: 'GALLERY', href: '/gallery', desc: 'Visual Archives' },
+          { label: 'EVENTS', href: '/events', desc: 'Upcoming Shows' },
+          { label: 'CONTACT', href: '/contact', desc: 'Bookings & Info' },
+        ].map(({ label, href, desc }) => (
+          <motion.div
+            key={label}
+            variants={navItemVariants}
+            className="w-full text-center relative"
+          >
+            <Link
+              href={href}
+              className="group block w-full text-center relative"
+              onMouseEnter={() => playTick()}
+              onClick={() => playNavSwoosh()}
+            >
+              <span
+                className="glitch font-sans font-bold text-primary text-[clamp(2.5rem,10vw,8rem)] leading-none tracking-wider uppercase select-none transition-all duration-300 group-hover:tracking-[0.15em] inline-block"
+                data-text={label}
+              >
+                {label}
+              </span>
+              <div className="h-0 group-hover:h-6 overflow-hidden transition-all duration-300 opacity-0 group-hover:opacity-100 mt-2">
+                <span className="font-mono text-zinc-500 text-xs tracking-[0.3em] uppercase">{desc}</span>
+              </div>
+            </Link>
+          </motion.div>
+        ))}
+      </motion.nav>
+    </section>
+  );
+});
+
 export default function LandingPage() {
   const isDepth = true;
   const { preloaderComplete } = useAudio();
@@ -205,75 +198,15 @@ export default function LandingPage() {
   const { scrollY } = useScroll();
   const smoothScrollY = useSpring(scrollY, { stiffness: 100, damping: 20, mass: 0.2 });
   
-  const [isMobile, setIsMobile] = useState(false);
-
-  useEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth < 768);
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
-
-  const yBackgroundGrid = useTransform(smoothScrollY, [0, 2000], [0, -160]);
-
   return (
     <motion.main
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 1.5 }}
-      className="relative w-full bg-black text-zinc-100 min-h-[200vh] overflow-x-hidden selection:bg-primary/30 selection:text-primary font-sans"
+      className="relative w-full text-zinc-100 min-h-[200vh] overflow-x-hidden selection:bg-primary/30 selection:text-primary font-sans"
     >
-      {/* Seamless Page-Wide Parallax Background Grid */}
-      <motion.div 
-        className="absolute inset-x-0 top-0 pointer-events-none z-0 opacity-5"
-        style={isMobile ? { bottom: -300 } : { y: yBackgroundGrid, bottom: -300, willChange: "transform" }}
-      >
-        <div className="w-full h-full bg-[linear-gradient(to_right,#808080_1px,transparent_1px),linear-gradient(to_bottom,#808080_1px,transparent_1px)] bg-[size:5rem_5rem]" />
-      </motion.div>
-
       <HeroNode isDepth={isDepth} preloaderComplete={preloaderComplete} />
-
-      {/* ── FULLSCREEN SECTION NAVIGATOR ── */}
-      <section className="min-h-screen flex flex-col items-center justify-center relative w-full overflow-hidden z-20" style={{ scrollSnapAlign: 'start' }}>
-        
-        <motion.nav 
-          variants={navContainerVariants}
-          initial="hidden"
-          whileInView="show"
-          viewport={{ once: false, margin: "-100px" }}
-          className="flex flex-col items-center gap-6 md:gap-10 w-full px-6 max-w-4xl mx-auto z-10 relative"
-        >
-          {[
-            { label: 'MIXES', href: '/mixes', desc: 'Enter the CDJ Portfolio' },
-            { label: 'GALLERY', href: '/gallery', desc: 'Visual Archives' },
-            { label: 'EVENTS', href: '/events', desc: 'Upcoming Shows' },
-            { label: 'CONTACT', href: '/contact', desc: 'Bookings & Info' },
-          ].map(({ label, href, desc }) => (
-            <motion.div
-              key={label}
-              variants={navItemVariants}
-              className="w-full text-center relative"
-            >
-              <Link
-                href={href}
-                className="group block w-full text-center relative"
-                onMouseEnter={() => playTick()}
-                onClick={() => playNavSwoosh()}
-              >
-                <span
-                  className="glitch font-sans font-bold text-primary text-[clamp(2.5rem,10vw,8rem)] leading-none tracking-wider uppercase select-none transition-all duration-300 group-hover:tracking-[0.15em] inline-block"
-                  data-text={label}
-                >
-                  {label}
-                </span>
-                <div className="h-0 group-hover:h-6 overflow-hidden transition-all duration-300 opacity-0 group-hover:opacity-100 mt-2">
-                  <span className="font-mono text-zinc-500 text-xs tracking-[0.3em] uppercase">{desc}</span>
-                </div>
-              </Link>
-            </motion.div>
-          ))}
-        </motion.nav>
-      </section>
+      <NavigationNode />
     </motion.main>
   );
 }

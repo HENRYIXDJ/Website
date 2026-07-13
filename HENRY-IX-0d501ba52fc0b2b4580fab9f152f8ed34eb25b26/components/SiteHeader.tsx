@@ -23,15 +23,18 @@ const pageTitles: Record<string, string> = {
 
 export default function SiteHeader() {
   const pathname = usePathname();
+  const isHomePage = pathname === '/';
   const title = pageTitles[pathname] || '';
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Close dropdown on navigation
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setIsOpen(false);
-  }, [pathname]);
+  // Close dropdown synchronously during render when pathname changes,
+  // avoiding the React strict-mode setState-in-useEffect warning.
+  const prevPathnameRef = useRef(pathname);
+  if (prevPathnameRef.current !== pathname) {
+    prevPathnameRef.current = pathname;
+    if (isOpen) setIsOpen(false);
+  }
 
   // Click outside to close
   useEffect(() => {
@@ -45,72 +48,109 @@ export default function SiteHeader() {
   }, []);
 
   return (
-    <header className="fixed top-0 left-0 w-full h-16 z-50 bg-black border-b border-zinc-900 flex items-center justify-between px-6">
-      {/* Left: Section Title & Social Links (Hidden on mobile to prevent overlaps) */}
-      <div className="font-mono text-[10px] md:text-xs tracking-[0.2em] font-semibold uppercase text-zinc-400 w-1/4 hidden md:flex items-center gap-3 justify-start select-none">
-        {title && <span>{title}</span>}
-        {title && <span className="text-zinc-800 font-light">|</span>}
-        <div className="flex items-center gap-2.5">
-          <a
-            href="https://soundcloud.com/henryixdj"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-zinc-500 hover:text-primary transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer text-[9px] tracking-[0.2em]"
-            onMouseEnter={() => playTick()}
-            onClick={() => playClick(800, 'sine', 0.03)}
-          >
-            SC
-          </a>
-          <span className="text-zinc-800 font-light text-[8px]">/</span>
-          <a
-            href="https://www.instagram.com/henryixdj/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-zinc-500 hover:text-primary transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer text-[9px] tracking-[0.2em]"
-            onMouseEnter={() => playTick()}
-            onClick={() => playClick(800, 'sine', 0.03)}
-          >
-            IG
-          </a>
-          <span className="text-zinc-800 font-light text-[8px]">/</span>
-          <a
-            href="https://www.youtube.com/@HenryIXDJ"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-zinc-500 hover:text-primary transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer text-[9px] tracking-[0.2em]"
-            onMouseEnter={() => playTick()}
-            onClick={() => playClick(800, 'sine', 0.03)}
-          >
-            YT
-          </a>
-        </div>
+    <header className="fixed top-0 left-0 w-full h-24 z-50 bg-transparent flex items-center justify-between px-6 md:px-8 pointer-events-none">
+      {/* Left: Social Links */}
+      <div className="w-auto md:w-1/4 flex items-center gap-3 md:gap-4 font-mono text-[9px] md:text-[10px] tracking-[0.25em] text-zinc-400 select-none whitespace-nowrap pointer-events-auto leading-none -translate-y-1">
+        <a 
+          href="https://www.facebook.com/HenryIXDJ/" 
+          target="_blank" 
+          rel="noopener noreferrer" 
+          className="text-zinc-500 hover:text-primary transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer"
+          onMouseEnter={() => playTick()}
+          onClick={() => playClick(800, 'sine', 0.03)}
+        >
+          <span className="hidden md:inline">FACEBOOK</span>
+          <span className="md:hidden">FB</span>
+        </a>
+        <span className="text-zinc-800 font-light">/</span>
+        <a 
+          href="https://www.instagram.com/henryixdj/" 
+          target="_blank" 
+          rel="noopener noreferrer" 
+          className="text-zinc-500 hover:text-primary transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer"
+          onMouseEnter={() => playTick()}
+          onClick={() => playClick(800, 'sine', 0.03)}
+        >
+          <span className="hidden md:inline">INSTAGRAM</span>
+          <span className="md:hidden">IG</span>
+        </a>
+        <span className="text-zinc-800 font-light">/</span>
+        <a 
+          href="https://soundcloud.com/henryixdj" 
+          target="_blank" 
+          rel="noopener noreferrer" 
+          className="text-zinc-500 hover:text-primary transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer"
+          onMouseEnter={() => playTick()}
+          onClick={() => playClick(800, 'sine', 0.03)}
+        >
+          <span className="hidden md:inline">SOUNDCLOUD</span>
+          <span className="md:hidden">SC</span>
+        </a>
+        <span className="text-zinc-800 font-light">/</span>
+        <a 
+          href="https://www.mixcloud.com/HenryIXDJ/" 
+          target="_blank" 
+          rel="noopener noreferrer" 
+          className="text-zinc-500 hover:text-primary transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer"
+          onMouseEnter={() => playTick()}
+          onClick={() => playClick(800, 'sine', 0.03)}
+        >
+          <span className="hidden md:inline">MIXCLOUD</span>
+          <span className="md:hidden">MC</span>
+        </a>
+        <span className="text-zinc-800 font-light">/</span>
+        <a 
+          href="https://www.tiktok.com/@henryixdj" 
+          target="_blank" 
+          rel="noopener noreferrer" 
+          className="text-zinc-500 hover:text-primary transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer"
+          onMouseEnter={() => playTick()}
+          onClick={() => playClick(800, 'sine', 0.03)}
+        >
+          <span className="hidden md:inline">TIKTOK</span>
+          <span className="md:hidden">TT</span>
+        </a>
+        <span className="text-zinc-800 font-light">/</span>
+        <a 
+          href="https://www.youtube.com/@HenryIXDJ" 
+          target="_blank" 
+          rel="noopener noreferrer" 
+          className="text-zinc-500 hover:text-primary transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer"
+          onMouseEnter={() => playTick()}
+          onClick={() => playClick(800, 'sine', 0.03)}
+        >
+          <span className="hidden md:inline">YOUTUBE</span>
+          <span className="md:hidden">YT</span>
+        </a>
       </div>
 
-      {/* Center/Left: Logo */}
-      <div className="w-full md:w-2/4 flex justify-start md:justify-center">
-        <Link
-          href="/"
-          className="glitch font-sans font-bold text-xl md:text-2xl text-primary cursor-pointer select-none"
-          data-text="HENRY IX"
-        >
-          HENRY IX
-        </Link>
+      {/* Center: Logo */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex justify-center items-center pointer-events-auto">
+        {!isHomePage && (
+          <Link
+            href="/"
+            className="glitch font-sans font-bold text-2xl md:text-3xl leading-none text-primary cursor-pointer select-none"
+            data-text="HENRY IX"
+          >
+            HENRY IX
+          </Link>
+        )}
       </div>
 
       {/* Right: Navigation / Menu */}
-      <div className="w-auto md:w-1/4 flex items-center justify-end relative" ref={dropdownRef}>
+      <div className="w-auto md:w-1/4 flex items-center justify-end relative pointer-events-auto -translate-y-1" ref={dropdownRef}>
         {/* Desktop Navigation */}
-        <nav className="hidden md:flex items-center gap-6 shrink-0">
+        <nav className="hidden md:flex items-center gap-6 shrink-0 leading-none">
           {navLinks.map((link) => (
             <Link
               key={link.href}
               href={link.href}
               onClick={() => playNavSwoosh()}
               onMouseEnter={() => playTick()}
-              className={`font-mono text-[10px] tracking-widest uppercase transition-colors shrink-0 ${
+              className={`font-mono text-[9px] md:text-[10px] tracking-[0.25em] uppercase transition-all duration-300 hover:scale-105 active:scale-95 shrink-0 ${
                 pathname === link.href
                   ? 'text-primary'
-                  : 'text-zinc-400 hover:text-white'
+                  : 'text-zinc-500 hover:text-primary'
               }`}
             >
               {link.name}

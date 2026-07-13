@@ -2,7 +2,7 @@
 
 import React, { useRef, useEffect, createContext, useContext, useMemo } from 'react';
 import { usePathname } from 'next/navigation';
-import { playClick, playLockoutBlip } from '@/lib/audioUtils';
+import { playClick, playLockoutBlip, setMutedGlobal } from '@/lib/audioUtils';
 import { trackWaveforms } from '@/app/trackWaveforms';
 import { useAudioStore, generateStaticPeaks } from '@/store/audioStore';
 import { audioEngine, type DeckDSPNodes } from '@/lib/AudioEngine';
@@ -132,119 +132,123 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       masterAnalyserRef.current = masterAnalyser;
       masterAnalyser.connect(ctx.destination);
 
-      [1, 2, 3, 4].forEach(deckId => {
-        const trimNode = ctx.createGain();
-        trimNode.gain.value = 1.0;
-
-        const lowShelf = ctx.createBiquadFilter();
-        lowShelf.type = 'lowshelf';
-        lowShelf.frequency.value = 250;
-        lowShelf.gain.value = 0;
-
-        const midPeak = ctx.createBiquadFilter();
-        midPeak.type = 'peaking';
-        midPeak.frequency.value = 1000;
-        midPeak.Q.value = 1.0;
-        midPeak.gain.value = 0;
-
-        const highShelf = ctx.createBiquadFilter();
-        highShelf.type = 'highshelf';
-        highShelf.frequency.value = 3000;
-        highShelf.gain.value = 0;
-
-        const filterNode = ctx.createBiquadFilter();
-        filterNode.type = 'peaking';
-        filterNode.frequency.value = 1000;
-        filterNode.Q.value = 1.0;
-        filterNode.gain.value = 0;
-
-        const gainNode = ctx.createGain();
-        gainNode.gain.value = 0;
-
-        trimNode.connect(lowShelf);
-        lowShelf.connect(midPeak);
-        midPeak.connect(highShelf);
-        highShelf.connect(filterNode);
-        filterNode.connect(gainNode);
-        gainNode.connect(masterAnalyser);
-
-        deckNodesRef.current[deckId] = { trimNode, lowShelf, midPeak, highShelf, filterNode, gainNode };
-
-        if (typeof window !== 'undefined') {
-          const audio = new Audio();
-          audio.crossOrigin = 'anonymous';
-          audio.loop = false;
-          audio.preload = 'none';
-
-          audioElementsRef.current[deckId] = audio;
-
-          const source = ctx.createMediaElementSource(audio);
-          source.connect(trimNode);
-          mediaSourcesRef.current[deckId] = source;
-
-          // Load metadata when available
-          audio.addEventListener('loadedmetadata', () => {
-            const state = useAudioStore.getState();
-            const deck = state.decks[deckId];
-            const pitch = deck?.pitch ?? 0;
-            audio.playbackRate = 1 + pitch / 100;
-            setDeck(deckId, { duration: audio.duration, isReady: true });
-          });
-
-          // Keep Zustand in sync with the native audio element state.
-          audio.addEventListener('play', () => {
-            setDeck(deckId, { isPlaying: true });
-          });
-          audio.addEventListener('pause', () => {
-            setDeck(deckId, { isPlaying: false });
-          });
-          audio.addEventListener('ended', () => {
-            setDeck(deckId, { isPlaying: false, progress: 0 });
-          });
-
-          // Update progress from audio element (throttled to avoid excessive state updates)
-          let lastProgressUpdate = 0;
-          audio.addEventListener('timeupdate', () => {
-            const now = performance.now();
-            if (now - lastProgressUpdate >= 100) {
-              lastProgressUpdate = now;
-              setDeck(deckId, { progress: audio.currentTime });
-            }
-          });
-
-          // Gracefully handle load errors (e.g., file not found, unsupported format)
-          audio.addEventListener('error', () => {
-            const error = audio.error;
-            if (error && error.code !== error.MEDIA_ERR_ABORTED) {
-              console.warn(`Audio element ${deckId} load error:`, error.message);
-              setDeck(deckId, { isReady: false });
-            }
-          });
-        }
-      });
-
-      // ── Initialize the imperative AudioEngine with DSP nodes ─────────────
+      // Initialize the imperative AudioEngine with DSP nodes placeholder record
       audioEngine.init(ctx, deckNodesRef.current);
-
-      // Sync initial DSP parameters from the Zustand store
-      const state = useAudioStore.getState();
-      [1, 2, 3, 4].forEach(deckId => {
-        const deck = state.decks[deckId];
-        if (deck) {
-          audioEngine.setEQ(deckId, 'low', deck.eqLow);
-          audioEngine.setEQ(deckId, 'mid', deck.eqMid);
-          audioEngine.setEQ(deckId, 'high', deck.eqHi);
-          audioEngine.setFilter(deckId, deck.filter);
-          audioEngine.setTrim(deckId, deck.trim ?? 50);
-          const cfMult = audioEngine.computeCrossfaderGain(deck.crossfaderAssign, state.crossfader);
-          audioEngine.setGain(deckId, deck.volume, cfMult, state.isMuted);
-        }
-      });
 
       return ctx;
     } catch (e) {
       console.error('Failed to initialize Web Audio DSP:', e);
       return null;
+    }
+  };
+
+  const ensureDeckInitialized = (deckId: number) => {
+    if (typeof window === 'undefined') return;
+    let ctx = audioContextRef.current;
+    if (!ctx) {
+      ctx = initAudioDSP();
+    }
+    if (!ctx) return;
+    if (deckNodesRef.current[deckId]) return; // already initialized
+
+    const trimNode = ctx.createGain();
+    trimNode.gain.value = 1.0;
+
+    const lowShelf = ctx.createBiquadFilter();
+    lowShelf.type = 'lowshelf';
+    lowShelf.frequency.value = 250;
+    lowShelf.gain.value = 0;
+
+    const midPeak = ctx.createBiquadFilter();
+    midPeak.type = 'peaking';
+    midPeak.frequency.value = 1000;
+    midPeak.Q.value = 1.0;
+    midPeak.gain.value = 0;
+
+    const highShelf = ctx.createBiquadFilter();
+    highShelf.type = 'highshelf';
+    highShelf.frequency.value = 3000;
+    highShelf.gain.value = 0;
+
+    const filterNode = ctx.createBiquadFilter();
+    filterNode.type = 'peaking';
+    filterNode.frequency.value = 1000;
+    filterNode.Q.value = 1.0;
+    filterNode.gain.value = 0;
+
+    const gainNode = ctx.createGain();
+    gainNode.gain.value = 0;
+
+    trimNode.connect(lowShelf);
+    lowShelf.connect(midPeak);
+    midPeak.connect(highShelf);
+    highShelf.connect(filterNode);
+    filterNode.connect(gainNode);
+    gainNode.connect(masterAnalyserRef.current!);
+
+    deckNodesRef.current[deckId] = { trimNode, lowShelf, midPeak, highShelf, filterNode, gainNode };
+
+    const audio = new Audio();
+    audio.crossOrigin = 'anonymous';
+    audio.loop = false;
+    audio.preload = 'none';
+
+    audioElementsRef.current[deckId] = audio;
+
+    const source = ctx.createMediaElementSource(audio);
+    source.connect(trimNode);
+    mediaSourcesRef.current[deckId] = source;
+
+    // Load metadata when available
+    audio.addEventListener('loadedmetadata', () => {
+      const state = useAudioStore.getState();
+      const deck = state.decks[deckId];
+      const pitch = deck?.pitch ?? 0;
+      audio.playbackRate = 1 + pitch / 100;
+      setDeck(deckId, { duration: audio.duration, isReady: true });
+    });
+
+    // Keep Zustand in sync with the native audio element state.
+    audio.addEventListener('play', () => {
+      setDeck(deckId, { isPlaying: true });
+    });
+    audio.addEventListener('pause', () => {
+      setDeck(deckId, { isPlaying: false });
+    });
+    audio.addEventListener('ended', () => {
+      setDeck(deckId, { isPlaying: false, progress: 0 });
+    });
+
+    // Update progress from audio element (throttled to avoid excessive state updates)
+    let lastProgressUpdate = 0;
+    audio.addEventListener('timeupdate', () => {
+      const now = performance.now();
+      if (now - lastProgressUpdate >= 100) {
+        lastProgressUpdate = now;
+        setDeck(deckId, { progress: audio.currentTime });
+      }
+    });
+
+    // Gracefully handle load errors (e.g., file not found, unsupported format)
+    audio.addEventListener('error', () => {
+      const error = audio.error;
+      if (error && error.code !== error.MEDIA_ERR_ABORTED) {
+        console.warn(`Audio element ${deckId} load error:`, error.message);
+        setDeck(deckId, { isReady: false });
+      }
+    });
+
+    // Sync initial DSP parameters from the Zustand store
+    const state = useAudioStore.getState();
+    const deck = state.decks[deckId];
+    if (deck) {
+      audioEngine.setEQ(deckId, 'low', deck.eqLow);
+      audioEngine.setEQ(deckId, 'mid', deck.eqMid);
+      audioEngine.setEQ(deckId, 'high', deck.eqHi);
+      audioEngine.setFilter(deckId, deck.filter);
+      audioEngine.setTrim(deckId, deck.trim ?? 50);
+      const cfMult = audioEngine.computeCrossfaderGain(deck.crossfaderAssign, state.crossfader);
+      audioEngine.setGain(deckId, deck.volume, cfMult, state.isMuted);
     }
   };
 
@@ -268,6 +272,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       }
       
       [1, 2, 3, 4].forEach(deckId => {
+        ensureDeckInitialized(deckId);
         const audio = audioElementsRef.current[deckId];
         if (audio) {
           const playPromise = audio.play();
@@ -281,17 +286,17 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
         }
       });
 
-      document.removeEventListener('click', unlockAudio);
-      document.removeEventListener('touchstart', unlockAudio);
+      document.removeEventListener('click', unlockAudio, { capture: true });
+      document.removeEventListener('touchstart', unlockAudio, { capture: true });
     };
 
-    document.addEventListener('click', unlockAudio);
-    document.addEventListener('touchstart', unlockAudio);
+    document.addEventListener('click', unlockAudio, { capture: true });
+    document.addEventListener('touchstart', unlockAudio, { capture: true });
 
     return () => {
       clearTimeout(initTimer);
-      document.removeEventListener('click', unlockAudio);
-      document.removeEventListener('touchstart', unlockAudio);
+      document.removeEventListener('click', unlockAudio, { capture: true });
+      document.removeEventListener('touchstart', unlockAudio, { capture: true });
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -302,6 +307,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       // Delay slightly to ensure LCP has painted and main thread is idle
       const timer = setTimeout(() => {
         [1, 2, 3, 4].forEach(deckId => {
+          ensureDeckInitialized(deckId);
           const audio = audioElementsRef.current[deckId];
           const deck = useAudioStore.getState().decks[deckId];
           if (audio && deck?.url && !loadedUrlsRef.current[deckId]) {
@@ -408,6 +414,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
 
   // ── togglePlayGlobal (React-accessible version) ─────────────────────────
   const togglePlayGlobal = (deckId: number) => {
+    ensureDeckInitialized(deckId);
     const state = useAudioStore.getState();
     const deck = state.decks[deckId];
     if (!deck) return;
@@ -505,9 +512,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
 
   // ── Expose isMuted to non-React code (audioUtils) ──────────────────────
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      (window as any).isMuted = isMuted;
-    }
+    setMutedGlobal(isMuted);
   }, [isMuted]);
 
   // ── Lazy SoundCloud widget initialisation ───────────────────────────────
@@ -800,6 +805,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     playClick(1000, 'sine', 0.04);
     const ctx = initAudioDSP();
     if (ctx && ctx.state === 'suspended') ctx.resume().catch(() => {});
+    ensureDeckInitialized(deckId);
 
     const state = useAudioStore.getState();
     const deck = state.decks[deckId];
@@ -972,7 +978,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
 
   // ── loadLocalFile (via Web Worker) ─────────────────────────────────────
   const loadLocalFile = async (deckId: number, file: File) => {
-    initAudioDSP();
+    ensureDeckInitialized(deckId);
     const audio = audioElementsRef.current[deckId];
     if (!audio) return;
 
@@ -1036,6 +1042,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
 
   // ── seekLocalBuffer ───────────────────────────────────────────────────
   const seekLocalBuffer = (deckId: number, seekTime: number) => {
+    ensureDeckInitialized(deckId);
     const audio = audioElementsRef.current[deckId];
     if (audio) {
       audio.currentTime = seekTime;
@@ -1043,19 +1050,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // ── estimateBPM (kept for backward compat, runs on main thread) ────────
-  const estimateBPM = (buffer: AudioBuffer): number => {
-    try {
-      const data = buffer.getChannelData(0);
-      const step = Math.floor(buffer.sampleRate / 10);
-      let peaks = 0;
-      for (let i = 0; i < data.length; i += step) {
-        if (Math.abs(data[i]) > 0.6) peaks++;
-      }
-      const bpm = Math.round(peaks / (buffer.duration / 60));
-      return bpm >= 80 && bpm <= 160 ? bpm : 128;
-    } catch (e) { return 128; }
-  };
+
 
   // ── Context value — useMemo so non-reactive data doesn't cascade ────────
   const contextValue = useMemo(() => (
@@ -1064,7 +1059,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       audioElementsRef, playPendingRef, scratchingRef, widgetRefs,
       // Stable functions
       initAudioDSP, loadLocalFile, seekLocalBuffer,
-      togglePlayGlobal, playTrack, playLockoutBlip, estimateBPM, alignSyncPlayback,
+      togglePlayGlobal, playTrack, playLockoutBlip, alignSyncPlayback,
       // Lightweight UI state (rarely changes)
       isMuted, setIsMuted,
       preloaderComplete, setPreloaderComplete,

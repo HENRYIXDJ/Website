@@ -1,7 +1,13 @@
 // --- ANALOG SYNTHESIZER UTILITIES (Web Audio API) ---
 
+// Module-scoped mute flag — replaces the old `window.isMuted` global.
+// AudioProvider syncs this via setMutedGlobal() whenever the Zustand store changes.
+let _isMuted = false;
+export const getMutedGlobal = () => _isMuted;
+export const setMutedGlobal = (muted: boolean) => { _isMuted = muted; };
+
 export const playClick = (freq = 800, type = 'sine', duration = 0.03) => {
-  if (typeof window === 'undefined' || (window as any).isMuted) return;
+  if (typeof window === 'undefined' || _isMuted) return;
   try {
     const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
     
@@ -53,7 +59,7 @@ export const playClick = (freq = 800, type = 'sine', duration = 0.03) => {
 };
 
 export const playTick = () => {
-  if (typeof window === 'undefined' || (window as any).isMuted) return;
+  if (typeof window === 'undefined' || _isMuted) return;
   try {
     const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
     
@@ -93,7 +99,7 @@ export const playTick = () => {
 };
 
 export const playDegauss = () => {
-  if (typeof window === 'undefined' || (window as any).isMuted) return;
+  if (typeof window === 'undefined' || _isMuted) return;
   try {
     const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
     const duration = 0.95;
@@ -159,7 +165,7 @@ export const playDegauss = () => {
 };
 
 export const playLockoutBlip = () => {
-  if (typeof window === 'undefined' || (window as any).isMuted) return;
+  if (typeof window === 'undefined' || _isMuted) return;
   try {
     const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
     const duration = 0.35;
@@ -197,7 +203,7 @@ export const playLockoutBlip = () => {
 };
 
 export const playNavSwoosh = () => {
-  if (typeof window === 'undefined' || (window as any).isMuted) return;
+  if (typeof window === 'undefined' || _isMuted) return;
   try {
     const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
     const duration = 0.55;
@@ -234,7 +240,7 @@ export const playNavSwoosh = () => {
 };
 
 export const playTabClick = () => {
-  if (typeof window === 'undefined' || (window as any).isMuted) return;
+  if (typeof window === 'undefined' || _isMuted) return;
   try {
     const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
     const duration = 0.08;

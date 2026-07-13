@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 // --- MODULAR IMPORTS ---
 import { playClick, playTick, playTabClick } from '@/lib/audioUtils';
 import { audioEngine } from '@/lib/AudioEngine';
-import { SynthesizerKnob, RotaryKnob, SplitFlapText, LEDEqualizer } from '@/components/DJComponents';
+import { RotaryKnob, SplitFlapText, LEDEqualizer } from '@/components/DJComponents';
 import AudioVisualizerBackground from './AudioVisualizerBackground';
 import { useAudio } from './AudioProvider';
 import { useAudioStore } from '@/store/audioStore';
@@ -825,6 +825,70 @@ function MixArchive({
   });
 
   const platterRefs = useRef<Record<number, HTMLDivElement | null>>({});
+
+  // --- Fader Update Batching refs ---
+  const pendingCrossfaderRef = useRef<number | null>(null);
+  const crossfaderFrameScheduledRef = useRef(false);
+  
+  const pendingVolumesRef = useRef<Record<number, number>>({});
+  const volumesFrameScheduledRef = useRef(false);
+
+  const handleCrossfaderChange = (val: number) => {
+    // 1. Instant audio DSP update (zero latency)
+    const state = useAudioStore.getState();
+    [1, 2, 3, 4].forEach(deckId => {
+      const deck = state.decks[deckId];
+      if (deck) {
+        const cfMult = audioEngine.computeCrossfaderGain(deck.crossfaderAssign, val);
+        audioEngine.setGain(deckId, deck.volume, cfMult, state.isMuted);
+      }
+    });
+
+    // 2. Queue Zustand/React state update
+    pendingCrossfaderRef.current = val;
+    if (!crossfaderFrameScheduledRef.current) {
+      crossfaderFrameScheduledRef.current = true;
+      requestAnimationFrame(() => {
+        crossfaderFrameScheduledRef.current = false;
+        if (pendingCrossfaderRef.current !== null) {
+          setCrossfader(pendingCrossfaderRef.current);
+          pendingCrossfaderRef.current = null;
+        }
+      });
+    }
+  };
+
+  const handleVolumeChange = (deckId: number, val: number) => {
+    // 1. Instant audio DSP update (zero latency)
+    const state = useAudioStore.getState();
+    const deck = state.decks[deckId];
+    if (deck) {
+      const cfMult = audioEngine.computeCrossfaderGain(deck.crossfaderAssign, state.crossfader);
+      audioEngine.setGain(deckId, val, cfMult, state.isMuted);
+    }
+
+    // 2. Queue Zustand/React state update
+    pendingVolumesRef.current[deckId] = val;
+    if (!volumesFrameScheduledRef.current) {
+      volumesFrameScheduledRef.current = true;
+      requestAnimationFrame(() => {
+        volumesFrameScheduledRef.current = false;
+        const updates = { ...pendingVolumesRef.current };
+        pendingVolumesRef.current = {};
+        
+        setDecks((prev: any) => {
+          const next = { ...prev };
+          Object.entries(updates).forEach(([idStr, v]) => {
+            const id = Number(idStr);
+            if (next[id]) {
+              next[id] = { ...next[id], volume: v };
+            }
+          });
+          return next;
+        });
+      });
+    }
+  };
 
   // --- Global Deck Controls for hotkeys and platters ---
 
@@ -2212,7 +2276,7 @@ function MixArchive({
                     VOL
                   </span>
                   
-                  <div className="relative h-32 w-6 bg-zinc-950 border border-zinc-900 rounded flex items-center justify-center overflow-hidden shadow-inner">
+                  <div className="relative h-32 w-6 bg-zinc-950 border border-zinc-900 focus-within:border-zinc-500 focus-within:shadow-[0_0_8px_rgba(255,255,255,0.15)] rounded flex items-center justify-center overflow-hidden shadow-inner">
                     <input 
                       type="range"
                       min="0"
@@ -2223,21 +2287,16 @@ function MixArchive({
                       onChange={(e) => {
                         if (!isLocked) {
                           const val = Number(e.target.value);
-                          // 1. Instant audio DSP update (zero latency)
-                          const state = useAudioStore.getState();
-                          const cfMult = audioEngine.computeCrossfaderGain(deck.crossfaderAssign, state.crossfader);
-                          audioEngine.setGain(id, val, cfMult, state.isMuted);
-
-                          // 2. Update Zustand for UI display
-                          setDecks((prev: any) => ({
-                            ...prev,
-                            [id]: { ...prev[id], volume: val }
-                          }));
+                          handleVolumeChange(id, val);
                         } else {
                           playLockoutBlip();
                         }
                       }}
                       disabled={isLocked}
+                      aria-label={`Volume Fader Deck ${id}`}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-valuenow={deck.volume}
                       style={{
                         writingMode: 'vertical-lr',
                         direction: 'rtl'
@@ -2320,7 +2379,7 @@ function MixArchive({
             <span>C/D DECK</span>
           </div>
 
-          <div className="relative w-full h-5 bg-zinc-950 border border-zinc-900 rounded flex items-center justify-center px-4 overflow-hidden select-none shadow-inner">
+          <div className="relative w-full h-5 bg-zinc-950 border border-zinc-900 focus-within:border-primary focus-within:shadow-[0_0_8px_rgba(216,22,63,0.5)] rounded flex items-center justify-center px-4 overflow-hidden select-none shadow-inner">
             <input 
               type="range"
               min="0"
@@ -2330,11 +2389,15 @@ function MixArchive({
               placeholder="Crossfader"
               onChange={(e) => {
                 const val = Number(e.target.value);
-                setCrossfader(val);
+                handleCrossfaderChange(val);
                 if (Math.abs(val - 50) < 3) {
                   playClick(880, 'sine', 0.004);
                 }
               }}
+              aria-label="Crossfader"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={crossfader}
               className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
             />
 

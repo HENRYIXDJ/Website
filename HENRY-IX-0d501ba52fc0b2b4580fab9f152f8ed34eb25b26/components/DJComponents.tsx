@@ -9,93 +9,6 @@ import { useAudio } from '@/components/AudioProvider';
 
 // --- RETAIL RETRO CUSTOM COMPONENTS ---
 
-export function SynthesizerKnob({ 
-  label, 
-  value, 
-  onChange, 
-  min = 0, 
-  max = 100, 
-  unit = "" 
-}: { 
-  label: string; 
-  value: number; 
-  onChange: (val: number) => void; 
-  min?: number; 
-  max?: number; 
-  unit?: string; 
-}) {
-  const [isDragging, setIsDragging] = useState(false);
-  const dragStart = useRef(0);
-  const valStart = useRef(0);
-
-  const handleMouseDown = (e: React.MouseEvent) => {
-    setIsDragging(true);
-    dragStart.current = e.clientY;
-    valStart.current = value;
-    document.body.style.cursor = 'ns-resize';
-    playClick(900, 'sine', 0.02);
-  };
-
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!isDragging) return;
-      const deltaY = dragStart.current - e.clientY; // drag up to increase
-      const range = max - min;
-      const step = range / 200; // 200px drag for full scale
-      const newValue = Math.min(max, Math.max(min, valStart.current + deltaY * step));
-      onChange(Math.round(newValue));
-      
-      // Subtle pitch-blip when adjusting
-      if (Math.round(newValue) !== value && Math.random() < 0.25) {
-        playClick(400 + newValue * 4, 'sine', 0.01);
-      }
-    };
-
-    const handleMouseUp = () => {
-      setIsDragging(false);
-      document.body.style.cursor = '';
-      playClick(700, 'sine', 0.02);
-    };
-
-    if (isDragging) {
-      window.addEventListener('mousemove', handleMouseMove);
-      window.addEventListener('mouseup', handleMouseUp);
-    }
-
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [isDragging, value, onChange, min, max]);
-
-  const rotation = ((value - min) / (max - min)) * 270 - 135;
-
-  return (
-    <div className="flex flex-col items-center gap-1 font-mono text-[9px] text-zinc-500">
-      <span className="uppercase tracking-widest text-[8px]">{label}</span>
-      <div 
-        onMouseDown={handleMouseDown}
-        className="w-10 h-10 rounded-full bg-zinc-950 border border-zinc-800 flex items-center justify-center relative cursor-ns-resize shadow-inner select-none"
-        style={{
-          boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.8), 0 1px 1px rgba(255,255,255,0.05)'
-        }}
-      >
-        <div className="w-8 h-8 rounded-full bg-zinc-900 border border-zinc-800/80 flex items-center justify-center shadow">
-          <motion.div 
-            style={{ rotate: rotation }}
-            className="absolute top-1 bottom-1 w-1 flex justify-center origin-center pointer-events-none"
-          >
-            <div className="w-[1.5px] h-2 rounded-full bg-primary" />
-          </motion.div>
-        </div>
-      </div>
-      <span className="text-[8px] text-primary tracking-widest bg-zinc-950 px-1 py-0.5 rounded border border-zinc-900 font-mono">
-        {value}{unit}
-      </span>
-    </div>
-  );
-}
-
 interface RotaryKnobProps {
   label: string;
   value: number; // 0 to 100
@@ -138,13 +51,18 @@ export function RotaryKnob({ label, value, onChange, disabled = false, colorClas
             }
           }}
           disabled={disabled}
+          aria-label={label}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={value}
           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
         />
         
         {/* Outer casing */}
         <div className={cn(
           "absolute inset-0 rounded-full border border-zinc-800 transition-all duration-300 pointer-events-none z-0",
-          !disabled && `group-hover:shadow-[0_0_8px_rgba(211,15,49,0.1)]`
+          !disabled && `group-hover:shadow-[0_0_8px_rgba(211,15,49,0.1)]`,
+          "group-focus-within:border-primary group-focus-within:shadow-[0_0_8px_rgba(216,22,63,0.5)]"
         )} />
         
         {/* Rotating dial body */}

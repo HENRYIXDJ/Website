@@ -120,12 +120,7 @@ export default function GalleryPage() {
 
   return (
     <PageShell>
-      <main className="min-h-screen bg-black text-zinc-100 selection:bg-primary/30 selection:text-primary pt-24 pb-20 px-4 md:px-8 max-w-7xl mx-auto relative overflow-hidden">
-        
-        {/* Decorative Grid Lines */}
-        <div className="absolute inset-0 pointer-events-none z-0 opacity-5">
-          <div className="w-full h-full bg-[linear-gradient(to_right,#808080_1px,transparent_1px),linear-gradient(to_bottom,#808080_1px,transparent_1px)] bg-[size:4rem_4rem]" />
-        </div>
+      <main className="min-h-screen text-zinc-100 selection:bg-primary/30 selection:text-primary pt-24 pb-20 px-4 md:px-8 w-full relative overflow-hidden">
 
         {/* Section Header */}
         <div className="relative z-10 mb-12 md:mb-16 flex flex-col items-center text-center">
@@ -205,6 +200,7 @@ export default function GalleryPage() {
                   fill
                   sizes="(max-width: 768px) 100vw, 25vw"
                   loading="lazy"
+                  unoptimized={true}
                   className="object-cover filter grayscale group-hover:grayscale-0 contrast-125 group-hover:scale-[1.03] transition-all duration-700 ease-out"
                 />
 
@@ -276,6 +272,7 @@ export default function GalleryPage() {
                     fill
                     sizes="100vw"
                     loading="lazy"
+                    unoptimized={activeImage.src.includes('/api/assets')}
                     className="object-contain block pointer-events-none"
                   />
                 </motion.div>
