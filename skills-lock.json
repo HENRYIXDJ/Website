@@ -1,6 +1,12 @@
 {
   "version": 1,
   "skills": {
+    "sanity-best-practices": {
+      "source": "sanity-io/agent-toolkit",
+      "sourceType": "github",
+      "skillPath": "skills/sanity-best-practices/SKILL.md",
+      "computedHash": "4aac15e16306c7bc30d4ad6078058641e61a1cc176eee48b87fba3f3ba8fd771"
+    },
     "workflow-init": {
       "source": "vercel/workflow",
       "sourceType": "github",

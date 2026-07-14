@@ -5,13 +5,13 @@ import { motion, useMotionValue } from 'framer-motion';
 import { Play, Pause, CircleDot, Music2, Disc, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-// --- MODULAR IMPORTS ---
-import { playClick, playTick, playTabClick } from '@/lib/audioUtils';
+import { LEDEqualizer, RotaryKnob, SplitFlapText } from '@/components/DJComponents';
+import { getStorageUrl } from '@/lib/storage';
 import { audioEngine } from '@/lib/AudioEngine';
-import { RotaryKnob, SplitFlapText, LEDEqualizer } from '@/components/DJComponents';
-import AudioVisualizerBackground from './AudioVisualizerBackground';
-import { useAudio } from './AudioProvider';
+import { playClick, playTabClick, playTick } from '@/lib/audioUtils';
 import { useAudioStore } from '@/store/audioStore';
+import { useAudio } from './AudioProvider';
+import AudioVisualizerBackground from './AudioVisualizerBackground';
 
 
 const formatTime = (secs: number) => {
@@ -24,27 +24,27 @@ const formatTime = (secs: number) => {
 const proxyUrl = (url: string) => `/api/assets?url=${encodeURIComponent(url)}`;
 
 const getSessionImage = (title: string) => {
-  if (!title) return proxyUrl('https://tegbbmt42xpyzcnx.private.blob.vercel-storage.com/Mixes/Knight%20Club/KC%20Artwork/Session%201.jpg');
-  if (title.includes('Knight Club') && title.includes('Session 1')) return proxyUrl('https://tegbbmt42xpyzcnx.private.blob.vercel-storage.com/Mixes/Knight%20Club/KC%20Artwork/Session%201.jpg');
-  if (title.includes('Knight Club') && title.includes('Session 2')) return proxyUrl('https://tegbbmt42xpyzcnx.private.blob.vercel-storage.com/Mixes/Knight%20Club/KC%20Artwork/Session%202.jpg');
-  if (title.includes('Knight Club') && title.includes('Session 3')) return proxyUrl('https://tegbbmt42xpyzcnx.private.blob.vercel-storage.com/Mixes/Knight%20Club/KC%20Artwork/Session%203.jpg');
-  if (title.includes('Knight Club') && title.includes('Session 4')) return proxyUrl('https://tegbbmt42xpyzcnx.private.blob.vercel-storage.com/Mixes/Knight%20Club/KC%20Artwork/Session%204.jpg');
-  if (title.includes('Knight Club') && title.includes('Session 5')) return proxyUrl('https://tegbbmt42xpyzcnx.private.blob.vercel-storage.com/Mixes/Knight%20Club/KC%20Artwork/Session%205.jpg');
+  if (!title) return proxyUrl(getStorageUrl('/Mixes/Knight%20Club/KC%20Artwork/Session%201.jpg'));
+  if (title.includes('Knight Club') && title.includes('Session 1')) return proxyUrl(getStorageUrl('/Mixes/Knight%20Club/KC%20Artwork/Session%201.jpg'));
+  if (title.includes('Knight Club') && title.includes('Session 2')) return proxyUrl(getStorageUrl('/Mixes/Knight%20Club/KC%20Artwork/Session%202.jpg'));
+  if (title.includes('Knight Club') && title.includes('Session 3')) return proxyUrl(getStorageUrl('/Mixes/Knight%20Club/KC%20Artwork/Session%203.jpg'));
+  if (title.includes('Knight Club') && title.includes('Session 4')) return proxyUrl(getStorageUrl('/Mixes/Knight%20Club/KC%20Artwork/Session%204.jpg'));
+  if (title.includes('Knight Club') && title.includes('Session 5')) return proxyUrl(getStorageUrl('/Mixes/Knight%20Club/KC%20Artwork/Session%205.jpg'));
   
-  if (title.includes('Royal Court') && title.includes('Session 1')) return proxyUrl('https://tegbbmt42xpyzcnx.private.blob.vercel-storage.com/Mixes/Royal%20Court/RC%20Artwork/Royal%20Court%20Session%201%20Track%20Artwork.jpg');
-  if (title.includes('Royal Court') && title.includes('Session 2')) return proxyUrl('https://tegbbmt42xpyzcnx.private.blob.vercel-storage.com/Mixes/Royal%20Court/RC%20Artwork/Royal%20Court%20Session%202%20Track%20Artwork.jpg');
+  if (title.includes('Royal Court') && title.includes('Session 1')) return proxyUrl(getStorageUrl('/Mixes/Royal%20Court/RC%20Artwork/Royal%20Court%20Session%201%20Track%20Artwork.jpg'));
+  if (title.includes('Royal Court') && title.includes('Session 2')) return proxyUrl(getStorageUrl('/Mixes/Royal%20Court/RC%20Artwork/Royal%20Court%20Session%202%20Track%20Artwork.jpg'));
   
-  if (title.includes('Corner New Cross') && title.includes('Night 1')) return proxyUrl('https://tegbbmt42xpyzcnx.private.blob.vercel-storage.com/Mixes/Corner%20New%20Cross/CNC%20Artwork/CNC%20N1%20Artwork.png');
-  if (title.includes('Corner New Cross') && title.includes('Night 2')) return proxyUrl('https://tegbbmt42xpyzcnx.private.blob.vercel-storage.com/Mixes/Corner%20New%20Cross/CNC%20Artwork/CNC%20N2%20Artwork.png');
+  if (title.includes('Corner New Cross') && title.includes('Night 1')) return proxyUrl(getStorageUrl('/Mixes/Corner%20New%20Cross/CNC%20Artwork/CNC%20N1%20Artwork.png'));
+  if (title.includes('Corner New Cross') && title.includes('Night 2')) return proxyUrl(getStorageUrl('/Mixes/Corner%20New%20Cross/CNC%20Artwork/CNC%20N2%20Artwork.png'));
 
   // Fallbacks if just matching session
-  if (title.includes('Session 1')) return proxyUrl('https://tegbbmt42xpyzcnx.private.blob.vercel-storage.com/Mixes/Knight%20Club/KC%20Artwork/Session%201.jpg');
-  if (title.includes('Session 2')) return proxyUrl('https://tegbbmt42xpyzcnx.private.blob.vercel-storage.com/Mixes/Knight%20Club/KC%20Artwork/Session%202.jpg');
-  if (title.includes('Session 3')) return proxyUrl('https://tegbbmt42xpyzcnx.private.blob.vercel-storage.com/Mixes/Knight%20Club/KC%20Artwork/Session%203.jpg');
-  if (title.includes('Session 4')) return proxyUrl('https://tegbbmt42xpyzcnx.private.blob.vercel-storage.com/Mixes/Knight%20Club/KC%20Artwork/Session%204.jpg');
-  if (title.includes('Session 5')) return proxyUrl('https://tegbbmt42xpyzcnx.private.blob.vercel-storage.com/Mixes/Knight%20Club/KC%20Artwork/Session%205.jpg');
+  if (title.includes('Session 1')) return proxyUrl(getStorageUrl('/Mixes/Knight%20Club/KC%20Artwork/Session%201.jpg'));
+  if (title.includes('Session 2')) return proxyUrl(getStorageUrl('/Mixes/Knight%20Club/KC%20Artwork/Session%202.jpg'));
+  if (title.includes('Session 3')) return proxyUrl(getStorageUrl('/Mixes/Knight%20Club/KC%20Artwork/Session%203.jpg'));
+  if (title.includes('Session 4')) return proxyUrl(getStorageUrl('/Mixes/Knight%20Club/KC%20Artwork/Session%204.jpg'));
+  if (title.includes('Session 5')) return proxyUrl(getStorageUrl('/Mixes/Knight%20Club/KC%20Artwork/Session%205.jpg'));
   
-  return proxyUrl('https://tegbbmt42xpyzcnx.private.blob.vercel-storage.com/Mixes/Knight%20Club/KC%20Artwork/Session%201.jpg');
+  return proxyUrl(getStorageUrl('/Mixes/Knight%20Club/KC%20Artwork/Session%201.jpg'));
 };
 
 const getTrackDescription = (title: string, isLocalFile: boolean) => {
@@ -1270,25 +1270,25 @@ function MixArchive({
     {
       title: "Knight Club",
       mixes: [
-        { id: 'kc-1', title: 'Knight Club: Session 1', url: proxyUrl('https://tegbbmt42xpyzcnx.private.blob.vercel-storage.com/Mixes/Knight%20Club/KC%20Music/Knight%20Club%20Session%201%20-%20Mastered%20High%20Quality.mp3'), link: 'https://soundcloud.com/henryixdj/knight-club-session-1', bpm: 145, isLocalFile: true, cuePoints: [0, 1127, 2112, 2772] },
-        { id: 'kc-2', title: 'Knight Club: Session 2', url: proxyUrl('https://tegbbmt42xpyzcnx.private.blob.vercel-storage.com/Mixes/Knight%20Club/KC%20Music/Knight%20Club%20Session%202%20-%20Mastered.mp3'), link: 'https://soundcloud.com/henryixdj/knight-club-session-2', bpm: 152, isLocalFile: true, cuePoints: [0, 2468, 4084, 6270] },
-        { id: 'kc-3', title: 'Knight Club: Session 3', url: proxyUrl('https://tegbbmt42xpyzcnx.private.blob.vercel-storage.com/Mixes/Knight%20Club/KC%20Music/Knight%20Club%20Session%203%20-%20Mastered.mp3'), link: 'https://soundcloud.com/henryixdj/knight-club-session-3', bpm: 150, isLocalFile: true, cuePoints: [0, 1940, 3685, 5509] },
-        { id: 'kc-4', title: 'Knight Club: Session 4', url: proxyUrl('https://tegbbmt42xpyzcnx.private.blob.vercel-storage.com/Mixes/Knight%20Club/KC%20Music/Knight%20Club%20Session%204%20-%20Remastered.mp3'), link: 'https://soundcloud.com/henryixdj/33baa30a-4980-40da-94c2-41085314ec43', bpm: 155, isLocalFile: true, cuePoints: [0, 1834, 3582, 5552] },
-        { id: 'kc-5', title: 'Knight Club: Session 5', url: proxyUrl('https://tegbbmt42xpyzcnx.private.blob.vercel-storage.com/Mixes/Knight%20Club/KC%20Music/Knight%20Club%20Session%205%20MP3.mp3'), link: 'https://soundcloud.com/henryixdj/knight-club-session-5', bpm: 150, isLocalFile: true }
+        { id: 'kc-1', title: 'Knight Club: Session 1', url: proxyUrl(getStorageUrl('/Mixes/Knight%20Club/KC%20Music/Knight%20Club%20Session%201%20-%20Mastered%20High%20Quality.mp3')), link: 'https://soundcloud.com/henryixdj/knight-club-session-1', bpm: 145, isLocalFile: true, cuePoints: [0, 1127, 2112, 2772] },
+        { id: 'kc-2', title: 'Knight Club: Session 2', url: proxyUrl(getStorageUrl('/Mixes/Knight%20Club/KC%20Music/Knight%20Club%20Session%202%20-%20Mastered.mp3')), link: 'https://soundcloud.com/henryixdj/knight-club-session-2', bpm: 152, isLocalFile: true, cuePoints: [0, 2468, 4084, 6270] },
+        { id: 'kc-3', title: 'Knight Club: Session 3', url: proxyUrl(getStorageUrl('/Mixes/Knight%20Club/KC%20Music/Knight%20Club%20Session%203%20-%20Mastered.mp3')), link: 'https://soundcloud.com/henryixdj/knight-club-session-3', bpm: 150, isLocalFile: true, cuePoints: [0, 1940, 3685, 5509] },
+        { id: 'kc-4', title: 'Knight Club: Session 4', url: proxyUrl(getStorageUrl('/Mixes/Knight%20Club/KC%20Music/Knight%20Club%20Session%204%20-%20Remastered.mp3')), link: 'https://soundcloud.com/henryixdj/33baa30a-4980-40da-94c2-41085314ec43', bpm: 155, isLocalFile: true, cuePoints: [0, 1834, 3582, 5552] },
+        { id: 'kc-5', title: 'Knight Club: Session 5', url: proxyUrl(getStorageUrl('/Mixes/Knight%20Club/KC%20Music/Knight%20Club%20Session%205%20MP3.mp3')), link: 'https://soundcloud.com/henryixdj/knight-club-session-5', bpm: 150, isLocalFile: true }
       ]
     },
     {
       title: "Royal Court",
       mixes: [
-        { id: 'rc-1', title: 'Royal Court: Session 1', url: proxyUrl('https://tegbbmt42xpyzcnx.private.blob.vercel-storage.com/Mixes/Royal%20Court/RC%20Music/Royal%20Court%20Session%201%20MP3.mp3'), link: 'https://soundcloud.com/henryixdj/session-1', bpm: 124, isLocalFile: true },
-        { id: 'rc-2', title: 'Royal Court: Session 2', url: proxyUrl('https://tegbbmt42xpyzcnx.private.blob.vercel-storage.com/Mixes/Royal%20Court/RC%20Music/Royal%20Court%20Session%202%20MP3.mp3'), link: 'https://soundcloud.com/henryixdj/01-best-yet', bpm: 125, isLocalFile: true }
+        { id: 'rc-1', title: 'Royal Court: Session 1', url: proxyUrl(getStorageUrl('/Mixes/Royal%20Court/RC%20Music/Royal%20Court%20Session%201%20MP3.mp3')), link: 'https://soundcloud.com/henryixdj/session-1', bpm: 124, isLocalFile: true },
+        { id: 'rc-2', title: 'Royal Court: Session 2', url: proxyUrl(getStorageUrl('/Mixes/Royal%20Court/RC%20Music/Royal%20Court%20Session%202%20MP3.mp3')), link: 'https://soundcloud.com/henryixdj/01-best-yet', bpm: 125, isLocalFile: true }
       ]
     },
     {
       title: "Corner New Cross",
       mixes: [
-        { id: 'cnc-1', title: 'Corner New Cross: Night 1', url: proxyUrl('https://tegbbmt42xpyzcnx.private.blob.vercel-storage.com/Mixes/Corner%20New%20Cross/CNC%20Mixes/Corner%20New%20Cross%20Night%201%20MP3.mp3'), link: 'https://soundcloud.com/henryixdj/corner-new-cross-night-1', bpm: 128, isLocalFile: true },
-        { id: 'cnc-2', title: 'Corner New Cross: Night 2', url: proxyUrl('https://tegbbmt42xpyzcnx.private.blob.vercel-storage.com/Mixes/Corner%20New%20Cross/CNC%20Mixes/Corner%20New%20Cross%20Night%202%20MP3.mp3'), link: 'https://soundcloud.com/henryixdj/corner-new-cross-night-2', bpm: 132, isLocalFile: true }
+        { id: 'cnc-1', title: 'Corner New Cross: Night 1', url: proxyUrl(getStorageUrl('/Mixes/Corner%20New%20Cross/CNC%20Mixes/Corner%20New%20Cross%20Night%201%20MP3.mp3')), link: 'https://soundcloud.com/henryixdj/corner-new-cross-night-1', bpm: 128, isLocalFile: true },
+        { id: 'cnc-2', title: 'Corner New Cross: Night 2', url: proxyUrl(getStorageUrl('/Mixes/Corner%20New%20Cross/CNC%20Mixes/Corner%20New%20Cross%20Night%202%20MP3.mp3')), link: 'https://soundcloud.com/henryixdj/corner-new-cross-night-2', bpm: 132, isLocalFile: true }
       ]
     }
   ];
