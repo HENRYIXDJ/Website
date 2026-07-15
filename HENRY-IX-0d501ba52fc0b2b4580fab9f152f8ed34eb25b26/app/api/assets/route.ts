@@ -6,7 +6,12 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 const accountId = process.env.R2_ACCOUNT_ID;
 const accessKeyId = process.env.R2_ACCESS_KEY_ID;
 const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
-const endpoint = process.env.R2_ENDPOINT || (accountId ? `https://${accountId}.r2.cloudflarestorage.com` : undefined);
+let endpoint = process.env.R2_ENDPOINT || (accountId ? `https://${accountId}.r2.cloudflarestorage.com` : undefined);
+const bucketName = process.env.R2_BUCKET_NAME;
+
+if (endpoint && bucketName && endpoint.endsWith(`/${bucketName}`)) {
+  endpoint = endpoint.slice(0, -(bucketName.length + 1));
+}
 
 const isR2 = process.env.NEXT_PUBLIC_USE_CLOUDFLARE_R2 === 'true' || !!(endpoint && accessKeyId && secretAccessKey);
 
@@ -45,6 +50,11 @@ async function handleAssetRequest(request: Request) {
   const pathname = decodeURIComponent(parsedUrl.pathname.slice(1));
 
   if (!isR2 || !s3Client) {
+    const r2PublicDomain = process.env.NEXT_PUBLIC_R2_PUBLIC_URL;
+    if (r2PublicDomain) {
+      const publicUrl = r2PublicDomain.endsWith('/') ? r2PublicDomain : `${r2PublicDomain}/`;
+      return NextResponse.redirect(`${publicUrl}${pathname}`, { status: 307 });
+    }
     return new NextResponse('Storage (Cloudflare R2) is not configured correctly', { status: 500 });
   }
   
