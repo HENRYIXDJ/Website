@@ -19,7 +19,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: 'npm'
           cache-dependency-path: 'HENRY-IX-0d501ba52fc0b2b4580fab9f152f8ed34eb25b26/package-lock.json'
 
