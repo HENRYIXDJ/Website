@@ -1,0 +1,41 @@
+name: Google Drive to R2/Sanity Sync
+
+on:
+  schedule:
+    # Run every 6 hours
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+    # Allows manual trigger from the GitHub actions tab
+
+jobs:
+  sync:
+    name: Sync Google Drive media
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: 'HENRY-IX-0d501ba52fc0b2b4580fab9f152f8ed34eb25b26/package-lock.json'
+
+      - name: Install Dependencies
+        working-directory: ./HENRY-IX-0d501ba52fc0b2b4580fab9f152f8ed34eb25b26
+        run: npm ci
+
+      - name: Run Google Drive Sync
+        working-directory: ./HENRY-IX-0d501ba52fc0b2b4580fab9f152f8ed34eb25b26
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          SANITY_PROJECT_ID: 'r6mln4n3'
+          SANITY_DATASET: 'production'
+          SANITY_WRITE_TOKEN: ${{ secrets.SANITY_WRITE_TOKEN }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+        run: npx tsx scripts/sync-drive.ts
