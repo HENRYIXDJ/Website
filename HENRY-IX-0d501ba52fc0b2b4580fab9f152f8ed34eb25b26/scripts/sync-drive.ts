@@ -93,6 +93,53 @@ async function findFolderId(name: string, parentId?: string): Promise<string | n
   return res.data.files?.[0]?.id || null;
 }
 
+async function getAllFilesRecursively(
+  parentFolderId: string,
+  mimeTypes: string[],
+  parentFolderName?: string
+): Promise<{ id: string; name: string; parentName?: string }[]> {
+  const files: { id: string; name: string; parentName?: string }[] = [];
+
+  try {
+    const mimeQuery = mimeTypes.map(m => `mimeType = '${m}'`).join(' or ');
+    const fileQuery = `'${parentFolderId}' in parents and trashed = false and (${mimeQuery})`;
+
+    const filesRes = await drive.files.list({
+      q: fileQuery,
+      fields: 'files(id, name)',
+      pageSize: 1000,
+    });
+
+    if (filesRes.data.files) {
+      for (const f of filesRes.data.files) {
+        if (f.id && f.name) {
+          files.push({ id: f.id, name: f.name, parentName: parentFolderName });
+        }
+      }
+    }
+
+    const folderQuery = `'${parentFolderId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
+    const foldersRes = await drive.files.list({
+      q: folderQuery,
+      fields: 'files(id, name)',
+      pageSize: 100,
+    });
+
+    if (foldersRes.data.files) {
+      for (const folder of foldersRes.data.files) {
+        if (folder.id && folder.name) {
+          const subFiles = await getAllFilesRecursively(folder.id, mimeTypes, folder.name);
+          files.push(...subFiles);
+        }
+      }
+    }
+  } catch (err: any) {
+    console.warn(`Warning reading files recursively in folder ID ${parentFolderId}:`, err.message);
+  }
+
+  return files;
+}
+
 function cleanMixTitle(fileName: string, mixType: string): string {
   const nameWithoutExt = fileName.substring(0, fileName.lastIndexOf('.')) || fileName;
   const normalized = nameWithoutExt.toLowerCase();
@@ -113,11 +160,14 @@ function cleanMixTitle(fileName: string, mixType: string): string {
   return `${mixType}: ${nameWithoutExt}`;
 }
 
-function matchArtworkFile(mixName: string, mixType: string, files: { id: string; name: string }[]): { id: string; name: string } | null {
+function matchArtworkFile(mixName: string, mixType: string, files: { id: string; name: string; parentName?: string }[]): { id: string; name: string; parentName?: string } | null {
+  const normalizedMixType = mixType.toLowerCase().trim();
+  const eligibleFiles = files.filter(f => !f.parentName || f.parentName.toLowerCase().trim() === normalizedMixType);
+  
   const normalizedMixName = mixName.toLowerCase().replace(/[:\-]/g, ' ').replace(/\s+/g, ' ').trim();
   
   // Try exact match first
-  let found = files.find(f => {
+  let found = eligibleFiles.find(f => {
     const baseName = f.name?.substring(0, f.name.lastIndexOf('.')) || f.name || '';
     return baseName.toLowerCase().trim() === mixName.toLowerCase().trim();
   });
@@ -128,7 +178,7 @@ function matchArtworkFile(mixName: string, mixType: string, files: { id: string;
     const sessionMatch = normalizedMixName.match(/session\s*(\d+)/);
     if (sessionMatch) {
       const sessionNum = sessionMatch[1];
-      found = files.find(f => {
+      found = eligibleFiles.find(f => {
         const baseName = f.name?.substring(0, f.name.lastIndexOf('.')) || f.name || '';
         const normBase = baseName.toLowerCase().trim();
         return normBase === `session ${sessionNum}` || normBase === `session${sessionNum}`;
@@ -142,7 +192,7 @@ function matchArtworkFile(mixName: string, mixType: string, files: { id: string;
     const sessionMatch = normalizedMixName.match(/session\s*(\d+)/);
     if (sessionMatch) {
       const sessionNum = sessionMatch[1];
-      found = files.find(f => {
+      found = eligibleFiles.find(f => {
         const baseName = f.name?.substring(0, f.name.lastIndexOf('.')) || f.name || '';
         const normBase = baseName.toLowerCase().trim();
         return normBase.includes(`session ${sessionNum}`) || normBase.includes(`session${sessionNum}`);
@@ -156,7 +206,7 @@ function matchArtworkFile(mixName: string, mixType: string, files: { id: string;
     const nightMatch = normalizedMixName.match(/night\s*(\d+)/);
     if (nightMatch) {
       const nightNum = nightMatch[1];
-      found = files.find(f => {
+      found = eligibleFiles.find(f => {
         const baseName = f.name?.substring(0, f.name.lastIndexOf('.')) || f.name || '';
         const normBase = baseName.toLowerCase().trim();
         return normBase.includes(`n${nightNum}`) || normBase.includes(`night ${nightNum}`);
@@ -169,7 +219,7 @@ function matchArtworkFile(mixName: string, mixType: string, files: { id: string;
   const numberMatch = normalizedMixName.match(/\d+/);
   if (numberMatch) {
     const num = numberMatch[0];
-    found = files.find(f => {
+    found = eligibleFiles.find(f => {
       const baseName = f.name?.substring(0, f.name.lastIndexOf('.')) || f.name || '';
       return baseName.includes(num);
     });
@@ -179,17 +229,20 @@ function matchArtworkFile(mixName: string, mixType: string, files: { id: string;
   return null;
 }
 
-function matchTracklistFile(mixName: string, files: { id: string; name: string }[]): { id: string; name: string } | null {
+function matchTracklistFile(mixName: string, mixType: string, files: { id: string; name: string; parentName?: string }[]): { id: string; name: string; parentName?: string } | null {
+  const normalizedMixType = mixType.toLowerCase().trim();
+  const eligibleFiles = files.filter(f => !f.parentName || f.parentName.toLowerCase().trim() === normalizedMixType);
+  
   const normalizedMixName = mixName.toLowerCase().trim();
   // Exact match
-  let found = files.find(f => {
+  let found = eligibleFiles.find(f => {
     const baseName = f.name?.substring(0, f.name.lastIndexOf('.')) || f.name || '';
     return baseName.toLowerCase().trim() === normalizedMixName;
   });
   if (found) return found;
 
   // Fuzzy match
-  found = files.find(f => {
+  found = eligibleFiles.find(f => {
     const baseName = f.name?.substring(0, f.name.lastIndexOf('.')) || f.name || '';
     const normBase = baseName.toLowerCase().trim();
     return normalizedMixName.includes(normBase) || normBase.includes(normalizedMixName);
@@ -278,30 +331,25 @@ async function main() {
     process.exit(1);
   }
 
-  // Find sub-folders for Track Lists and Artwork
-  const tracklistsFolderId = await findFolderId('Mix Track Lists', mixesId);
+  // Find sub-folders for Tracklists and Artwork
+  const tracklistsFolderId = await findFolderId('Mix Tracklists', mixesId) || await findFolderId('Mix Track Lists', mixesId);
   const artworkFolderId = await findFolderId('Mix Artwork', mixesId);
   
-  if (!tracklistsFolderId) console.warn("Folder 'Mix Track Lists' not found. Skipping tracklist matching.");
+  if (!tracklistsFolderId) console.warn("Folder 'Mix Tracklists' not found. Skipping tracklist matching.");
   if (!artworkFolderId) console.warn("Folder 'Mix Artwork' not found. Skipping cover art matching.");
 
   // Preload artwork files
-  let artworkFiles: { id: string; name: string }[] = [];
+  let artworkFiles: { id: string; name: string; parentName?: string }[] = [];
   if (artworkFolderId) {
-    const mimeQuery = ['image/jpeg', 'image/png', 'image/webp'].map(m => `mimeType = '${m}'`).join(' or ');
-    const query = `'${artworkFolderId}' in parents and trashed = false and (${mimeQuery})`;
-    const res = await drive.files.list({ q: query, fields: 'files(id, name)', pageSize: 1000 });
-    artworkFiles = res.data.files?.map(f => ({ id: f.id!, name: f.name! })) || [];
-    console.log(`Preloaded ${artworkFiles.length} artwork files from Google Drive.`);
+    artworkFiles = await getAllFilesRecursively(artworkFolderId, ['image/jpeg', 'image/png', 'image/webp']);
+    console.log(`Preloaded ${artworkFiles.length} artwork files recursively from Google Drive.`);
   }
 
   // Preload tracklists
-  let tracklistFiles: { id: string; name: string }[] = [];
+  let tracklistFiles: { id: string; name: string; parentName?: string }[] = [];
   if (tracklistsFolderId) {
-    const query = `'${tracklistsFolderId}' in parents and trashed = false and mimeType = 'text/plain'`;
-    const res = await drive.files.list({ q: query, fields: 'files(id, name)', pageSize: 1000 });
-    tracklistFiles = res.data.files?.map(f => ({ id: f.id!, name: f.name! })) || [];
-    console.log(`Preloaded ${tracklistFiles.length} tracklist files from Google Drive.`);
+    tracklistFiles = await getAllFilesRecursively(tracklistsFolderId, ['text/plain']);
+    console.log(`Preloaded ${tracklistFiles.length} tracklist files recursively from Google Drive.`);
   }
 
   // Set to keep track of artwork files matched to MP3s
@@ -343,7 +391,7 @@ async function main() {
       
       // Look for tracklist text file
       let tracklistText = '';
-      const tracklistFile = matchTracklistFile(mixName, tracklistFiles);
+      const tracklistFile = matchTracklistFile(mixName, mixType, tracklistFiles);
       if (tracklistFile) {
         console.log(`  Found matched tracklist file: ${tracklistFile.name}`);
         tracklistText = await downloadFileText(tracklistFile.id);
@@ -518,7 +566,7 @@ async function main() {
   console.log(`\nProcessing ${unmatchedArtworks.length} unmatched artwork files (bulk uploaded artworks)...`);
   
   for (const artworkFile of unmatchedArtworks) {
-    const mixType = detectMixType(artworkFile.name);
+    const mixType = artworkFile.parentName || detectMixType(artworkFile.name);
     const cleanTitle = cleanMixTitle(artworkFile.name, mixType);
     const cleanSlug = slugify(cleanTitle);
     
