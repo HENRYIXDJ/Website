@@ -21,7 +21,8 @@ const formatTime = (secs: number) => {
 
 const proxyUrl = (url: string) => `/api/assets?url=${encodeURIComponent(url)}`;
 
-const getSessionImage = (title: string) => {
+const getSessionImage = (title: string, artworkUrl?: string) => {
+  if (artworkUrl) return artworkUrl;
   if (!title) return proxyUrl(getStorageUrl('/Mixes/Knight%20Club/KC%20Artwork/Session%201.jpg'));
   if (title.includes('Knight Club') && title.includes('Session 1')) return proxyUrl(getStorageUrl('/Mixes/Knight%20Club/KC%20Artwork/Session%201.jpg'));
   if (title.includes('Knight Club') && title.includes('Session 2')) return proxyUrl(getStorageUrl('/Mixes/Knight%20Club/KC%20Artwork/Session%202.jpg'));
@@ -755,7 +756,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
         if (activeDeck) {
           navigator.mediaSession.metadata = new MediaMetadata({
             title: activeDeck.title, artist: 'Henry IX', album: 'DJ Mix Archive',
-            artwork: [{ src: getSessionImage(activeDeck.title), sizes: '512x512', type: 'image/jpeg' }],
+            artwork: [{ src: getSessionImage(activeDeck.title, (activeDeck as any).artworkUrl), sizes: '512x512', type: 'image/jpeg' }],
           });
           navigator.mediaSession.playbackState = 'playing';
         } else {
