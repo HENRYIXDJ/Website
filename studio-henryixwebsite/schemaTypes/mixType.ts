@@ -44,6 +44,12 @@ export const mixType = defineType({
       description: 'The path to the artwork file in your Cloudflare R2 bucket',
     }),
     defineField({
+      name: 'tracklist',
+      title: 'Tracklist',
+      type: 'text',
+      description: 'The tracklist of songs in this mix (one per line)',
+    }),
+    defineField({
       name: 'cuePoints',
       title: 'Cue Points (ms)',
       type: 'array',
