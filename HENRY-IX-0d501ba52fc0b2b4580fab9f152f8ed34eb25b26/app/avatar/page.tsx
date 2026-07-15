@@ -1,12 +1,11 @@
 'use client';
 
-import type { PutBlobResult } from '@vercel/blob';
 import { useState, useRef } from 'react';
 import PageShell from '@/components/PageShell';
 
 export default function AvatarUploadPage() {
   const inputFileRef = useRef<HTMLInputElement>(null);
-  const [blob, setBlob] = useState<PutBlobResult | null>(null);
+  const [blob, setBlob] = useState<{ pathname: string } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   return (
@@ -37,7 +36,7 @@ export default function AvatarUploadPage() {
                 },
               );
 
-              const newBlob = (await response.json()) as PutBlobResult;
+              const newBlob = (await response.json()) as { pathname: string };
               setBlob(newBlob);
             } catch (error) {
               console.error(error);
