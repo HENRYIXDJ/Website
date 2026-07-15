@@ -1,5 +1,5 @@
 import { google } from 'googleapis';
-import { S3Client } from '@aws-sdk/client-s3';
+import { S3Client, HeadObjectCommand } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
 import { createClient } from '@sanity/client';
 import * as dotenv from 'dotenv';
@@ -34,14 +34,37 @@ const auth = new google.auth.JWT({
 
 const drive = google.drive({ version: 'v3', auth });
 
+let r2Endpoint = process.env.R2_ENDPOINT;
+const bucketName = process.env.R2_BUCKET_NAME || '';
+if (r2Endpoint && bucketName && r2Endpoint.endsWith(`/${bucketName}`)) {
+  r2Endpoint = r2Endpoint.slice(0, -(bucketName.length + 1));
+}
+
 const s3Client = new S3Client({
-  endpoint: process.env.R2_ENDPOINT,
+  endpoint: r2Endpoint,
   region: 'auto',
   credentials: {
     accessKeyId: process.env.R2_ACCESS_KEY_ID || '',
     secretAccessKey: process.env.R2_SECRET_ACCESS_KEY || '',
   },
 });
+
+async function fileExistsInR2(key: string): Promise<boolean> {
+  try {
+    const command = new HeadObjectCommand({
+      Bucket: process.env.R2_BUCKET_NAME || '',
+      Key: key,
+    });
+    await s3Client.send(command);
+    return true;
+  } catch (error: any) {
+    if (error.name === 'NotFound' || error.$metadata?.httpStatusCode === 404) {
+      return false;
+    }
+    console.warn(`Warning checking R2 object ${key}:`, error.message);
+    return false;
+  }
+}
 
 const sanityClient = createClient({
   projectId: process.env.SANITY_PROJECT_ID || 'r6mln4n3',
@@ -204,6 +227,20 @@ async function uploadToR2(fileId: string, key: string, contentType: string) {
   console.log(`Successfully uploaded: ${key}`);
 }
 
+function detectMixType(fileName: string): string {
+  const norm = fileName.toLowerCase();
+  if (norm.includes('knight club') || norm.includes('kc ')) {
+    return 'Knight Club';
+  }
+  if (norm.includes('royal court') || norm.includes('rc ')) {
+    return 'Royal Court';
+  }
+  if (norm.includes('corner new cross') || norm.includes('cnc')) {
+    return 'Corner New Cross';
+  }
+  return 'Knight Club';
+}
+
 async function main() {
   console.log(`Starting sync... ${dryRun ? '[DRY RUN MODE]' : ''}`);
   
@@ -214,6 +251,18 @@ async function main() {
     process.exit(1);
   }
   console.log(`Found 'Henry IX Website' root folder ID: ${rootId}`);
+
+  // List all top-level folders inside 'Henry IX Website'
+  try {
+    const topFoldersRes = await drive.files.list({
+      q: `'${rootId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+      fields: 'files(id, name)',
+    });
+    const topFolders = topFoldersRes.data.files || [];
+    console.log(`Top-level folders found in Google Drive 'Henry IX Website':`, topFolders.map(f => f.name));
+  } catch (err: any) {
+    console.warn(`Could not list top-level folders in Google Drive: ${err.message}`);
+  }
 
   // Find Mixes Folder
   const mixesId = await findFolderId('Mixes', rootId);
@@ -254,6 +303,9 @@ async function main() {
     tracklistFiles = res.data.files?.map(f => ({ id: f.id!, name: f.name! })) || [];
     console.log(`Preloaded ${tracklistFiles.length} tracklist files from Google Drive.`);
   }
+
+  // Set to keep track of artwork files matched to MP3s
+  const matchedArtworkIds = new Set<string>();
 
   // List mix types folders (e.g. Knight Club)
   const mixTypeFoldersRes = await drive.files.list({
@@ -305,6 +357,7 @@ async function main() {
       if (artworkFile) {
         console.log(`  Found matched artwork file: ${artworkFile.name}`);
         artworkR2Key = `Mixes/${mixType}/Mix Artwork/${artworkFile.name}`;
+        matchedArtworkIds.add(artworkFile.id);
       } else {
         console.log(`  No artwork file found for "${mixName}"`);
       }
@@ -314,6 +367,10 @@ async function main() {
         `*[_type == "mix" && (slug.current == $slug || title == $title || audioFile == $audioFile)][0]`,
         { slug: cleanSlug, title: cleanTitle, audioFile: `/${audioR2Key}` }
       );
+
+      // Perform existence check in R2
+      const audioExists = await fileExistsInR2(audioR2Key);
+      const artworkExists = artworkR2Key ? await fileExistsInR2(artworkR2Key) : false;
 
       if (existing) {
         console.log(`  Mix document already exists in Sanity. Checking if updates are needed...`);
@@ -328,29 +385,41 @@ async function main() {
           needsPatch = true;
         }
 
-        // Audio path alignment
+        // Audio path alignment & existence check
         const currentAudioFile = existing.audioFile;
         const expectedAudioFile = `/${audioR2Key}`;
-        if (currentAudioFile !== expectedAudioFile) {
-          console.log(`    Audio file path mismatch: current="${currentAudioFile}", expected="${expectedAudioFile}". Uploading/Updating...`);
+        if (currentAudioFile !== expectedAudioFile || !audioExists) {
+          if (!audioExists) {
+            console.log(`    Audio file missing in R2: "${audioR2Key}". Uploading...`);
+          } else {
+            console.log(`    Audio file path mismatch: current="${currentAudioFile}", expected="${expectedAudioFile}". Uploading/Updating...`);
+          }
           if (!dryRun) {
             await uploadToR2(mp3.id!, audioR2Key, 'audio/mpeg');
           }
-          patchData.audioFile = expectedAudioFile;
-          needsPatch = true;
+          if (currentAudioFile !== expectedAudioFile) {
+            patchData.audioFile = expectedAudioFile;
+            needsPatch = true;
+          }
         }
 
-        // Artwork path alignment
+        // Artwork path alignment & existence check
         const currentArtworkFile = existing.artworkFile;
         const expectedArtworkFile = artworkR2Key ? `/${artworkR2Key}` : undefined;
-        if (artworkFile && currentArtworkFile !== expectedArtworkFile) {
-          console.log(`    Artwork file path mismatch: current="${currentArtworkFile}", expected="${expectedArtworkFile}". Uploading/Updating...`);
+        if (artworkFile && (currentArtworkFile !== expectedArtworkFile || !artworkExists)) {
+          if (!artworkExists) {
+            console.log(`    Artwork file missing in R2: "${artworkR2Key}". Uploading...`);
+          } else {
+            console.log(`    Artwork file path mismatch: current="${currentArtworkFile}", expected="${expectedArtworkFile}". Uploading/Updating...`);
+          }
           if (!dryRun) {
             const artworkContentType = artworkFile.name.endsWith('.png') ? 'image/png' : artworkFile.name.endsWith('.webp') ? 'image/webp' : 'image/jpeg';
             await uploadToR2(artworkFile.id, artworkR2Key!, artworkContentType);
           }
-          patchData.artworkFile = expectedArtworkFile;
-          needsPatch = true;
+          if (currentArtworkFile !== expectedArtworkFile) {
+            patchData.artworkFile = expectedArtworkFile;
+            needsPatch = true;
+          }
         }
 
         // Tracklist update
@@ -443,6 +512,123 @@ async function main() {
       }
     }
   }
+
+  // Post-process unmatched artworks (for bulk uploading artworks without audio yet)
+  const unmatchedArtworks = artworkFiles.filter(a => !matchedArtworkIds.has(a.id));
+  console.log(`\nProcessing ${unmatchedArtworks.length} unmatched artwork files (bulk uploaded artworks)...`);
+  
+  for (const artworkFile of unmatchedArtworks) {
+    const mixType = detectMixType(artworkFile.name);
+    const cleanTitle = cleanMixTitle(artworkFile.name, mixType);
+    const cleanSlug = slugify(cleanTitle);
+    
+    console.log(`- Unmatched artwork: "${artworkFile.name}" (Normalized Title: "${cleanTitle}")`);
+    
+    const artworkR2Key = `Mixes/${mixType}/Mix Artwork/${artworkFile.name}`;
+    
+    // Check if document already exists in Sanity
+    const existing = await sanityClient.fetch(
+      `*[_type == "mix" && (slug.current == $slug || title == $title)][0]`,
+      { slug: cleanSlug, title: cleanTitle }
+    );
+    
+    const artworkExists = await fileExistsInR2(artworkR2Key);
+    
+    if (existing) {
+      console.log(`  Mix document already exists in Sanity. Checking if artwork updates are needed...`);
+      let needsPatch = false;
+      const patchData: any = {};
+      
+      const currentArtworkFile = existing.artworkFile;
+      const expectedArtworkFile = `/${artworkR2Key}`;
+      
+      if (currentArtworkFile !== expectedArtworkFile || !artworkExists) {
+        if (!artworkExists) {
+          console.log(`    Artwork file missing in R2: "${artworkR2Key}". Uploading...`);
+        } else {
+          console.log(`    Artwork file path mismatch: current="${currentArtworkFile}", expected="${expectedArtworkFile}". Uploading/Updating...`);
+        }
+        if (!dryRun) {
+          const artworkContentType = artworkFile.name.endsWith('.png') ? 'image/png' : artworkFile.name.endsWith('.webp') ? 'image/webp' : 'image/jpeg';
+          await uploadToR2(artworkFile.id, artworkR2Key, artworkContentType);
+        }
+        if (currentArtworkFile !== expectedArtworkFile) {
+          patchData.artworkFile = expectedArtworkFile;
+          needsPatch = true;
+        }
+      }
+      
+      if (needsPatch) {
+        if (!dryRun) {
+          await sanityClient.patch(existing._id).set(patchData).commit();
+          console.log(`    Successfully updated Sanity mix document: ${existing._id}`);
+        } else {
+          console.log(`    [DRY RUN] Would patch Sanity mix document: ${existing._id} with data:`, patchData);
+        }
+      } else {
+        console.log(`    No changes needed.`);
+      }
+    } else {
+      console.log(`  New mix discovered from artwork! Syncing...`);
+      if (!dryRun) {
+        // Upload artwork to R2
+        const artworkContentType = artworkFile.name.endsWith('.png') ? 'image/png' : artworkFile.name.endsWith('.webp') ? 'image/webp' : 'image/jpeg';
+        await uploadToR2(artworkFile.id, artworkR2Key, artworkContentType);
+        
+        // Create Sanity Document (no audio file)
+        const mixDoc = {
+          _type: 'mix',
+          title: cleanTitle,
+          slug: {
+            _type: 'slug',
+            current: cleanSlug,
+          },
+          artworkFile: `/${artworkR2Key}`,
+          bpm: 120, // Default fallback
+          cuePoints: [],
+        };
+        
+        const createdMix = await sanityClient.create(mixDoc);
+        console.log(`  Created Sanity mix document (artwork only): ${createdMix._id}`);
+        
+        // Add reference to mixGroup
+        const mixGroupTitle = mixType;
+        const mixGroupSlug = slugify(mixGroupTitle);
+        
+        const existingGroup = await sanityClient.fetch(
+          `*[_type == "mixGroup" && title == $title][0]`,
+          { title: mixGroupTitle }
+        );
+        
+        if (existingGroup) {
+          console.log(`  Appending mix to existing mixGroup: ${mixGroupTitle}`);
+          await sanityClient
+            .patch(existingGroup._id)
+            .setIfMissing({ mixes: [] })
+            .append('mixes', [{ _type: 'reference', _ref: createdMix._id }])
+            .commit();
+        } else {
+          console.log(`  Creating new mixGroup: ${mixGroupTitle}`);
+          const newGroupDoc = {
+            _type: 'mixGroup',
+            title: mixGroupTitle,
+            slug: {
+              _type: 'slug',
+              current: mixGroupSlug,
+            },
+            description: `Auto-generated collection for ${mixGroupTitle} mixes`,
+            mixes: [{ _type: 'reference', _ref: createdMix._id }],
+          };
+          await sanityClient.create(newGroupDoc);
+        }
+      } else {
+        console.log(`  [DRY RUN] Would upload artwork to R2 at key: ${artworkR2Key}`);
+        console.log(`  [DRY RUN] Would create Sanity mix document (artwork only) for: "${cleanTitle}"`);
+        console.log(`  [DRY RUN] Would append to or create Sanity mixGroup for: "${mixType}"`);
+      }
+    }
+  }
+
   console.log('\nSync finished successfully!');
 }
 
