@@ -1,3 +1,4 @@
+export const runtime = 'edge';
 import { checkBotId } from "botid/server";
 import { NextResponse } from "next/server";
 import { handleUserSignup } from "@/app/workflows/signup";
