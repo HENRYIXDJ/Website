@@ -23,27 +23,27 @@ const proxyUrl = (url: string) => `/api/assets?url=${encodeURIComponent(url)}`;
 
 const getSessionImage = (title: string, artworkUrl?: string) => {
   if (artworkUrl) return artworkUrl;
-  if (!title) return proxyUrl(getStorageUrl('/Mixes/Knight%20Club/KC%20Artwork/Session%201.jpg'));
-  if (title.includes('Knight Club') && title.includes('Session 1')) return proxyUrl(getStorageUrl('/Mixes/Knight%20Club/KC%20Artwork/Session%201.jpg'));
-  if (title.includes('Knight Club') && title.includes('Session 2')) return proxyUrl(getStorageUrl('/Mixes/Knight%20Club/KC%20Artwork/Session%202.jpg'));
-  if (title.includes('Knight Club') && title.includes('Session 3')) return proxyUrl(getStorageUrl('/Mixes/Knight%20Club/KC%20Artwork/Session%203.jpg'));
-  if (title.includes('Knight Club') && title.includes('Session 4')) return proxyUrl(getStorageUrl('/Mixes/Knight%20Club/KC%20Artwork/Session%204.jpg'));
-  if (title.includes('Knight Club') && title.includes('Session 5')) return proxyUrl(getStorageUrl('/Mixes/Knight%20Club/KC%20Artwork/Session%205.jpg'));
+  if (!title) return proxyUrl(getStorageUrl('/Mixes/Knight%20Club/Mix%20Artwork/Session%201.jpg'));
+  if (title.includes('Knight Club') && title.includes('Session 1')) return proxyUrl(getStorageUrl('/Mixes/Knight%20Club/Mix%20Artwork/Session%201.jpg'));
+  if (title.includes('Knight Club') && title.includes('Session 2')) return proxyUrl(getStorageUrl('/Mixes/Knight%20Club/Mix%20Artwork/Session%202.jpg'));
+  if (title.includes('Knight Club') && title.includes('Session 3')) return proxyUrl(getStorageUrl('/Mixes/Knight%20Club/Mix%20Artwork/Session%203.jpg'));
+  if (title.includes('Knight Club') && title.includes('Session 4')) return proxyUrl(getStorageUrl('/Mixes/Knight%20Club/Mix%20Artwork/Session%204.jpg'));
+  if (title.includes('Knight Club') && title.includes('Session 5')) return proxyUrl(getStorageUrl('/Mixes/Knight%20Club/Mix%20Artwork/Session%205.jpg'));
   
-  if (title.includes('Royal Court') && title.includes('Session 1')) return proxyUrl(getStorageUrl('/Mixes/Royal%20Court/RC%20Artwork/Royal%20Court%20Session%201%20Track%20Artwork.jpg'));
-  if (title.includes('Royal Court') && title.includes('Session 2')) return proxyUrl(getStorageUrl('/Mixes/Royal%20Court/RC%20Artwork/Royal%20Court%20Session%202%20Track%20Artwork.jpg'));
+  if (title.includes('Royal Court') && title.includes('Session 1')) return proxyUrl(getStorageUrl('/Mixes/Royal%20Court/Mix%20Artwork/Royal%20Court%20Session%201%20Track%20Artwork.jpg'));
+  if (title.includes('Royal Court') && title.includes('Session 2')) return proxyUrl(getStorageUrl('/Mixes/Royal%20Court/Mix%20Artwork/Royal%20Court%20Session%202%20Track%20Artwork.jpg'));
   
-  if (title.includes('Corner New Cross') && title.includes('Night 1')) return proxyUrl(getStorageUrl('/Mixes/Corner%20New%20Cross/CNC%20Artwork/CNC%20N1%20Artwork.png'));
-  if (title.includes('Corner New Cross') && title.includes('Night 2')) return proxyUrl(getStorageUrl('/Mixes/Corner%20New%20Cross/CNC%20Artwork/CNC%20N2%20Artwork.png'));
+  if (title.includes('Corner New Cross') && title.includes('Night 1')) return proxyUrl(getStorageUrl('/Mixes/Corner%20New%20Cross/Mix%20Artwork/CNC%20N1%20Artwork.png'));
+  if (title.includes('Corner New Cross') && title.includes('Night 2')) return proxyUrl(getStorageUrl('/Mixes/Corner%20New%20Cross/Mix%20Artwork/CNC%20N2%20Artwork.png'));
 
   // Fallbacks if just matching session
-  if (title.includes('Session 1')) return proxyUrl(getStorageUrl('/Mixes/Knight%20Club/KC%20Artwork/Session%201.jpg'));
-  if (title.includes('Session 2')) return proxyUrl(getStorageUrl('/Mixes/Knight%20Club/KC%20Artwork/Session%202.jpg'));
-  if (title.includes('Session 3')) return proxyUrl(getStorageUrl('/Mixes/Knight%20Club/KC%20Artwork/Session%203.jpg'));
-  if (title.includes('Session 4')) return proxyUrl(getStorageUrl('/Mixes/Knight%20Club/KC%20Artwork/Session%204.jpg'));
-  if (title.includes('Session 5')) return proxyUrl(getStorageUrl('/Mixes/Knight%20Club/KC%20Artwork/Session%205.jpg'));
+  if (title.includes('Session 1')) return proxyUrl(getStorageUrl('/Mixes/Knight%20Club/Mix%20Artwork/Session%201.jpg'));
+  if (title.includes('Session 2')) return proxyUrl(getStorageUrl('/Mixes/Knight%20Club/Mix%20Artwork/Session%202.jpg'));
+  if (title.includes('Session 3')) return proxyUrl(getStorageUrl('/Mixes/Knight%20Club/Mix%20Artwork/Session%203.jpg'));
+  if (title.includes('Session 4')) return proxyUrl(getStorageUrl('/Mixes/Knight%20Club/Mix%20Artwork/Session%204.jpg'));
+  if (title.includes('Session 5')) return proxyUrl(getStorageUrl('/Mixes/Knight%20Club/Mix%20Artwork/Session%205.jpg'));
   
-  return proxyUrl(getStorageUrl('/Mixes/Knight%20Club/KC%20Artwork/Session%201.jpg'));
+  return proxyUrl(getStorageUrl('/Mixes/Knight%20Club/Mix%20Artwork/Session%201.jpg'));
 };
 
 // ---------------------------------------------------------------------------
