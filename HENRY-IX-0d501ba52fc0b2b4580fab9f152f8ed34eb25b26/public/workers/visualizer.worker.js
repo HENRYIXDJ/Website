@@ -16,7 +16,6 @@
  * and could draw stale frames before new data arrived.
  */
 
-/* eslint-disable no-restricted-globals */
 let canvas = null;
 let ctx = null;
 let running = false;

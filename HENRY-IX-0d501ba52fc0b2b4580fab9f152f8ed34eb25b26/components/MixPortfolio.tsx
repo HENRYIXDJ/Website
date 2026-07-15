@@ -733,6 +733,7 @@ function SingleDeckWaveform({
       const audio = audioElementsRef?.current?.[deckId];
       const newTime = Math.max(0, Math.min(drag.duration, drag.startTime - deltaSec));
       if (audio) {
+        // eslint-disable-next-line react-hooks/immutability
         audio.currentTime = newTime;
       }
       useAudioStore.getState().setDeck(deckId, { progress: newTime });
@@ -1638,6 +1639,7 @@ function MixArchive({
                 let nextTime = audio.currentTime + timeDelta;
                 if (nextTime < 0) nextTime = 0;
                 if (nextTime > audio.duration) nextTime = audio.duration;
+                // eslint-disable-next-line react-hooks/immutability
                 audio.currentTime = nextTime;
               }
             }}

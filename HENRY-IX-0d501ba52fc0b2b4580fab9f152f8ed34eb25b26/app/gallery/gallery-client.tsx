@@ -138,7 +138,7 @@ export default function GalleryClient() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeItem]);
+  }, [activeItem, artworkImages]);
 
   const activeImage = activeItem ? (activeItem.type === 'me' ? ME_IMAGES[activeItem.idx] : artworkImages[activeItem.idx]) : null;
 

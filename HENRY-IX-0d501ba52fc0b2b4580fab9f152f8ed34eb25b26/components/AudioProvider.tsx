@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useEffect, createContext, useContext, useMemo } from 'react';
+import React, { useRef, useEffect, createContext, useContext, useMemo, useCallback } from 'react';
 import { usePathname } from 'next/navigation';
 import { playClick, playLockoutBlip, setMutedGlobal } from '@/lib/audioUtils';
 import { trackWaveforms } from '@/app/trackWaveforms';
@@ -113,7 +113,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   const workerCallbacksRef = useRef<Record<string, (result: any) => void>>({});
 
   // ── DSP Init ───────────────────────────────────────────────────────────
-  const initAudioDSP = () => {
+  const initAudioDSP = useCallback(() => {
     if (typeof window === 'undefined') return null;
     if (audioContextRef.current) {
       if (audioContextRef.current.state === 'suspended') {
@@ -142,9 +142,9 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       console.error('Failed to initialize Web Audio DSP:', e);
       return null;
     }
-  };
+  }, [setAudioDSPInitialized]);
 
-  const ensureDeckInitialized = (deckId: number) => {
+  const ensureDeckInitialized = useCallback((deckId: number) => {
     if (typeof window === 'undefined') return;
     let ctx = audioContextRef.current;
     if (!ctx) {
@@ -252,7 +252,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       const cfMult = audioEngine.computeCrossfaderGain(deck.crossfaderAssign, state.crossfader);
       audioEngine.setGain(deckId, deck.volume, cfMult, state.isMuted);
     }
-  };
+  }, [initAudioDSP, setDeck]);
 
   // ── Initialize Audio DSP and preload on mount ────────────────────────────
   useEffect(() => {
@@ -322,7 +322,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       }, 500);
       return () => clearTimeout(timer);
     }
-  }, [preloaderComplete]);
+  }, [preloaderComplete, ensureDeckInitialized]);
 
   // ── getQuantizedDelay (Micro-snapping for Quantized Cues/Play) ─────────────
   const getQuantizedDelay = (targetDeckId: number): number => {
