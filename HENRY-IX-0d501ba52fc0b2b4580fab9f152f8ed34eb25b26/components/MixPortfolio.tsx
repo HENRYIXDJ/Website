@@ -12,6 +12,7 @@ import { playClick, playTabClick, playTick } from '@/lib/audioUtils';
 import { useAudioStore } from '@/store/audioStore';
 import { useAudio } from './AudioProvider';
 import AudioVisualizerBackground from './AudioVisualizerBackground';
+import { client } from '@/sanity/lib/client';
 
 
 const formatTime = (secs: number) => {
@@ -23,7 +24,8 @@ const formatTime = (secs: number) => {
 
 const proxyUrl = (url: string) => `/api/assets?url=${encodeURIComponent(url)}`;
 
-const getSessionImage = (title: string) => {
+const getSessionImage = (title: string, artworkUrl?: string) => {
+  if (artworkUrl) return artworkUrl;
   if (!title) return proxyUrl(getStorageUrl('/Mixes/Knight%20Club/KC%20Artwork/Session%201.jpg'));
   if (title.includes('Knight Club') && title.includes('Session 1')) return proxyUrl(getStorageUrl('/Mixes/Knight%20Club/KC%20Artwork/Session%201.jpg'));
   if (title.includes('Knight Club') && title.includes('Session 2')) return proxyUrl(getStorageUrl('/Mixes/Knight%20Club/KC%20Artwork/Session%202.jpg'));
@@ -54,6 +56,33 @@ const getTrackDescription = (title: string, isLocalFile: boolean) => {
   if (lower.includes('corner new cross')) return "Recorded live. A past residency.";
   return `Recorded live. Features high quality uncompressed audio ${isLocalFile ? "directly from the studio." : "via SoundCloud Integration."}`;
 };
+
+const STATIC_MIX_GROUPS = [
+  {
+    title: "Knight Club",
+    mixes: [
+      { id: 'kc-1', title: 'Knight Club: Session 1', url: proxyUrl(getStorageUrl('/Mixes/Knight%20Club/KC%20Music/Knight%20Club%20Session%201%20-%20Mastered%20High%20Quality.mp3')), link: 'https://soundcloud.com/henryixdj/knight-club-session-1', bpm: 145, isLocalFile: true, cuePoints: [0, 1127, 2112, 2772] },
+      { id: 'kc-2', title: 'Knight Club: Session 2', url: proxyUrl(getStorageUrl('/Mixes/Knight%20Club/KC%20Music/Knight%20Club%20Session%202%20-%20Mastered.mp3')), link: 'https://soundcloud.com/henryixdj/knight-club-session-2', bpm: 152, isLocalFile: true, cuePoints: [0, 2468, 4084, 6270] },
+      { id: 'kc-3', title: 'Knight Club: Session 3', url: proxyUrl(getStorageUrl('/Mixes/Knight%20Club/KC%20Music/Knight%20Club%20Session%203%20-%20Mastered.mp3')), link: 'https://soundcloud.com/henryixdj/knight-club-session-3', bpm: 150, isLocalFile: true, cuePoints: [0, 1940, 3685, 5509] },
+      { id: 'kc-4', title: 'Knight Club: Session 4', url: proxyUrl(getStorageUrl('/Mixes/Knight%20Club/KC%20Music/Knight%20Club%20Session%204%20-%20Remastered.mp3')), link: 'https://soundcloud.com/henryixdj/33baa30a-4980-40da-94c2-41085314ec43', bpm: 155, isLocalFile: true, cuePoints: [0, 1834, 3582, 5552] },
+      { id: 'kc-5', title: 'Knight Club: Session 5', url: proxyUrl(getStorageUrl('/Mixes/Knight%20Club/KC%20Music/Knight%20Club%20Session%205%20MP3.mp3')), link: 'https://soundcloud.com/henryixdj/knight-club-session-5', bpm: 150, isLocalFile: true }
+    ]
+  },
+  {
+    title: "Royal Court",
+    mixes: [
+      { id: 'rc-1', title: 'Royal Court: Session 1', url: proxyUrl(getStorageUrl('/Mixes/Royal%20Court/RC%20Music/Royal%20Court%20Session%201%20MP3.mp3')), link: 'https://soundcloud.com/henryixdj/session-1', bpm: 124, isLocalFile: true },
+      { id: 'rc-2', title: 'Royal Court: Session 2', url: proxyUrl(getStorageUrl('/Mixes/Royal%20Court/RC%20Music/Royal%20Court%20Session%202%20MP3.mp3')), link: 'https://soundcloud.com/henryixdj/01-best-yet', bpm: 125, isLocalFile: true }
+    ]
+  },
+  {
+    title: "Corner New Cross",
+    mixes: [
+      { id: 'cnc-1', title: 'Corner New Cross: Night 1', url: proxyUrl(getStorageUrl('/Mixes/Corner%20New%20Cross/CNC%20Mixes/Corner%20New%20Cross%20Night%201%20MP3.mp3')), link: 'https://soundcloud.com/henryixdj/corner-new-cross-night-1', bpm: 128, isLocalFile: true },
+      { id: 'cnc-2', title: 'Corner New Cross: Night 2', url: proxyUrl(getStorageUrl('/Mixes/Corner%20New%20Cross/CNC%20Mixes/Corner%20New%20Cross%20Night%202%20MP3.mp3')), link: 'https://soundcloud.com/henryixdj/corner-new-cross-night-2', bpm: 132, isLocalFile: true }
+    ]
+  }
+];
 
 
 const VinylStack = ({ group, onClick, playTick }: { group: any, onClick: () => void, playTick: () => void }) => {
@@ -103,7 +132,7 @@ const VinylStack = ({ group, onClick, playTick }: { group: any, onClick: () => v
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img 
-              src={getSessionImage(track.title)} 
+              src={getSessionImage(track.title, track.artworkUrl)} 
               alt={track.title}
               className="w-full h-full object-cover"
             />
@@ -743,6 +772,7 @@ function MixArchive({
   setActiveView,
   decks,
   setDecks,
+  mixGroups,
   crossfader,
   setCrossfader,
   leftActiveDeck,
@@ -766,6 +796,7 @@ function MixArchive({
   setActiveView: React.Dispatch<React.SetStateAction<'cdj' | 'tracklist'>>;
   decks: any;
   setDecks: React.Dispatch<React.SetStateAction<any>>;
+  mixGroups: any[];
   crossfader: number;
   setCrossfader: (val: number) => void;
   leftActiveDeck: 1 | 2;
@@ -1266,32 +1297,7 @@ function MixArchive({
 
 
   
-  const mixGroups = [
-    {
-      title: "Knight Club",
-      mixes: [
-        { id: 'kc-1', title: 'Knight Club: Session 1', url: proxyUrl(getStorageUrl('/Mixes/Knight%20Club/KC%20Music/Knight%20Club%20Session%201%20-%20Mastered%20High%20Quality.mp3')), link: 'https://soundcloud.com/henryixdj/knight-club-session-1', bpm: 145, isLocalFile: true, cuePoints: [0, 1127, 2112, 2772] },
-        { id: 'kc-2', title: 'Knight Club: Session 2', url: proxyUrl(getStorageUrl('/Mixes/Knight%20Club/KC%20Music/Knight%20Club%20Session%202%20-%20Mastered.mp3')), link: 'https://soundcloud.com/henryixdj/knight-club-session-2', bpm: 152, isLocalFile: true, cuePoints: [0, 2468, 4084, 6270] },
-        { id: 'kc-3', title: 'Knight Club: Session 3', url: proxyUrl(getStorageUrl('/Mixes/Knight%20Club/KC%20Music/Knight%20Club%20Session%203%20-%20Mastered.mp3')), link: 'https://soundcloud.com/henryixdj/knight-club-session-3', bpm: 150, isLocalFile: true, cuePoints: [0, 1940, 3685, 5509] },
-        { id: 'kc-4', title: 'Knight Club: Session 4', url: proxyUrl(getStorageUrl('/Mixes/Knight%20Club/KC%20Music/Knight%20Club%20Session%204%20-%20Remastered.mp3')), link: 'https://soundcloud.com/henryixdj/33baa30a-4980-40da-94c2-41085314ec43', bpm: 155, isLocalFile: true, cuePoints: [0, 1834, 3582, 5552] },
-        { id: 'kc-5', title: 'Knight Club: Session 5', url: proxyUrl(getStorageUrl('/Mixes/Knight%20Club/KC%20Music/Knight%20Club%20Session%205%20MP3.mp3')), link: 'https://soundcloud.com/henryixdj/knight-club-session-5', bpm: 150, isLocalFile: true }
-      ]
-    },
-    {
-      title: "Royal Court",
-      mixes: [
-        { id: 'rc-1', title: 'Royal Court: Session 1', url: proxyUrl(getStorageUrl('/Mixes/Royal%20Court/RC%20Music/Royal%20Court%20Session%201%20MP3.mp3')), link: 'https://soundcloud.com/henryixdj/session-1', bpm: 124, isLocalFile: true },
-        { id: 'rc-2', title: 'Royal Court: Session 2', url: proxyUrl(getStorageUrl('/Mixes/Royal%20Court/RC%20Music/Royal%20Court%20Session%202%20MP3.mp3')), link: 'https://soundcloud.com/henryixdj/01-best-yet', bpm: 125, isLocalFile: true }
-      ]
-    },
-    {
-      title: "Corner New Cross",
-      mixes: [
-        { id: 'cnc-1', title: 'Corner New Cross: Night 1', url: proxyUrl(getStorageUrl('/Mixes/Corner%20New%20Cross/CNC%20Mixes/Corner%20New%20Cross%20Night%201%20MP3.mp3')), link: 'https://soundcloud.com/henryixdj/corner-new-cross-night-1', bpm: 128, isLocalFile: true },
-        { id: 'cnc-2', title: 'Corner New Cross: Night 2', url: proxyUrl(getStorageUrl('/Mixes/Corner%20New%20Cross/CNC%20Mixes/Corner%20New%20Cross%20Night%202%20MP3.mp3')), link: 'https://soundcloud.com/henryixdj/corner-new-cross-night-2', bpm: 132, isLocalFile: true }
-      ]
-    }
-  ];
+  // mixGroups is passed from props
 
   // Helper to determine active playing deck for background visualizer
   const getActiveVisualizerState = () => {
@@ -1324,7 +1330,7 @@ function MixArchive({
       'border-yellow-500/40';
 
     const sessionNum = deck.title?.match(/Session\s+(\d+)/)?.[1] || "";
-    const sessionImg = getSessionImage(deck.title);
+    const sessionImg = getSessionImage(deck.title, deck.artworkUrl);
 
     return (
       <div className={cn(
@@ -1851,9 +1857,9 @@ function MixArchive({
                     boxShadow: isPlaying ? `0 0 8px ${themeColor}10` : 'none'
                   }}
                 >
-                  {mixGroups.map((group) => (
+                  {mixGroups.map((group: any) => (
                     <optgroup key={group.title} label={group.title.toUpperCase()} className="bg-zinc-950 text-zinc-500 font-bold font-mono text-[8px] tracking-widest">
-                      {group.mixes.map((mix) => (
+                      {group.mixes.map((mix: any) => (
                         <option key={mix.id} value={mix.id} className="bg-zinc-950 text-zinc-300 uppercase">
                           {mix.title}
                         </option>
@@ -2442,7 +2448,7 @@ function MixArchive({
             <h2 className="text-2xl md:text-4xl font-sans font-bold text-primary tracking-widest uppercase glitch" data-text={group.title}>{group.title}</h2>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
-            {group.mixes.map(track => {
+            {group.mixes.map((track: any) => {
               const isPlaying = activeVisualizer.isPlaying && (
                 decks[leftActiveDeck]?.title === track.title || 
                 decks[rightActiveDeck]?.title === track.title
@@ -2465,7 +2471,7 @@ function MixArchive({
                   <div className="relative w-full aspect-square rounded-lg overflow-hidden border border-zinc-800/80 shadow-2xl">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img 
-                      src={getSessionImage(track.title)} 
+                      src={getSessionImage(track.title, track.artworkUrl)} 
                       alt={track.title}
                       className={cn(
                         "w-full h-full object-cover transition-transform duration-700 group-hover:scale-105",
@@ -2524,7 +2530,7 @@ function MixArchive({
         <h2 className="text-2xl md:text-4xl font-sans font-bold text-primary tracking-widest uppercase glitch" data-text="01 / MIX ARCHIVE">01 / MIX ARCHIVE</h2>
         
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-16 md:gap-24 px-4 pb-12 pt-8">
-          {mixGroups.map((group) => (
+          {mixGroups.map((group: any) => (
             <VinylStack 
               key={group.title} 
               group={group} 
@@ -2634,6 +2640,7 @@ function MixArchive({
 
 export default function MixPortfolio({ isDepth = true, activeView: initialActiveView = 'cdj' }: { isDepth?: boolean, activeView?: 'cdj' | 'tracklist' }) {
   const [activeView, setActiveView] = useState<'cdj' | 'tracklist'>(initialActiveView);
+  const [mixGroups, setMixGroups] = useState<any[]>(STATIC_MIX_GROUPS);
 
   // Reactive deck state from Zustand — granular subscriptions, no cascade
   const decks = useAudioStore(s => s.decks);
@@ -2649,6 +2656,110 @@ export default function MixPortfolio({ isDepth = true, activeView: initialActive
     audioElementsRef, playPendingRef, scratchingRef, alignSyncPlayback
   } = useAudio();
 
+  useEffect(() => {
+    async function loadDynamicMixes() {
+      try {
+        const data = await client.fetch<any[]>(`*[_type == "mixGroup"]{
+          title,
+          slug,
+          description,
+          mixes[defined(audioFile)]->{
+            _id,
+            title,
+            slug,
+            bpm,
+            soundcloudLink,
+            audioFile,
+            artworkFile,
+            tracklist,
+            cuePoints
+          }
+        }`);
+
+        if (data && data.length > 0) {
+          const formatted = data.map(group => ({
+            title: group.title,
+            mixes: (group.mixes || []).map((mix: any) => ({
+              id: mix._id,
+              title: mix.title,
+              url: proxyUrl(getStorageUrl(mix.audioFile || '')),
+              link: mix.soundcloudLink || '',
+              bpm: mix.bpm || 120,
+              cuePoints: mix.cuePoints || [],
+              tracklist: mix.tracklist || '',
+              artworkUrl: mix.artworkFile ? proxyUrl(getStorageUrl(mix.artworkFile)) : undefined
+            }))
+          }));
+
+          setMixGroups(formatted);
+
+          // Update decks dynamically from loaded mixes
+          const allMixes = formatted.flatMap(g => g.mixes);
+          
+          setDecks((prevDecks: any) => {
+            const updated = { ...prevDecks };
+            const kc1 = allMixes.find(m => m.title.includes('Knight Club') && m.title.includes('Session 1'));
+            if (kc1 && updated[1]) {
+              updated[1] = {
+                ...updated[1],
+                id: kc1.id,
+                title: kc1.title,
+                url: kc1.url,
+                link: kc1.link,
+                bpm: kc1.bpm,
+                cuePoints: kc1.cuePoints,
+                artworkUrl: kc1.artworkUrl
+              };
+            }
+            const kc2 = allMixes.find(m => m.title.includes('Knight Club') && m.title.includes('Session 2'));
+            if (kc2 && updated[2]) {
+              updated[2] = {
+                ...updated[2],
+                id: kc2.id,
+                title: kc2.title,
+                url: kc2.url,
+                link: kc2.link,
+                bpm: kc2.bpm,
+                cuePoints: kc2.cuePoints,
+                artworkUrl: kc2.artworkUrl
+              };
+            }
+            const kc3 = allMixes.find(m => m.title.includes('Knight Club') && m.title.includes('Session 3'));
+            if (kc3 && updated[3]) {
+              updated[3] = {
+                ...updated[3],
+                id: kc3.id,
+                title: kc3.title,
+                url: kc3.url,
+                link: kc3.link,
+                bpm: kc3.bpm,
+                cuePoints: kc3.cuePoints,
+                artworkUrl: kc3.artworkUrl
+              };
+            }
+            const kc4 = allMixes.find(m => m.title.includes('Knight Club') && m.title.includes('Session 4'));
+            if (kc4 && updated[4]) {
+              updated[4] = {
+                ...updated[4],
+                id: kc4.id,
+                title: kc4.title,
+                url: kc4.url,
+                link: kc4.link,
+                bpm: kc4.bpm,
+                cuePoints: kc4.cuePoints,
+                artworkUrl: kc4.artworkUrl
+              };
+            }
+            return updated;
+          });
+        }
+      } catch (err) {
+        console.error('Error fetching dynamic mixes:', err);
+      }
+    }
+    loadDynamicMixes();
+  }, [setDecks]);
+
   return (
     <MixArchive 
       isDepth={isDepth} 
@@ -2656,6 +2767,7 @@ export default function MixPortfolio({ isDepth = true, activeView: initialActive
       setActiveView={setActiveView}
       decks={decks}
       setDecks={setDecks}
+      mixGroups={mixGroups}
       crossfader={crossfader}
       setCrossfader={setCrossfader}
       leftActiveDeck={leftActiveDeck}

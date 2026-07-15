@@ -70,20 +70,108 @@ async function findFolderId(name: string, parentId?: string): Promise<string | n
   return res.data.files?.[0]?.id || null;
 }
 
-async function findFileInFolder(namePrefix: string, folderId: string, mimeTypes: string[]): Promise<{ id: string; name: string } | null> {
-  const mimeQuery = mimeTypes.map(m => `mimeType = '${m}'`).join(' or ');
-  const query = `'${folderId}' in parents and trashed = false and (${mimeQuery})`;
+function cleanMixTitle(fileName: string, mixType: string): string {
+  const nameWithoutExt = fileName.substring(0, fileName.lastIndexOf('.')) || fileName;
+  const normalized = nameWithoutExt.toLowerCase();
+
+  if (mixType === 'Corner New Cross') {
+    const nightMatch = normalized.match(/night\s*(\d+)/) || normalized.match(/n\s*(\d+)/);
+    if (nightMatch) {
+      return `Corner New Cross: Night ${nightMatch[1]}`;
+    }
+    return `Corner New Cross: ${nameWithoutExt}`;
+  }
+
+  const sessionMatch = normalized.match(/session\s*(\d+)/) || normalized.match(/s\s*(\d+)/);
+  if (sessionMatch) {
+    return `${mixType}: Session ${sessionMatch[1]}`;
+  }
+
+  return `${mixType}: ${nameWithoutExt}`;
+}
+
+function matchArtworkFile(mixName: string, mixType: string, files: { id: string; name: string }[]): { id: string; name: string } | null {
+  const normalizedMixName = mixName.toLowerCase().replace(/[:\-]/g, ' ').replace(/\s+/g, ' ').trim();
   
-  const res = await drive.files.list({ q: query, fields: 'files(id, name)' });
-  const files = res.data.files || [];
-  
-  // Find a file whose base name matches the name prefix
-  const matched = files.find(f => {
+  // Try exact match first
+  let found = files.find(f => {
     const baseName = f.name?.substring(0, f.name.lastIndexOf('.')) || f.name || '';
-    return baseName.toLowerCase().trim() === namePrefix.toLowerCase().trim();
+    return baseName.toLowerCase().trim() === mixName.toLowerCase().trim();
   });
-  
-  return matched ? { id: matched.id!, name: matched.name! } : null;
+  if (found) return found;
+
+  // Specific mapping for Knight Club
+  if (mixType === 'Knight Club') {
+    const sessionMatch = normalizedMixName.match(/session\s*(\d+)/);
+    if (sessionMatch) {
+      const sessionNum = sessionMatch[1];
+      found = files.find(f => {
+        const baseName = f.name?.substring(0, f.name.lastIndexOf('.')) || f.name || '';
+        const normBase = baseName.toLowerCase().trim();
+        return normBase === `session ${sessionNum}` || normBase === `session${sessionNum}`;
+      });
+      if (found) return found;
+    }
+  }
+
+  // Specific mapping for Royal Court
+  if (mixType === 'Royal Court') {
+    const sessionMatch = normalizedMixName.match(/session\s*(\d+)/);
+    if (sessionMatch) {
+      const sessionNum = sessionMatch[1];
+      found = files.find(f => {
+        const baseName = f.name?.substring(0, f.name.lastIndexOf('.')) || f.name || '';
+        const normBase = baseName.toLowerCase().trim();
+        return normBase.includes(`session ${sessionNum}`) || normBase.includes(`session${sessionNum}`);
+      });
+      if (found) return found;
+    }
+  }
+
+  // Specific mapping for Corner New Cross
+  if (mixType === 'Corner New Cross') {
+    const nightMatch = normalizedMixName.match(/night\s*(\d+)/);
+    if (nightMatch) {
+      const nightNum = nightMatch[1];
+      found = files.find(f => {
+        const baseName = f.name?.substring(0, f.name.lastIndexOf('.')) || f.name || '';
+        const normBase = baseName.toLowerCase().trim();
+        return normBase.includes(`n${nightNum}`) || normBase.includes(`night ${nightNum}`);
+      });
+      if (found) return found;
+    }
+  }
+
+  // Generic fallback: number matching
+  const numberMatch = normalizedMixName.match(/\d+/);
+  if (numberMatch) {
+    const num = numberMatch[0];
+    found = files.find(f => {
+      const baseName = f.name?.substring(0, f.name.lastIndexOf('.')) || f.name || '';
+      return baseName.includes(num);
+    });
+    if (found) return found;
+  }
+
+  return null;
+}
+
+function matchTracklistFile(mixName: string, files: { id: string; name: string }[]): { id: string; name: string } | null {
+  const normalizedMixName = mixName.toLowerCase().trim();
+  // Exact match
+  let found = files.find(f => {
+    const baseName = f.name?.substring(0, f.name.lastIndexOf('.')) || f.name || '';
+    return baseName.toLowerCase().trim() === normalizedMixName;
+  });
+  if (found) return found;
+
+  // Fuzzy match
+  found = files.find(f => {
+    const baseName = f.name?.substring(0, f.name.lastIndexOf('.')) || f.name || '';
+    const normBase = baseName.toLowerCase().trim();
+    return normalizedMixName.includes(normBase) || normBase.includes(normalizedMixName);
+  });
+  return found || null;
 }
 
 async function downloadFileText(fileId: string): Promise<string> {
@@ -148,6 +236,25 @@ async function main() {
   if (!tracklistsFolderId) console.warn("Folder 'Mix Track Lists' not found. Skipping tracklist matching.");
   if (!artworkFolderId) console.warn("Folder 'Mix Artwork' not found. Skipping cover art matching.");
 
+  // Preload artwork files
+  let artworkFiles: { id: string; name: string }[] = [];
+  if (artworkFolderId) {
+    const mimeQuery = ['image/jpeg', 'image/png', 'image/webp'].map(m => `mimeType = '${m}'`).join(' or ');
+    const query = `'${artworkFolderId}' in parents and trashed = false and (${mimeQuery})`;
+    const res = await drive.files.list({ q: query, fields: 'files(id, name)', pageSize: 1000 });
+    artworkFiles = res.data.files?.map(f => ({ id: f.id!, name: f.name! })) || [];
+    console.log(`Preloaded ${artworkFiles.length} artwork files from Google Drive.`);
+  }
+
+  // Preload tracklists
+  let tracklistFiles: { id: string; name: string }[] = [];
+  if (tracklistsFolderId) {
+    const query = `'${tracklistsFolderId}' in parents and trashed = false and mimeType = 'text/plain'`;
+    const res = await drive.files.list({ q: query, fields: 'files(id, name)', pageSize: 1000 });
+    tracklistFiles = res.data.files?.map(f => ({ id: f.id!, name: f.name! })) || [];
+    console.log(`Preloaded ${tracklistFiles.length} tracklist files from Google Drive.`);
+  }
+
   // List mix types folders (e.g. Knight Club)
   const mixTypeFoldersRes = await drive.files.list({
     q: `'${mixAudioId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
@@ -174,50 +281,100 @@ async function main() {
       const fileName = mp3.name!;
       const mixName = fileName.substring(0, fileName.lastIndexOf('.')) || fileName;
       
-      console.log(`- Checking mix: "${mixName}"`);
-
-      // Check if document already exists in Sanity
-      const existing = await sanityClient.fetch(
-        `*[_type == "mix" && title == $title][0]`,
-        { title: mixName }
-      );
-
-      if (existing) {
-        console.log(`  Mix "${mixName}" already exists in Sanity. Skipping sync.`);
-        continue;
-      }
-
-      console.log(`  New mix discovered! Fetching assets...`);
+      const cleanTitle = cleanMixTitle(fileName, mixType);
+      const cleanSlug = slugify(cleanTitle);
       
-      // Look for tracklist text file
-      let tracklistText = '';
-      if (tracklistsFolderId) {
-        const tracklistFile = await findFileInFolder(mixName, tracklistsFolderId, ['text/plain']);
-        if (tracklistFile) {
-          console.log(`  Found tracklist file: ${tracklistFile.name}`);
-          tracklistText = await downloadFileText(tracklistFile.id);
-        } else {
-          console.log(`  No tracklist file found for "${mixName}"`);
-        }
-      }
-
-      // Look for artwork image
-      let artworkFile = null;
-      if (artworkFolderId) {
-        artworkFile = await findFileInFolder(mixName, artworkFolderId, ['image/jpeg', 'image/png', 'image/webp']);
-        if (artworkFile) {
-          console.log(`  Found artwork file: ${artworkFile.name}`);
-        } else {
-          console.log(`  No artwork file found for "${mixName}"`);
-        }
-      }
+      console.log(`- Checking mix: "${mixName}" (Normalized Title: "${cleanTitle}")`);
 
       // S3 / R2 Keys
       const audioR2Key = `Mixes/${mixType}/Mix Audio/${fileName}`;
-      const artworkR2Key = artworkFile 
-        ? `Mixes/${mixType}/Mix Artwork/${mixName}${artworkFile.name.substring(artworkFile.name.lastIndexOf('.'))}`
-        : null;
+      
+      // Look for tracklist text file
+      let tracklistText = '';
+      const tracklistFile = matchTracklistFile(mixName, tracklistFiles);
+      if (tracklistFile) {
+        console.log(`  Found matched tracklist file: ${tracklistFile.name}`);
+        tracklistText = await downloadFileText(tracklistFile.id);
+      } else {
+        console.log(`  No tracklist file found for "${mixName}"`);
+      }
 
+      // Look for artwork image
+      const artworkFile = matchArtworkFile(mixName, mixType, artworkFiles);
+      let artworkR2Key: string | null = null;
+      if (artworkFile) {
+        console.log(`  Found matched artwork file: ${artworkFile.name}`);
+        artworkR2Key = `Mixes/${mixType}/Mix Artwork/${artworkFile.name}`;
+      } else {
+        console.log(`  No artwork file found for "${mixName}"`);
+      }
+
+      // Check if document already exists in Sanity
+      const existing = await sanityClient.fetch(
+        `*[_type == "mix" && (slug.current == $slug || title == $title || audioFile == $audioFile)][0]`,
+        { slug: cleanSlug, title: cleanTitle, audioFile: `/${audioR2Key}` }
+      );
+
+      if (existing) {
+        console.log(`  Mix document already exists in Sanity. Checking if updates are needed...`);
+        let needsPatch = false;
+        const patchData: any = {};
+
+        // Title/Slug cleanup
+        if (existing.title !== cleanTitle) {
+          console.log(`    Updating title to clean format: "${cleanTitle}"`);
+          patchData.title = cleanTitle;
+          patchData.slug = { _type: 'slug', current: cleanSlug };
+          needsPatch = true;
+        }
+
+        // Audio path alignment
+        const currentAudioFile = existing.audioFile;
+        const expectedAudioFile = `/${audioR2Key}`;
+        if (currentAudioFile !== expectedAudioFile) {
+          console.log(`    Audio file path mismatch: current="${currentAudioFile}", expected="${expectedAudioFile}". Uploading/Updating...`);
+          if (!dryRun) {
+            await uploadToR2(mp3.id!, audioR2Key, 'audio/mpeg');
+          }
+          patchData.audioFile = expectedAudioFile;
+          needsPatch = true;
+        }
+
+        // Artwork path alignment
+        const currentArtworkFile = existing.artworkFile;
+        const expectedArtworkFile = artworkR2Key ? `/${artworkR2Key}` : undefined;
+        if (artworkFile && currentArtworkFile !== expectedArtworkFile) {
+          console.log(`    Artwork file path mismatch: current="${currentArtworkFile}", expected="${expectedArtworkFile}". Uploading/Updating...`);
+          if (!dryRun) {
+            const artworkContentType = artworkFile.name.endsWith('.png') ? 'image/png' : artworkFile.name.endsWith('.webp') ? 'image/webp' : 'image/jpeg';
+            await uploadToR2(artworkFile.id, artworkR2Key!, artworkContentType);
+          }
+          patchData.artworkFile = expectedArtworkFile;
+          needsPatch = true;
+        }
+
+        // Tracklist update
+        if (tracklistText && existing.tracklist !== tracklistText) {
+          console.log(`    Updating tracklist content...`);
+          patchData.tracklist = tracklistText;
+          needsPatch = true;
+        }
+
+        if (needsPatch) {
+          if (!dryRun) {
+            await sanityClient.patch(existing._id).set(patchData).commit();
+            console.log(`    Successfully updated Sanity mix document: ${existing._id}`);
+          } else {
+            console.log(`    [DRY RUN] Would patch Sanity mix document: ${existing._id} with data:`, patchData);
+          }
+        } else {
+          console.log(`    No changes needed.`);
+        }
+        continue;
+      }
+
+      console.log(`  New mix discovered! Syncing...`);
+      
       if (!dryRun) {
         // Upload audio to R2
         await uploadToR2(mp3.id!, audioR2Key, 'audio/mpeg');
@@ -231,10 +388,10 @@ async function main() {
         // Create Sanity Document
         const mixDoc = {
           _type: 'mix',
-          title: mixName,
+          title: cleanTitle,
           slug: {
             _type: 'slug',
-            current: slugify(mixName),
+            current: cleanSlug,
           },
           audioFile: `/${audioR2Key}`,
           artworkFile: artworkR2Key ? `/${artworkR2Key}` : undefined,
@@ -281,7 +438,7 @@ async function main() {
         if (artworkR2Key) {
           console.log(`  [DRY RUN] Would upload artwork to R2 at key: ${artworkR2Key}`);
         }
-        console.log(`  [DRY RUN] Would create Sanity mix document for: "${mixName}"`);
+        console.log(`  [DRY RUN] Would create Sanity mix document for: "${cleanTitle}"`);
         console.log(`  [DRY RUN] Would append to or create Sanity mixGroup for: "${mixType}"`);
       }
     }

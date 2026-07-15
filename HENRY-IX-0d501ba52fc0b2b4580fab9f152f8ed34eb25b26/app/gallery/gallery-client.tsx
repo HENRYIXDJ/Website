@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import PageShell from '@/components/PageShell';
 import { getStorageUrl } from '@/lib/storage';
+import { client } from '@/sanity/lib/client';
 
 interface GalleryItem {
   src: string;
@@ -87,13 +88,35 @@ const ARTWORK_IMAGES: GalleryItem[] = [
 
 export default function GalleryClient() {
   const [activeItem, setActiveItem] = useState<{ type: 'me' | 'artwork', idx: number } | null>(null);
+  const [artworkImages, setArtworkImages] = useState<GalleryItem[]>(ARTWORK_IMAGES);
+
+  useEffect(() => {
+    async function loadDynamicArtwork() {
+      try {
+        const mixes = await client.fetch<any[]>(
+          `*[_type == "mix" && defined(audioFile) && defined(artworkFile)]`
+        );
+        if (mixes && mixes.length > 0) {
+          const formatted = mixes.map(mix => ({
+            src: proxyUrl(getStorageUrl(mix.artworkFile)),
+            title: mix.title.toUpperCase(),
+            gridClass: 'col-span-1 aspect-square'
+          }));
+          setArtworkImages(formatted);
+        }
+      } catch (err) {
+        console.error('Error loading dynamic artwork for gallery:', err);
+      }
+    }
+    loadDynamicArtwork();
+  }, []);
 
   // Handle keyboard navigation for Lightbox
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (activeItem === null) return;
       
-      const currentArray = activeItem.type === 'me' ? ME_IMAGES : ARTWORK_IMAGES;
+      const currentArray = activeItem.type === 'me' ? ME_IMAGES : artworkImages;
       
       if (e.key === 'Escape') {
         startTransition(() => setActiveItem(null));
@@ -117,7 +140,7 @@ export default function GalleryClient() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [activeItem]);
 
-  const activeImage = activeItem ? (activeItem.type === 'me' ? ME_IMAGES[activeItem.idx] : ARTWORK_IMAGES[activeItem.idx]) : null;
+  const activeImage = activeItem ? (activeItem.type === 'me' ? ME_IMAGES[activeItem.idx] : artworkImages[activeItem.idx]) : null;
 
   return (
     <PageShell>
@@ -182,7 +205,7 @@ export default function GalleryClient() {
            <h2 className="font-sans font-bold text-2xl tracking-widest text-zinc-300 uppercase border-b border-zinc-900 pb-4">Mix Artwork</h2>
         </div>
         <div className="relative z-10 grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6">
-          {ARTWORK_IMAGES.map((item, idx) => (
+          {artworkImages.map((item, idx) => (
             <motion.div
               key={item.src}
               initial={{ opacity: 0, y: 40 }}
@@ -244,7 +267,7 @@ export default function GalleryClient() {
                   onClick={(e) => {
                     e.stopPropagation();
                     startTransition(() => {
-                      const currentArray = activeItem.type === 'me' ? ME_IMAGES : ARTWORK_IMAGES;
+                      const currentArray = activeItem.type === 'me' ? ME_IMAGES : artworkImages;
                       setActiveItem({
                         type: activeItem.type,
                         idx: (activeItem.idx - 1 + currentArray.length) % currentArray.length
@@ -283,7 +306,7 @@ export default function GalleryClient() {
                   onClick={(e) => {
                     e.stopPropagation();
                     startTransition(() => {
-                      const currentArray = activeItem.type === 'me' ? ME_IMAGES : ARTWORK_IMAGES;
+                      const currentArray = activeItem.type === 'me' ? ME_IMAGES : artworkImages;
                       setActiveItem({
                         type: activeItem.type,
                         idx: (activeItem.idx + 1) % currentArray.length
