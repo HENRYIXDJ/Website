@@ -46,9 +46,9 @@ export default function SiteHeader() {
 
   // Close dropdown synchronously during render when pathname changes,
   // avoiding the React strict-mode setState-in-useEffect warning.
-  const prevPathnameRef = useRef(pathname);
-  if (prevPathnameRef.current !== pathname) {
-    prevPathnameRef.current = pathname;
+  const [prevPathname, setPrevPathname] = useState(pathname);
+  if (prevPathname !== pathname) {
+    setPrevPathname(pathname);
     if (isOpen) setIsOpen(false);
   }
 

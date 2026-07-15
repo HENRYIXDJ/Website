@@ -58,7 +58,6 @@ async function handleAssetRequest(request: Request) {
     return new NextResponse('Storage (Cloudflare R2) is not configured correctly', { status: 500 });
   }
   
-  const bucketName = process.env.R2_BUCKET_NAME;
   if (!bucketName) {
     return new NextResponse('R2 Bucket name not configured', { status: 500 });
   }

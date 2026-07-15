@@ -8,7 +8,6 @@
  * inspired by RhythmExtractor2013, PercivalBpmEstimator, and LoopBpmEstimator.
  */
 
-/* eslint-disable no-restricted-globals */
 self.onmessage = async function (e) {
   const { buffer, fileKey, numPeaks = 500 } = e.data;
 
