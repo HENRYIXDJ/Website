@@ -15,8 +15,11 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1085.0",
     "@aws-sdk/s3-request-presigner": "^3.1085.0",
+    "@cloudflare/next-on-pages": "^1.13.16",
+    "@cloudflare/workers-types": "^5.20260714.1",
     "@google/genai": "^1.17.0",
     "@hookform/resolvers": "^5.2.1",
+    "@react-email/render": "^2.1.0",
     "@sanity/vision": "^6.4.0",
     "@vercel/analytics": "^2.0.1",
     "@vercel/blob": "^2.4.0",
@@ -38,10 +41,7 @@
     "sanity": "^6.4.0",
     "styled-components": "^6.4.3",
     "tailwind-merge": "^3.3.1",
-    "workflow": "^4.6.0",
     "wrangler": "^4.110.0",
-    "@cloudflare/next-on-pages": "^1.13.16",
-    "@cloudflare/workers-types": "^5.20260714.1",
     "zustand": "^5.0.13"
   },
   "devDependencies": {
