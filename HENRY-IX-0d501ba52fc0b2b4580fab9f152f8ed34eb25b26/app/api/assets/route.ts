@@ -1,3 +1,4 @@
+export const runtime = 'edge';
 import { NextResponse } from 'next/server';
 import { issueSignedToken, presignUrl as presignVercelUrl } from '@vercel/blob';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';

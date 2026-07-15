@@ -40,11 +40,11 @@
     "tailwind-merge": "^3.3.1",
     "workflow": "^4.6.0",
     "wrangler": "^4.110.0",
+    "@cloudflare/next-on-pages": "^1.13.16",
+    "@cloudflare/workers-types": "^5.20260714.1",
     "zustand": "^5.0.13"
   },
   "devDependencies": {
-    "@cloudflare/next-on-pages": "^1.13.16",
-    "@cloudflare/workers-types": "^5.20260714.1",
     "@tailwindcss/postcss": "4.1.11",
     "@tailwindcss/typography": "^0.5.19",
     "@types/node": "^20",
