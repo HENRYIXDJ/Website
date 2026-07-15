@@ -2,7 +2,6 @@ export const runtime = 'edge';
 import { checkBotId } from "botid/server";
 import { NextResponse } from "next/server";
 import { handleUserSignup } from "@/app/workflows/signup";
-import { start } from "workflow/api";
 
 export async function POST(req: Request) {
   try {
@@ -27,10 +26,7 @@ export async function POST(req: Request) {
     }
 
     // 2. Trigger/execute durable user signup workflow
-    const run = await start(handleUserSignup, [email]);
-    
-    // We can return the runId immediately, or wait for the return value
-    const result = await run.returnValue;
+    const result = await handleUserSignup(email);
 
     return NextResponse.json(
       { success: true, message: "Signup processed successfully", data: result },
