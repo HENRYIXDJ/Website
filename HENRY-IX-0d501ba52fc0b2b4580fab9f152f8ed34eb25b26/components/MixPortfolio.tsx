@@ -23,6 +23,14 @@ const formatTime = (secs: number) => {
   return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 };
 
+const formatPlayheadTime = (secs: number) => {
+  if (isNaN(secs) || secs === undefined) return "00:00.00";
+  const m = Math.floor(secs / 60);
+  const s = Math.floor(secs % 60);
+  const f = Math.floor((secs % 1) * 100);
+  return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}.${f.toString().padStart(2, '0')}`;
+};
+
 const proxyUrl = (url: string) => `/api/assets?url=${encodeURIComponent(url)}`;
 
 const getSessionImage = (title: string, artworkUrl?: string) => {
@@ -286,6 +294,7 @@ function SingleDeckWaveform({
   const isPlayingRef = useRef<boolean>(false);
   const anchorAudioTimeRef = useRef<number>(0);
   const anchorSystemTimeRef = useRef<number>(0);
+  const lastFrameTimeRef = useRef<number>(0);
 
   // Subscribe to Zustand state for real-time phase sync calculations
   const allDecks = useAudioStore(s => s.decks);
@@ -339,7 +348,7 @@ function SingleDeckWaveform({
       }
 
       const width = canvas.parentElement?.clientWidth || 300;
-      const height = 48;
+      const height = 64;
       const dpr = window.devicePixelRatio || 1;
 
       if (canvas.width !== width * dpr || canvas.height !== height * dpr) {
@@ -389,32 +398,29 @@ function SingleDeckWaveform({
       if (isCurrentlyPlaying) {
         if (!isPlayingRef.current) {
           isPlayingRef.current = true;
-          anchorAudioTimeRef.current = targetProgress;
-          anchorSystemTimeRef.current = sysTime;
+          smoothProgressRef.current = targetProgress;
+          lastFrameTimeRef.current = sysTime;
         }
 
-        const elapsed = (sysTime - anchorSystemTimeRef.current) / 1000;
-        let estProgress = anchorAudioTimeRef.current + elapsed * pitchModifier;
+        const dt = (sysTime - lastFrameTimeRef.current) / 1000;
+        const clampedDt = Math.max(0, Math.min(0.1, dt));
+        let estProgress = smoothProgressRef.current + clampedDt * pitchModifier;
 
         const drift = targetProgress - estProgress;
         if (Math.abs(drift) > 0.3) {
-          // Seek/Jump event: instantly snap anchors
-          anchorAudioTimeRef.current = targetProgress;
-          anchorSystemTimeRef.current = sysTime;
+          // Seek/Jump event: snap instantly
           estProgress = targetProgress;
         } else {
-          // Soft nudge: adjusts the system reference time back into alignment
-          // to absorb any clock tick jitter from the browser's audio thread
-          anchorSystemTimeRef.current += drift * 0.05 * 1000;
+          // Gentle pull to prevent drift without wiggles/skips
+          estProgress += drift * 0.08;
         }
 
         smoothProgressRef.current = estProgress;
       } else {
         isPlayingRef.current = false;
-        anchorAudioTimeRef.current = targetProgress;
-        anchorSystemTimeRef.current = sysTime;
         smoothProgressRef.current = targetProgress;
       }
+      lastFrameTimeRef.current = sysTime;
 
       const progress = smoothProgressRef.current;
 
@@ -547,7 +553,7 @@ function SingleDeckWaveform({
 
         const points: { drawX: number; lowH: number; midH: number; highH: number }[] = [];
 
-        for (let drawX = 0; drawX < width; drawX += 2) {
+        for (let drawX = 0; drawX < width; drawX += 1) {
           const barTime = progress + (drawX - centerX) / pixelsPerSecond;
           const hVal = getPeakHeight(barTime);
 
@@ -574,7 +580,9 @@ function SingleDeckWaveform({
 
         // Use Math.round/Math.floor in path plotting to avoid sub-pixel anti-aliasing blur
         // 1. Low Band (Vivid Cyan/Blue foundation: rgba(0, 162, 255, 1))
-        ctx.fillStyle = 'rgba(0, 162, 255, 0.25)';
+        ctx.fillStyle = 'rgba(0, 162, 255, 0.4)';
+        ctx.strokeStyle = 'rgba(0, 190, 255, 0.85)';
+        ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.moveTo(0, halfH);
         for (let i = 0; i < points.length; i++) {
@@ -585,9 +593,12 @@ function SingleDeckWaveform({
         }
         ctx.closePath();
         ctx.fill();
+        ctx.stroke();
 
         // 2. Mid Band (Vivid Neon Orange: rgba(255, 120, 0, 1))
-        ctx.fillStyle = 'rgba(255, 120, 0, 0.55)';
+        ctx.fillStyle = 'rgba(255, 120, 0, 0.7)';
+        ctx.strokeStyle = 'rgba(255, 150, 0, 0.95)';
+        ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.moveTo(0, halfH);
         for (let i = 0; i < points.length; i++) {
@@ -598,9 +609,12 @@ function SingleDeckWaveform({
         }
         ctx.closePath();
         ctx.fill();
+        ctx.stroke();
 
         // 3. High Band (Pure Bright White: rgba(255, 255, 255, 1))
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+        ctx.strokeStyle = 'rgba(255, 255, 255, 1)';
+        ctx.lineWidth = 0.8;
         ctx.beginPath();
         ctx.moveTo(0, halfH);
         for (let i = 0; i < points.length; i++) {
@@ -611,6 +625,7 @@ function SingleDeckWaveform({
         }
         ctx.closePath();
         ctx.fill();
+        ctx.stroke();
       }
 
       // Draw Active Loop Highlight Overlay
@@ -879,7 +894,7 @@ function SingleDeckWaveform({
   };
 
   return (
-    <div className="relative w-full h-[48px] bg-black rounded border border-zinc-900 overflow-hidden shadow-inner flex items-center justify-center mb-1 select-none shrink-0 z-10">
+    <div className="relative w-full h-[64px] bg-black rounded border border-zinc-900 overflow-hidden shadow-inner flex items-center justify-center mb-1 select-none shrink-0 z-10">
       <canvas 
         ref={canvasRef} 
         className={cn("w-full h-full block touch-none", dragState ? 'cursor-grabbing' : 'cursor-grab')} 
@@ -1792,8 +1807,9 @@ function MixArchive({
             return (
               <div 
                 key={id}
+                style={{ containerType: 'inline-size' }}
                 className={cn(
-                  "flex flex-col items-center justify-between gap-2 py-2 px-1 rounded-xl transition-all border h-full min-h-0",
+                  "w-full flex flex-col items-center justify-between gap-2 py-2 px-1 rounded-xl transition-all border h-full min-h-0",
                   isActive ? "bg-zinc-900/30 border-zinc-800/80" : "border-transparent opacity-60 hover:opacity-90"
                 )}
               >
@@ -1804,11 +1820,11 @@ function MixArchive({
                   CH {id}
                 </span>
 
-                <div className="flex flex-col gap-2">
+                <div className="flex flex-col gap-2 w-full">
                   <RotaryKnob 
                     label="TRIM"
                     value={deck.trim ?? 50}
-                    size="lg"
+                    size="flex"
                     onChange={(val) => {
                       audioEngine.setTrim(id, val);
                       setDecks((prev: any) => ({
@@ -1821,7 +1837,7 @@ function MixArchive({
                   <RotaryKnob 
                     label="HI"
                     value={deck.eqHi}
-                    size="lg"
+                    size="flex"
                     onChange={(val) => {
                       // 1. Instant audio DSP update (zero latency)
                       audioEngine.setEQ(id, 'high', val);
@@ -1836,7 +1852,7 @@ function MixArchive({
                   <RotaryKnob 
                     label="MID"
                     value={deck.eqMid}
-                    size="lg"
+                    size="flex"
                     onChange={(val) => {
                       // 1. Instant audio DSP update (zero latency)
                       audioEngine.setEQ(id, 'mid', val);
@@ -1851,7 +1867,7 @@ function MixArchive({
                   <RotaryKnob 
                     label="LOW"
                     value={deck.eqLow}
-                    size="lg"
+                    size="flex"
                     onChange={(val) => {
                       // 1. Instant audio DSP update (zero latency)
                       audioEngine.setEQ(id, 'low', val);
@@ -1866,7 +1882,7 @@ function MixArchive({
                   <RotaryKnob 
                     label="FLT"
                     value={deck.filter}
-                    size="lg"
+                    size="flex"
                     onChange={(val) => {
                       // 1. Instant audio DSP update (zero latency)
                       audioEngine.setFilter(id, val);
@@ -1881,12 +1897,12 @@ function MixArchive({
                 </div>
 
                 {/* Vertical Fader */}
-                <div className="flex flex-col items-center gap-1 mt-1 relative w-10 flex-grow min-h-0 h-full">
-                  <span className="text-[6.5px] text-zinc-500 font-mono uppercase tracking-widest leading-none font-bold shrink-0">
+                <div className="flex flex-col items-center gap-1 mt-1 relative w-[50cqw] max-w-[40px] min-w-[20px] flex-grow min-h-0 h-full">
+                  <span className="text-[min(8px,max(5.5px,7cqw))] text-zinc-500 font-mono uppercase tracking-widest leading-none font-bold shrink-0">
                     VOL
                   </span>
                   
-                  <div className="relative flex-grow min-h-[50px] max-h-[140px] w-6 bg-zinc-950 border border-zinc-900 focus-within:border-zinc-500 focus-within:shadow-[0_0_8px_rgba(255,255,255,0.15)] rounded flex items-center justify-center overflow-hidden shadow-inner">
+                  <div className="relative flex-grow min-h-[50px] max-h-[140px] w-[32cqw] max-w-[28px] min-w-[14px] bg-zinc-950 border border-zinc-900 focus-within:border-zinc-500 focus-within:shadow-[0_0_8px_rgba(255,255,255,0.15)] rounded flex items-center justify-center overflow-hidden shadow-inner">
                     <input 
                       type="range"
                       min="0"
@@ -1925,15 +1941,15 @@ function MixArchive({
 
                     <div className="absolute inset-y-1 flex flex-col justify-between w-full pointer-events-none opacity-40">
                       {[...Array(11)].map((_, idx) => (
-                        <div key={idx} className={cn("h-[1px] bg-zinc-700 w-3 mx-auto", idx === 0 && "w-5 bg-zinc-500")} />
+                        <div key={idx} className={cn("h-[1px] bg-zinc-700 w-3 mx-auto", idx === 0 && "w-[80%] bg-zinc-500")} />
                       ))}
                     </div>
 
                     {/* Fader Cap */}
                     <div 
-                      className="absolute w-6 h-5 bg-gradient-to-b from-zinc-700 to-zinc-900 border border-zinc-600 rounded flex items-center justify-center shadow pointer-events-none"
+                      className="absolute w-[135%] h-[min(26px,max(18px,28cqw))] bg-gradient-to-b from-zinc-700 to-zinc-900 border border-zinc-600 rounded flex items-center justify-center shadow pointer-events-none"
                       style={{ 
-                        bottom: `calc(${deck.volume}% - 10px)`,
+                        bottom: `calc(${deck.volume}% - min(13px,max(9px,14cqw)))`,
                         transform: 'translateY(50%)'
                       }}
                     >
@@ -2260,14 +2276,14 @@ function MixArchive({
                 .dj-grid-container {
                   ${deckCount === 2 ? `
                     grid-template-columns: minmax(0, 1fr) minmax(280px, 1.2fr) minmax(0, 1fr);
-                    grid-template-rows: 240px auto 1fr;
+                    grid-template-rows: 200px auto 1fr;
                     grid-template-areas:
                       "browser1 mixer browser2"
                       "wave1    mixer wave2"
                       "control1 mixer control2";
                   ` : `
                     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(280px, 1.2fr) minmax(0, 1fr) minmax(0, 1fr);
-                    grid-template-rows: 240px auto 1fr;
+                    grid-template-rows: 200px auto 1fr;
                     grid-template-areas:
                       "browser3 browser1 mixer browser2 browser4"
                       "wave3    wave1    mixer wave2    wave4"
@@ -2352,7 +2368,7 @@ function MixArchive({
                             <div className="flex flex-col text-center">
                               <span className="text-[5px] text-zinc-600 uppercase tracking-widest font-bold leading-none mb-0.5">PLAYHEAD</span>
                               <span className="font-bold text-zinc-400 font-mono text-[8.5px] leading-none">
-                                {isLocked ? "LOCKED" : `${(deck?.progress || 0).toFixed(2)}s`}
+                                {isLocked ? "LOCKED" : formatPlayheadTime(deck?.progress || 0)}
                               </span>
                             </div>
                             <div className="flex flex-col text-right">
