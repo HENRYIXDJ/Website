@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 
+export const runtime = 'edge';
+
 const accountId = process.env.R2_ACCOUNT_ID;
 const accessKeyId = process.env.R2_ACCESS_KEY_ID;
 const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
@@ -47,19 +49,6 @@ async function handleAssetRequest(request: Request) {
   // pathname starts with a slash, we want to strip the leading slash
   const pathname = decodeURIComponent(parsedUrl.pathname.slice(1));
 
-  if (!isR2 || !s3Client) {
-    const r2PublicDomain = process.env.NEXT_PUBLIC_R2_PUBLIC_URL;
-    if (r2PublicDomain) {
-      const publicUrl = r2PublicDomain.endsWith('/') ? r2PublicDomain : `${r2PublicDomain}/`;
-      return NextResponse.redirect(`${publicUrl}${pathname}`, { status: 307 });
-    }
-    return new NextResponse('Storage (Cloudflare R2) is not configured correctly', { status: 500 });
-  }
-  
-  if (!bucketName) {
-    return new NextResponse('R2 Bucket name not configured', { status: 500 });
-  }
-  
   const r2PublicDomain = process.env.NEXT_PUBLIC_R2_PUBLIC_URL;
   const storageBaseUrl = process.env.NEXT_PUBLIC_STORAGE_BASE_URL;
   const allowedHosts = [
@@ -72,12 +61,76 @@ async function handleAssetRequest(request: Request) {
   if (storageBaseUrl) {
     try { allowedHosts.push(new URL(storageBaseUrl).host.toLowerCase()); } catch(_) {}
   }
-  
+  const requestHost = request.headers.get('host');
+  if (requestHost) {
+    allowedHosts.push(requestHost.toLowerCase());
+  }
+  const referer = request.headers.get('referer');
+  if (referer) {
+    try {
+      allowedHosts.push(new URL(referer).host.toLowerCase());
+    } catch (_) {}
+  }
+
   const parsedHost = parsedUrl.host.toLowerCase();
   const isAllowedHost = allowedHosts.some(allowed => parsedHost === allowed || parsedHost.endsWith('.' + allowed));
   
   if (!isAllowedHost) {
      return new NextResponse('Invalid source domain', { status: 400 });
+  }
+
+  if (!isR2 || !s3Client) {
+    if (r2PublicDomain) {
+      const publicUrl = r2PublicDomain.endsWith('/') ? r2PublicDomain : `${r2PublicDomain}/`;
+      const targetUrl = `${publicUrl}${pathname}`;
+      
+      try {
+        const fetchHeaders = new Headers();
+        const range = request.headers.get('Range');
+        if (range) {
+          fetchHeaders.set('Range', range);
+        }
+        
+        const response = await fetch(targetUrl, {
+          headers: fetchHeaders,
+          method: request.method,
+        });
+        
+        const headers = new Headers();
+        headers.set('Access-Control-Allow-Origin', '*');
+        headers.set('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+        headers.set('Access-Control-Allow-Headers', '*');
+        headers.set('Accept-Ranges', 'bytes');
+        
+        const headersToForward = [
+          'content-type',
+          'content-length',
+          'content-range',
+          'etag',
+          'last-modified',
+          'cache-control'
+        ];
+        headersToForward.forEach(h => {
+          const val = response.headers.get(h);
+          if (val !== null) {
+            headers.set(h, val);
+          }
+        });
+        
+        return new NextResponse(response.body, {
+          status: response.status,
+          headers,
+        });
+      } catch (err) {
+        console.error('Error fetching from public URL fallback:', err);
+        return new NextResponse('Failed to fetch from public storage fallback', { status: 500 });
+      }
+    }
+    return new NextResponse('Storage (Cloudflare R2) is not configured correctly', { status: 500 });
+  }
+
+  if (!bucketName) {
+    return new NextResponse('R2 Bucket name not configured', { status: 500 });
   }
 
   try {
@@ -122,40 +175,49 @@ async function handleAssetRequest(request: Request) {
       });
     }
 
-    const readable = s3Response.Body as any;
-    if (!readable) {
+    let bodyStream: any = s3Response.Body;
+    if (!bodyStream) {
       return new NextResponse(null, { status: statusCode, headers });
     }
 
-    const stream = new ReadableStream({
-      start(controller) {
-        if (typeof readable.on === 'function') {
-          readable.on('data', (chunk: any) => controller.enqueue(chunk));
-          readable.on('end', () => controller.close());
-          readable.on('error', (err: any) => controller.error(err));
-        } else if (typeof readable[Symbol.asyncIterator] === 'function') {
-          (async () => {
-            try {
-              for await (const chunk of readable) {
-                controller.enqueue(chunk);
-              }
-              controller.close();
-            } catch (err) {
-              controller.error(err);
-            }
-          })();
-        } else {
-          controller.error(new Error('Unknown stream type'));
-        }
-      },
-      cancel() {
-        if (typeof readable.destroy === 'function') {
-          readable.destroy();
-        }
-      }
-    });
+    if (typeof bodyStream.transformToWebStream === 'function') {
+      bodyStream = bodyStream.transformToWebStream();
+    }
 
-    return new NextResponse(stream, {
+    let finalStream: any;
+    if (bodyStream instanceof ReadableStream) {
+      finalStream = bodyStream;
+    } else {
+      finalStream = new ReadableStream({
+        start(controller) {
+          if (typeof bodyStream.on === 'function') {
+            bodyStream.on('data', (chunk: any) => controller.enqueue(chunk));
+            bodyStream.on('end', () => controller.close());
+            bodyStream.on('error', (err: any) => controller.error(err));
+          } else if (typeof bodyStream[Symbol.asyncIterator] === 'function') {
+            (async () => {
+              try {
+                for await (const chunk of bodyStream) {
+                  controller.enqueue(chunk);
+                }
+                controller.close();
+              } catch (err) {
+                controller.error(err);
+              }
+            })();
+          } else {
+            controller.error(new Error('Unknown stream type'));
+          }
+        },
+        cancel() {
+          if (typeof bodyStream.destroy === 'function') {
+            bodyStream.destroy();
+          }
+        }
+      });
+    }
+
+    return new NextResponse(finalStream, {
       status: statusCode,
       headers,
     });

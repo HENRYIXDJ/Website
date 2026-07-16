@@ -354,7 +354,7 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
   const sessionImg = getSessionImage(deck?.title || '');
 
   return (
-    <div className="w-full flex flex-col gap-3 p-3 bg-zinc-900 border border-zinc-800 rounded-2xl shadow-[0_4px_30px_rgba(0,0,0,0.8)] relative select-none">
+    <div className="w-full h-full flex flex-col justify-between gap-3 p-3 bg-zinc-900 border border-zinc-800 rounded-2xl shadow-[0_4px_30px_rgba(0,0,0,0.8)] relative select-none">
       
       {/* 1. RGB Hot Cues Row (A-H) */}
       <div className="w-full flex items-center justify-between gap-1.5 border-b border-zinc-800 pb-2">
