@@ -39,6 +39,12 @@ export interface DeckState {
   loopOut?: number | null;
   isLoopActive?: boolean;
   firstBeatOffset?: number;
+  jogMode: 'VINYL' | 'CDJ';
+  masterTempo: boolean;
+  isMaster: boolean;
+  mainCue: number;
+  isCueStuttering: boolean;
+  hotCues: Record<string, number | null>;
 }
 
 export interface AudioStoreState {
@@ -163,6 +169,12 @@ const INITIAL_DECKS: Record<number, DeckState> = {
     waveformPeaks: trackWaveforms['kc-1'] ?? generateStaticPeaks(500),
     cuePoints: [0, 1127, 2112, 2772],
     firstBeatOffset: 0.0,
+    jogMode: 'VINYL',
+    masterTempo: true,
+    isMaster: false,
+    mainCue: 0,
+    isCueStuttering: false,
+    hotCues: { A: null, B: null, C: null, D: null, E: null, F: null, G: null, H: null }
   },
   2: {
     id: 'kc-2', title: 'Knight Club: Session 2',
@@ -175,6 +187,12 @@ const INITIAL_DECKS: Record<number, DeckState> = {
     waveformPeaks: trackWaveforms['kc-2'] ?? generateStaticPeaks(500),
     firstBeatOffset: 0.0,
     cuePoints: [0, 2468, 4084, 6270],
+    jogMode: 'VINYL',
+    masterTempo: true,
+    isMaster: false,
+    mainCue: 0,
+    isCueStuttering: false,
+    hotCues: { A: null, B: null, C: null, D: null, E: null, F: null, G: null, H: null }
   },
   3: {
     id: 'kc-3', title: 'Knight Club: Session 3',
@@ -187,6 +205,12 @@ const INITIAL_DECKS: Record<number, DeckState> = {
     waveformPeaks: trackWaveforms['kc-3'] ?? generateStaticPeaks(500),
     firstBeatOffset: 0.0,
     cuePoints: [0, 1940, 3685, 5509],
+    jogMode: 'VINYL',
+    masterTempo: true,
+    isMaster: false,
+    mainCue: 0,
+    isCueStuttering: false,
+    hotCues: { A: null, B: null, C: null, D: null, E: null, F: null, G: null, H: null }
   },
   4: {
     id: 'kc-4', title: 'Knight Club: Session 4',
@@ -199,6 +223,12 @@ const INITIAL_DECKS: Record<number, DeckState> = {
     waveformPeaks: trackWaveforms['kc-4'] ?? generateStaticPeaks(500),
     firstBeatOffset: 0.0,
     cuePoints: [0, 1834, 3582, 5552],
+    jogMode: 'VINYL',
+    masterTempo: true,
+    isMaster: false,
+    mainCue: 0,
+    isCueStuttering: false,
+    hotCues: { A: null, B: null, C: null, D: null, E: null, F: null, G: null, H: null }
   },
 };
 

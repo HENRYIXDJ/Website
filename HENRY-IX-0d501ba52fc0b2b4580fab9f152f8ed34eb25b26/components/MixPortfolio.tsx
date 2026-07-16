@@ -13,6 +13,7 @@ import { useAudioStore } from '@/store/audioStore';
 import { useAudio } from './AudioProvider';
 import AudioVisualizerBackground from './AudioVisualizerBackground';
 import { client } from '@/sanity/lib/client';
+import CDJHardware from './CDJHardware';
 
 
 const formatTime = (secs: number) => {
@@ -1107,11 +1108,13 @@ function MixArchive({
       
       playClick(900, 'sine', 0.02);
       const audio = audioElementsRef?.current?.[deckId];
-      if (audio) {
+      if (audio && isFinite(audio.duration)) {
         if (slipMode[deckId]) {
           let targetTime = roll.virtualTime;
           if (targetTime > audio.duration) targetTime = audio.duration;
-          audio.currentTime = targetTime;
+          if (isFinite(targetTime) && !isNaN(targetTime)) {
+            audio.currentTime = targetTime;
+          }
         }
       }
       return { ...prev, [deckId]: null };
@@ -1146,12 +1149,14 @@ function MixArchive({
           state.velocity *= 0.95; // Platter friction
           state.platterAngle += state.velocity;
           
-          if (!deck.scMode && audio && audio.duration) {
+          if (!deck.scMode && audio && isFinite(audio.duration) && audio.duration > 0) {
             const timeDelta = (state.velocity / (2 * Math.PI)) * 2.5; // 2.5s per full rotation
             let nextTime = audio.currentTime + timeDelta;
             if (nextTime < 0) nextTime = 0;
             if (nextTime > audio.duration) nextTime = audio.duration;
-            audio.currentTime = nextTime;
+            if (isFinite(nextTime) && !isNaN(nextTime)) {
+              audio.currentTime = nextTime;
+            }
           }
           
           if (el) {
@@ -1184,7 +1189,10 @@ function MixArchive({
         }
         
         // 3. Manual Loop Sweeping
-        if (deck.isLoopActive && deck.loopIn !== null && deck.loopOut !== null && audio && !audio.paused) {
+        if (deck.isLoopActive && 
+            typeof deck.loopIn === 'number' && isFinite(deck.loopIn) && !isNaN(deck.loopIn) &&
+            typeof deck.loopOut === 'number' && isFinite(deck.loopOut) && !isNaN(deck.loopOut) && 
+            audio && !audio.paused) {
           if (audio.currentTime >= deck.loopOut) {
             audio.currentTime = deck.loopIn;
           }
@@ -1586,265 +1594,7 @@ function MixArchive({
   };
 
   const renderDeckControls = (deckId: 1 | 2 | 3 | 4) => {
-    const deck = decks[deckId];
-    const isLocked = deck?.id === 'locked';
-    const isPlaying = deck.isPlaying;
-    const themeColor = 
-      deckId === 1 ? 'rgba(211,15,49,1)' : // red
-      deckId === 2 ? 'rgba(34,211,238,1)' : // cyan
-      deckId === 3 ? 'rgba(16,185,129,1)' : // green
-      'rgba(234,179,8,1)'; // yellow
-      
-    const sessionImg = getSessionImage(deck.title, deck.artworkUrl);
-
-    return (
-      <div className="w-full flex flex-col gap-2 p-2 bg-zinc-950 rounded-xl border border-zinc-900/50">
-        {/* Deck Header Bar */}
-        <div className="flex justify-between items-center text-[8px] font-mono tracking-[0.2em] font-bold uppercase text-zinc-500">
-          <span style={{ color: themeColor }}>DECK_{deckId} // CTRL</span>
-          {isLocked ? (
-            <span className="text-yellow-500">LOCKED</span>
-          ) : (
-            <button
-              onClick={() => {
-                playClick(900, 'sine', 0.02);
-                setSlipMode(prev => ({ ...prev, [deckId]: !prev[deckId] }));
-              }}
-              className={cn(
-                "px-2 py-0.5 rounded border transition-colors",
-                slipMode[deckId]
-                  ? "bg-primary border-primary text-black"
-                  : "bg-zinc-900 border-zinc-800 hover:text-zinc-300"
-              )}
-            >
-              SLIP MODE
-            </button>
-          )}
-        </div>
-
-        {/* Jogwheel, Sync/Master, and Pitch Slider area */}
-        <div className="w-full flex items-center justify-between gap-2.5 my-1 z-10 relative">
-          {/* Left Side: SYNC, MASTER, GRID controls */}
-          <div className="flex flex-col gap-1 items-center w-12 shrink-0">
-            {/* SYNC button */}
-            <div className="flex flex-col items-center gap-0.5">
-              <span className="text-[5px] text-zinc-600 font-mono tracking-widest font-bold">SYNC</span>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (isLocked) { playLockoutBlip(); return; }
-                  playClick(800, 'sine', 0.02);
-                  const otherDeckId = (deckId === 1 || deckId === 2) ? rightActiveDeck : leftActiveDeck;
-                  const otherDeck = decks[otherDeckId];
-                  const isBothPlaying = deck.isPlaying && otherDeck && otherDeck.isPlaying;
-                  setDecks((prev: any) => ({
-                    ...prev,
-                    [deckId]: { ...prev[deckId], syncEnabled: isBothPlaying ? true : !deck.syncEnabled }
-                  }));
-                  if (isBothPlaying && alignSyncPlayback) alignSyncPlayback(deckId);
-                }}
-                className={cn(
-                  "w-12 h-12 rounded-xl border flex items-center justify-center font-mono text-[9px] font-black transition-all cursor-pointer active:scale-95 flex-col",
-                  isLocked 
-                    ? "bg-zinc-950 border-zinc-900/50 text-zinc-800"
-                    : deck.syncEnabled
-                      ? "bg-emerald-500 border-emerald-400 text-black"
-                      : "bg-zinc-900 border-zinc-800 text-zinc-500"
-                )}
-              >
-                SYNC
-              </button>
-            </div>
-
-            {/* QUANTIZE button */}
-            <div className="flex flex-col items-center gap-0.5">
-              <span className="text-[5px] text-zinc-600 font-mono tracking-widest font-bold">QUANTIZE</span>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (isLocked) { playLockoutBlip(); return; }
-                  playClick(900, 'sine', 0.02);
-                  setDecks((prev: any) => ({
-                    ...prev,
-                    [deckId]: { ...prev[deckId], quantizeEnabled: !prev[deckId].quantizeEnabled }
-                  }));
-                }}
-                className={cn(
-                  "w-12 h-12 rounded-xl border flex items-center justify-center font-mono text-[10px] font-black transition-all cursor-pointer active:scale-95",
-                  isLocked 
-                    ? "bg-zinc-950 border-zinc-900/50 text-zinc-800 cursor-not-allowed"
-                    : deck.quantizeEnabled
-                      ? "bg-amber-500 border-amber-400 text-black shadow-[0_0_8px_rgba(245,158,11,0.4)]"
-                      : "bg-zinc-900 border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700"
-                )}
-              >
-                QTZ
-              </button>
-            </div>
-          </div>
-
-          {/* Center Column: Rotating vinyl jogwheel */}
-          <div className="relative w-[110px] h-[110px] flex items-center justify-center shrink-0">
-            {/* Vinyl record disc background */}
-            <div 
-              className={cn(
-                "absolute inset-0 rounded-full bg-zinc-900 border-4 border-zinc-950 shadow-2xl flex items-center justify-center cursor-pointer transition-transform duration-75 select-none z-10",
-                isPlaying && "animate-[spin_4.5s_linear_infinite]"
-              )}
-              style={{
-                backgroundImage: 'radial-gradient(circle, #18181b 20%, #09090b 21%, #09090b 35%, #18181b 36%, #18181b 45%, #09090b 46%, #09090b 60%, #18181b 61%)'
-              }}
-            >
-              {/* Slip ring visual stripes */}
-              <div className="absolute inset-2 border border-dashed border-zinc-800/30 rounded-full pointer-events-none" />
-              <div className="absolute inset-5 border border-dashed border-zinc-800/10 rounded-full pointer-events-none" />
-              <div className="absolute inset-8 border border-dashed border-zinc-800/40 rounded-full pointer-events-none" />
-              
-              {/* Inner core sticker with session image background */}
-              <div 
-                className="w-11 h-11 rounded-full border border-black flex items-center justify-center relative overflow-hidden bg-cover bg-center shadow-inner select-none pointer-events-none"
-                style={{ backgroundImage: `url(${sessionImg})` }}
-              >
-                {/* Glossy overlay on sticker */}
-                <div className="absolute inset-0 bg-gradient-to-tr from-white/10 via-transparent to-black/20 pointer-events-none" />
-                
-                {/* Spindle hole */}
-                <div className="w-1.5 h-1.5 rounded-full bg-zinc-950 border border-zinc-800 shadow z-10" />
-              </div>
-              
-              {/* Pioneer-style red/white position needle marker stripe */}
-              <div 
-                className="absolute top-0 w-0.5 h-3 shadow-sm z-20 pointer-events-none transition-colors duration-300"
-                style={{ backgroundColor: isPlaying ? themeColor : 'rgb(244, 63, 94)' }}
-              />
-            </div>
-            
-            {/* Outer ring LEDs pulsing to pitch/bpm */}
-            <div className="absolute inset-[-4px] rounded-full border border-zinc-900/60 pointer-events-none z-0" />
-          </div>
-
-          {/* Right Column: TEMPO / PITCH Slider */}
-          <div className="flex flex-col items-center w-12 shrink-0">
-            <span className="text-[5.5px] text-zinc-600 font-mono tracking-widest font-black mb-1 uppercase">PITCH</span>
-            <div className="w-6 h-[100px] bg-zinc-900 border border-zinc-950 rounded-xl relative flex justify-center items-center select-none shadow-inner border-b-2" style={{ borderBottomColor: themeColor }}>
-              {/* Tick marks */}
-              <div className="absolute inset-y-2 left-0.5 w-1 flex flex-col justify-between text-[4px] text-zinc-700 font-mono pointer-events-none">
-                <span>-</span><span>-</span><span>-</span><span>-</span><span>-</span>
-              </div>
-              <div className="absolute inset-y-2 right-0.5 w-1 flex flex-col justify-between text-[4px] text-zinc-700 font-mono pointer-events-none">
-                <span>-</span><span>-</span><span>-</span><span>-</span><span>-</span>
-              </div>
-              
-              {/* Zero pitch center indicator LED */}
-              <div 
-                className={cn(
-                  "absolute top-1/2 -translate-y-1/2 w-1 h-1 rounded-full z-10 transition-colors duration-300 shadow-[0_0_4px_rgba(34,211,238,0.4)]",
-                  deck.pitch === 0 ? "bg-cyan-400" : "bg-zinc-800"
-                )}
-              />
-              
-              {/* Slider Track */}
-              <div className="w-0.5 h-[80px] bg-zinc-950 rounded pointer-events-none" />
-              
-              {/* Interactive Fader Handle using input range element overlaid invisible */}
-              <div 
-                className="absolute w-5 h-8 bg-zinc-950 border border-zinc-800 rounded shadow-md flex flex-col justify-center items-center cursor-ns-resize hover:border-zinc-700 active:bg-zinc-900"
-                style={{
-                  top: `calc(10px + ${(1 - (deck.pitch + 10) / 20) * 56}px)`
-                }}
-              >
-                {/* Center marker line on handle */}
-                <div className="w-3.5 h-[1.5px] rounded bg-zinc-700" style={{ backgroundColor: themeColor }} />
-              </div>
-              
-              <input
-                type="range"
-                min="-10"
-                max="10"
-                step="0.05"
-                value={deck.pitch || 0}
-                onChange={(e) => {
-                  if (isLocked) return;
-                  const val = parseFloat(e.target.value);
-                  setDecks((prev: any) => ({
-                    ...prev,
-                    [deckId]: { ...prev[deckId], pitch: val, syncEnabled: false }
-                  }));
-                  if (Math.abs(val) < 0.1) {
-                    playClick(880, 'sine', 0.004);
-                  }
-                }}
-                className="absolute inset-0 opacity-0 cursor-ns-resize z-20 w-full h-full [writing-mode:bt-lr] direction-rtl"
-                title="Adjust tempo pitch slider"
-              />
-            </div>
-            
-            <span className="text-[6.5px] font-bold text-zinc-500 font-mono mt-1 w-full text-center tracking-widest truncate">
-              {deck.pitch >= 0 ? `+${(deck.pitch || 0).toFixed(2)}%` : `${(deck.pitch || 0).toFixed(2)}%`}
-            </span>
-          </div>
-        </div>
-
-        {/* Digital LCD screen */}
-        <div className="w-full bg-zinc-950 border border-zinc-900 rounded p-2 font-mono text-[9.5px] z-10 shadow-inner flex flex-col gap-1 select-none shrink-0 border-l-2" style={{ borderLeftColor: themeColor }}>
-          <div className="flex items-center justify-end text-zinc-500 text-[7px] tracking-widest border-b border-zinc-900/50 pb-1 uppercase">
-            <span style={{ color: isLocked ? 'rgb(234,179,8)' : isPlaying ? themeColor : 'transparent' }}>
-              {isLocked ? "ACCESS_DENIED" : isPlaying ? "● PLAY" : ""}
-            </span>
-          </div>
-          
-          <div className="flex flex-col mt-0.5 min-w-0">
-            <span className="text-[5.5px] text-zinc-600 uppercase tracking-widest font-black mb-0.5">CURRENTLY LOADED</span>
-            <span className="font-bold truncate tracking-wider text-zinc-300 font-mono text-[9px] py-1 uppercase">
-              {isLocked ? "COMING SOON // LCK" : deck.title || "NO TRACK LOADED"}
-            </span>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2 mt-1 border-t border-zinc-900/40 pt-1.5">
-            <div className="flex flex-col">
-              <span className="text-[5.5px] text-zinc-600 uppercase tracking-widest font-bold">TEMPO</span>
-              <span className="font-bold text-zinc-400">
-                {isLocked ? "130.00 BPM" : `${(deck.bpm * (1 + (deck.pitch || 0) / 100)).toFixed(2)} BPM`}
-              </span>
-            </div>
-            <div className="flex flex-col text-right">
-              <span className="text-[5.5px] text-zinc-600 uppercase tracking-widest font-bold">PLAYHEAD</span>
-              <span className="font-bold text-zinc-400 font-mono">
-                {isLocked ? "LOCKED" : formatTime(deck.progress || 0)}
-              </span>
-            </div>
-          </div>
-          
-          {/* LCD status indicators for SYNC and QUANTIZE */}
-          <div className="grid grid-cols-2 gap-2 mt-0.5 border-t border-zinc-900/20 pt-1 select-none">
-            <div className="flex flex-col">
-              <span className="text-[5.5px] text-zinc-600 uppercase tracking-widest font-bold">SYNC MODE</span>
-              <span className={cn(
-                "font-black text-[7.5px] font-mono tracking-wide uppercase transition-colors duration-300",
-                !deck.syncEnabled 
-                  ? "text-zinc-600" 
-                  : deck.syncMode === 'BPM' 
-                    ? "text-cyan-400 drop-shadow-[0_0_4px_rgba(34,211,238,0.35)]" 
-                    : "text-emerald-400 drop-shadow-[0_0_4px_rgba(52,211,153,0.35)]"
-              )}>
-                {deck.syncEnabled ? `${deck.syncMode || 'BEAT'} SYNC` : "SYNC OFF"}
-              </span>
-            </div>
-            <div className="flex flex-col text-right">
-              <span className="text-[5.5px] text-zinc-600 uppercase tracking-widest font-bold">QUANTIZE</span>
-              <span className={cn(
-                "font-black text-[7.5px] font-mono tracking-wide uppercase transition-colors duration-300",
-                deck.quantizeEnabled 
-                  ? "text-amber-500 drop-shadow-[0_0_4px_rgba(245,158,11,0.35)]" 
-                  : "text-zinc-600"
-              )}>
-                {deck.quantizeEnabled ? "QTZ ON" : "QTZ OFF"}
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+    return <CDJHardware deckId={deckId} />;
   };
 
   const renderMixer = () => {

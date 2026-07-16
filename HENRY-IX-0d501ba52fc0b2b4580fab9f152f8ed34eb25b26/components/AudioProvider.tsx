@@ -667,16 +667,25 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
         state.decks[2]?.pitch,
         state.decks[3]?.pitch,
         state.decks[4]?.pitch,
+        state.decks[1]?.masterTempo,
+        state.decks[2]?.masterTempo,
+        state.decks[3]?.masterTempo,
+        state.decks[4]?.masterTempo,
       ],
-      ([p1, p2, p3, p4]) => {
+      ([p1, p2, p3, p4, mt1, mt2, mt3, mt4]) => {
         const pitches = [p1, p2, p3, p4];
+        const mts = [mt1, mt2, mt3, mt4];
         [1, 2, 3, 4].forEach(deckId => {
           const audio = audioElementsRef.current[deckId];
           if (audio) {
-            const pitch = pitches[deckId - 1] ?? 0;
+            const pitch = (pitches[deckId - 1] ?? 0) as number;
             const targetRate = 1 + pitch / 100;
             if (audio.playbackRate !== targetRate) {
               audio.playbackRate = targetRate;
+            }
+            const mt = (mts[deckId - 1] ?? true) as boolean;
+            if (audio.preservesPitch !== mt) {
+              audio.preservesPitch = mt;
             }
           }
         });
@@ -1042,11 +1051,10 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     playClick(1100, 'sine', 0.1);
   };
 
-  // ── seekLocalBuffer ───────────────────────────────────────────────────
   const seekLocalBuffer = (deckId: number, seekTime: number) => {
     ensureDeckInitialized(deckId);
     const audio = audioElementsRef.current[deckId];
-    if (audio) {
+    if (audio && isFinite(seekTime) && !isNaN(seekTime)) {
       audio.currentTime = seekTime;
       setDeck(deckId, { progress: seekTime });
     }
