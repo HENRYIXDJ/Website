@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, useMotionValue, AnimatePresence } from 'framer-motion';
-import { Play, Pause, CircleDot, Music2, Disc, X } from 'lucide-react';
+import { Play, Pause, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 import { LEDEqualizer, RotaryKnob, SplitFlapText } from '@/components/DJComponents';

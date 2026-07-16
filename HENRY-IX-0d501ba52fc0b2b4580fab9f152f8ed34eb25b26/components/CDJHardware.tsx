@@ -6,7 +6,7 @@ import { useAudio } from '@/components/AudioProvider';
 import { playClick } from '@/lib/audioUtils';
 import { cn } from '@/lib/utils';
 import { getStorageUrl } from '@/lib/storage';
-import { Play, Pause, RotateCcw, X, Anchor } from 'lucide-react';
+import { Play, Pause } from 'lucide-react';
 
 const proxyUrl = (url: string) => `/api/assets?url=${encodeURIComponent(url)}`;
 
