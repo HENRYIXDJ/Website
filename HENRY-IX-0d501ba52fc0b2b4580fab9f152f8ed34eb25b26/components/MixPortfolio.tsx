@@ -958,6 +958,9 @@ function MixArchive({
   const mouseY = useMotionValue(0);
   const [embedSCPlayerId, setEmbedSCPlayerId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'all' | 'knight club' | 'royal court' | 'corner new cross'>('all');
+  const [deckCount, setDeckCount] = useState<2 | 4>(4);
+  const [isMobile, setIsMobile] = useState(false);
+  const activeDeckIds = (deckCount === 2 ? [1, 2] : [3, 1, 2, 4]) as readonly (1 | 2 | 3 | 4)[];
 
   const isStacked = useAudioStore(s => s.isStacked);
   const setStacked = useAudioStore(s => s.setStacked);
@@ -966,6 +969,12 @@ function MixArchive({
     const handleResize = () => {
       const isWindowStacked = window.innerWidth < 1536;
       setStacked(isWindowStacked);
+      
+      const mobile = window.innerWidth < 1024;
+      setIsMobile(mobile);
+      if (mobile) {
+        setDeckCount(2);
+      }
     };
     handleResize();
     window.addEventListener('resize', handleResize);
@@ -1764,8 +1773,11 @@ function MixArchive({
         </div>
 
         {/* Mixer Channels Grid */}
-        <div className="grid grid-cols-4 gap-1.5 md:gap-2.5 my-2 items-stretch justify-center z-10 flex-grow min-h-0 select-none">
-          {[3, 1, 2, 4].map(id => {
+        <div className={cn(
+          "grid gap-1.5 md:gap-2.5 my-2 items-stretch justify-center z-10 flex-grow min-h-0 select-none",
+          deckCount === 2 ? "grid-cols-2" : "grid-cols-4"
+        )}>
+          {(deckCount === 2 ? [1, 2] : [3, 1, 2, 4]).map(id => {
             const deck = decks[id];
             const isLocked = deck?.id === 'locked';
             const isActive = (id <= 2 ? leftActiveDeck === id : rightActiveDeck === id);
@@ -2185,6 +2197,39 @@ function MixArchive({
               </button>
             ))}
           </div>
+
+          {/* Sub Slider for 2 or 4 decks - only shown in Deck View and when not on mobile */}
+          {activeView === 'cdj' && !isMobile && (
+            <div className="absolute right-3 flex items-center gap-1.5 md:gap-2">
+              <span className="text-[7.5px] md:text-[8px] text-zinc-500 font-bold uppercase tracking-wider select-none">
+                DECKS:
+              </span>
+              <div className="relative flex p-0.5 bg-zinc-950/80 border border-zinc-900 rounded-md backdrop-blur-md">
+                {([2, 4] as const).map((count) => (
+                  <button
+                    key={count}
+                    onClick={() => {
+                      setDeckCount(count);
+                      playClick(800, 'sine', 0.02);
+                    }}
+                    className={cn(
+                      "relative px-2 py-0.5 rounded font-mono text-[8px] font-black uppercase transition-colors cursor-pointer flex items-center justify-center w-8 h-5",
+                      deckCount === count ? "text-zinc-950 font-black" : "text-zinc-500 hover:text-zinc-300"
+                    )}
+                  >
+                    {deckCount === count && (
+                      <motion.div
+                        layoutId="deck-count-highlight"
+                        className="absolute inset-0 bg-primary rounded shadow-[0_0_8px_rgba(216,22,63,0.3)]"
+                        transition={{ type: "spring", bounce: 0.2, duration: 0.4 }}
+                      />
+                    )}
+                    <span className="relative z-10">{count}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {activeView === 'cdj' ? (
@@ -2212,12 +2257,21 @@ function MixArchive({
               /* Standard Mode (Screens >= 1536px) */
               @media (min-width: 1536px) {
                 .dj-grid-container {
-                  grid-template-columns: 1fr 1fr minmax(280px, 1.2fr) 1fr 1fr;
-                  grid-template-rows: 240px auto 1fr;
-                  grid-template-areas:
-                    "browser3 browser1 mixer browser2 browser4"
-                    "wave3    wave1    mixer wave2    wave4"
-                    "control3 control1 mixer control2 control4";
+                  ${deckCount === 2 ? `
+                    grid-template-columns: 1fr minmax(280px, 1.2fr) 1fr;
+                    grid-template-rows: 240px auto 1fr;
+                    grid-template-areas:
+                      "browser1 mixer browser2"
+                      "wave1    mixer wave2"
+                      "control1 mixer control2";
+                  ` : `
+                    grid-template-columns: 1fr 1fr minmax(280px, 1.2fr) 1fr 1fr;
+                    grid-template-rows: 240px auto 1fr;
+                    grid-template-areas:
+                      "browser3 browser1 mixer browser2 browser4"
+                      "wave3    wave1    mixer wave2    wave4"
+                      "control3 control1 mixer control2 control4";
+                  `}
                 }
               }
             `}} />
@@ -2225,7 +2279,7 @@ function MixArchive({
             <div className="dj-grid-container select-none flex-grow min-h-0 h-full overflow-y-auto 2xl:overflow-hidden p-1">
               
               {/* Browsers */}
-              {([3, 1, 2, 4] as const).map(id => {
+              {activeDeckIds.map(id => {
                 const isLeft = (id === 1 || id === 3);
                 const isActive = isLeft ? (leftActiveDeck === id) : (rightActiveDeck === id);
                 return (
@@ -2243,8 +2297,7 @@ function MixArchive({
               })}
 
               {/* Waveforms */}
-              {/* Waveforms */}
-              {([3, 1, 2, 4] as const).map(id => {
+              {activeDeckIds.map(id => {
                 const isLeft = (id === 1 || id === 3);
                 const isActive = isLeft ? (leftActiveDeck === id) : (rightActiveDeck === id);
                 const deck = decks[id];
@@ -2335,7 +2388,7 @@ function MixArchive({
               })}
 
               {/* Controls / Jogwheels */}
-              {([3, 1, 2, 4] as const).map(id => {
+              {activeDeckIds.map(id => {
                 const isLeft = (id === 1 || id === 3);
                 const isActive = isLeft ? (leftActiveDeck === id) : (rightActiveDeck === id);
                 return (
