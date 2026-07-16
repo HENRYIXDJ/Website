@@ -4,6 +4,18 @@ import React, { useRef, useEffect } from 'react';
 import { motion, useMotionTemplate } from 'framer-motion';
 import { useAudio } from './AudioProvider';
 
+// Shared state for fallback mode particle effect
+interface Particle {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  life: number;
+  decay: number;
+  color: string;
+}
+let fallbackParticles: Particle[] = [];
+
 /**
  * AudioVisualizerBackground
  *
@@ -18,11 +30,13 @@ export default function AudioVisualizerBackground({
   mouseX,
   mouseY,
   isPlaying,
+  mode = 'ambient',
 }: {
   isDepth: boolean;
   mouseX: any;
   mouseY: any;
   isPlaying: boolean;
+  mode?: 'ambient' | 'circular' | 'grid';
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const audioCtx = useAudio();
@@ -37,10 +51,13 @@ export default function AudioVisualizerBackground({
 
   const isPlayingRef = useRef(isPlaying);
   const isDepthRef = useRef(isDepth);
+  const modeRef = useRef(mode);
+  
   useEffect(() => {
     isPlayingRef.current = isPlaying;
     isDepthRef.current = isDepth;
-  }, [isPlaying, isDepth]);
+    modeRef.current = mode;
+  }, [isPlaying, isDepth, mode]);
 
   // ── On mount: decide OffscreenCanvas vs. fallback ─────────────────────
   useEffect(() => {
@@ -67,6 +84,7 @@ export default function AudioVisualizerBackground({
             width: window.innerWidth,
             height: window.innerHeight,
             isDepth,
+            mode,
           },
           [offscreen] // Transfer ownership — zero copy
         );
@@ -76,8 +94,6 @@ export default function AudioVisualizerBackground({
         dataArrayRef.current = new Uint8Array(bufferLength);
 
         const tick = () => {
-          // When not playing, throttle to ~4fps to save idle CPU cycles.
-          // The isPlaying sync effect (below) will kick a fresh rAF when playback resumes.
           if (!isPlayingRef.current) {
             rafRef.current = window.setTimeout(tick, 250) as unknown as number;
             return;
@@ -85,9 +101,6 @@ export default function AudioVisualizerBackground({
           if (analyser && dataArrayRef.current) {
             analyser.getByteFrequencyData(dataArrayRef.current);
           }
-          // Pass raw array directly — structured cloning of a tiny typed array
-          // is optimised by the browser and avoids the per-frame allocation that
-          // .slice() caused (which was triggering GC micro-stutters at 60fps).
           const mX = mouseX && mouseX.get ? mouseX.get() : window.innerWidth / 2;
           const mY = mouseY && mouseY.get ? mouseY.get() : window.innerHeight / 2;
 
@@ -98,6 +111,7 @@ export default function AudioVisualizerBackground({
             mouseX: isFinite(mX) ? mX : window.innerWidth / 2,
             mouseY: isFinite(mY) ? mY : window.innerHeight / 2,
             isDepth: isDepthRef.current,
+            mode: modeRef.current,
           });
 
           rafRef.current = requestAnimationFrame(tick);
@@ -119,7 +133,6 @@ export default function AudioVisualizerBackground({
           workerRef.current = null;
         };
       } catch (e) {
-        // If transferControlToOffscreen fails, fall through to fallback
         console.warn('OffscreenCanvas setup failed, falling back:', e);
         offscreenInitialisedRef.current = false;
         fallbackRef.current = true;
@@ -149,25 +162,6 @@ export default function AudioVisualizerBackground({
       const renderFallback = () => {
         ctx2d.clearRect(0, 0, width, height);
 
-        if (!isPlayingRef.current) {
-          const barCount = 48;
-          const barWidth = width / barCount;
-          const themeColor = isDepthRef.current ? 'rgba(216, 22, 63,' : 'rgba(24, 24, 27,';
-          ctx2d.save();
-          ctx2d.globalAlpha = 0.07;
-          for (let i = 0; i < barCount; i++) {
-            const barHeight = 4;
-            const grad = ctx2d.createLinearGradient(i * barWidth, height, i * barWidth, height - barHeight);
-            grad.addColorStop(0, `${themeColor} 0.8)`);
-            grad.addColorStop(1, `${themeColor} 0.0)`);
-            ctx2d.fillStyle = grad;
-            ctx2d.fillRect(i * barWidth + 2, height - barHeight, barWidth - 4, barHeight);
-          }
-          ctx2d.restore();
-          rafRef.current = requestAnimationFrame(renderFallback);
-          return;
-        }
-
         let bass = 0, mid = 0, high = 0;
         if (analyser && isPlayingRef.current) {
           analyser.getByteFrequencyData(dataArray);
@@ -178,6 +172,11 @@ export default function AudioVisualizerBackground({
           mid /= Math.min(64, bufferLength);
           for (let i = 81; i < Math.min(150, bufferLength); i++) high += dataArray[i] || 0;
           high /= Math.min(69, bufferLength);
+        } else if (isPlayingRef.current) {
+          const t = performance.now() * 0.003;
+          bass = 40 + Math.sin(t) * 15;
+          mid = 30 + Math.cos(t * 1.3) * 10;
+          high = 20 + Math.sin(t * 2.1) * 8;
         }
 
         bassSmooth += (bass - bassSmooth) * 0.15;
@@ -193,52 +192,163 @@ export default function AudioVisualizerBackground({
         if (!isFinite(mX)) mX = width / 2;
         if (!isFinite(mY)) mY = height / 2;
 
-        if (isPlayingRef.current) {
+        const currentMode = modeRef.current;
+
+        if (currentMode === 'ambient') {
+          // --- ORIGINAL GLOWS ---
+          if (isPlayingRef.current) {
+            ctx2d.save();
+            ctx2d.globalCompositeOperation = 'screen';
+
+            let outerRadius = 80 + highSmooth * 1.5;
+            if (!isFinite(outerRadius) || outerRadius <= 0) outerRadius = 80;
+            const outerGlow = ctx2d.createRadialGradient(mX, mY, 0, mX, mY, outerRadius);
+            outerGlow.addColorStop(0, isDepthRef.current ? 'rgba(216, 22, 63, 0.06)' : 'rgba(216, 22, 63, 0.03)');
+            outerGlow.addColorStop(0.5, 'rgba(6, 182, 212, 0.02)');
+            outerGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            ctx2d.fillStyle = outerGlow;
+            ctx2d.beginPath();
+            ctx2d.arc(mX, mY, outerRadius, 0, Math.PI * 2);
+            ctx2d.fill();
+
+            let innerRadius = 30 + bassSmooth * 2.2;
+            if (!isFinite(innerRadius) || innerRadius <= 0) innerRadius = 30;
+            const innerGlow = ctx2d.createRadialGradient(mX, mY, 0, mX, mY, innerRadius);
+            innerGlow.addColorStop(0, isDepthRef.current ? 'rgba(216, 22, 63, 0.22)' : 'rgba(216, 22, 63, 0.12)');
+            innerGlow.addColorStop(0.4, 'rgba(216, 22, 63, 0.04)');
+            innerGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            ctx2d.fillStyle = innerGlow;
+            ctx2d.beginPath();
+            ctx2d.arc(mX, mY, innerRadius, 0, Math.PI * 2);
+            ctx2d.fill();
+            ctx2d.restore();
+          }
+
+          // Spectrum Bars
+          const barCount = 48;
+          const barWidth = width / barCount;
+          const themeColor = isDepthRef.current ? 'rgba(216, 22, 63,' : 'rgba(24, 24, 27,';
           ctx2d.save();
-          ctx2d.globalCompositeOperation = 'screen';
+          ctx2d.globalAlpha = 0.07;
+          for (let i = 0; i < barCount; i++) {
+            const sampleIdx = Math.max(0, Math.min(bufferLength - 1, Math.floor(Math.pow(i / barCount, 1.8) * Math.max(1, bufferLength - 10))));
+            const rawVal = isPlayingRef.current && analyser ? (dataArray[sampleIdx] || 0) : 0;
+            let barHeight = (rawVal / 255) * (height * 0.22);
+            barHeight = isPlayingRef.current ? Math.max(4, barHeight + Math.sin(i * 0.15 + performance.now() * 0.005) * 2) : 4;
+            const grad = ctx2d.createLinearGradient(i * barWidth, height, i * barWidth, height - barHeight);
+            grad.addColorStop(0, `${themeColor} 0.8)`);
+            grad.addColorStop(0.5, `${themeColor} 0.3)`);
+            grad.addColorStop(1, `${themeColor} 0.0)`);
+            ctx2d.fillStyle = grad;
+            ctx2d.fillRect(i * barWidth + 2, height - barHeight, barWidth - 4, barHeight);
+          }
+          ctx2d.restore();
 
-          let outerRadius = 80 + highSmooth * 1.5;
-          if (!isFinite(outerRadius) || outerRadius <= 0) outerRadius = 80;
-          const outerGlow = ctx2d.createRadialGradient(mX, mY, 0, mX, mY, outerRadius);
-          outerGlow.addColorStop(0, isDepthRef.current ? 'rgba(216, 22, 63, 0.06)' : 'rgba(216, 22, 63, 0.03)');
-          outerGlow.addColorStop(0.5, 'rgba(6, 182, 212, 0.02)');
-          outerGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
-          ctx2d.fillStyle = outerGlow;
-          ctx2d.beginPath();
-          ctx2d.arc(mX, mY, outerRadius, 0, Math.PI * 2);
-          ctx2d.fill();
+        } else if (currentMode === 'circular') {
+          // --- CIRCULAR NEBULA ---
+          const centerPointX = width / 2;
+          const centerPointY = height / 2;
+          const baseRadius = Math.min(width, height) * 0.18 + bassSmooth * 0.4;
+          const numPoints = 120;
 
-          let innerRadius = 30 + bassSmooth * 2.2;
-          if (!isFinite(innerRadius) || innerRadius <= 0) innerRadius = 30;
-          const innerGlow = ctx2d.createRadialGradient(mX, mY, 0, mX, mY, innerRadius);
-          innerGlow.addColorStop(0, isDepthRef.current ? 'rgba(216, 22, 63, 0.22)' : 'rgba(216, 22, 63, 0.12)');
-          innerGlow.addColorStop(0.4, 'rgba(216, 22, 63, 0.04)');
-          innerGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
-          ctx2d.fillStyle = innerGlow;
+          ctx2d.save();
           ctx2d.beginPath();
-          ctx2d.arc(mX, mY, innerRadius, 0, Math.PI * 2);
-          ctx2d.fill();
+          for (let i = 0; i < numPoints; i++) {
+            const angle = (i / numPoints) * Math.PI * 2 + (isPlayingRef.current ? performance.now() * 0.0003 : 0);
+            const freqIndex = Math.floor((i / numPoints) * (bufferLength / 2));
+            const val = isPlayingRef.current && analyser ? (dataArray[freqIndex] || 0) : 0;
+            const r = baseRadius + (val / 255) * 60;
+            const x = centerPointX + Math.cos(angle) * r;
+            const y = centerPointY + Math.sin(angle) * r;
+            if (i === 0) ctx2d.moveTo(x, y);
+            else ctx2d.lineTo(x, y);
+          }
+          ctx2d.closePath();
+          ctx2d.strokeStyle = isDepthRef.current ? 'rgba(216, 22, 63, 0.25)' : 'rgba(24, 24, 27, 0.2)';
+          ctx2d.lineWidth = 3;
+          ctx2d.stroke();
+          ctx2d.restore();
+
+          if (isPlayingRef.current) {
+            ctx2d.save();
+            ctx2d.globalCompositeOperation = 'screen';
+            const nebGlow = ctx2d.createRadialGradient(centerPointX, centerPointY, 0, centerPointX, centerPointY, baseRadius * 1.5);
+            nebGlow.addColorStop(0, isDepthRef.current ? 'rgba(211, 15, 49, 0.12)' : 'rgba(211, 15, 49, 0.06)');
+            nebGlow.addColorStop(0.6, 'rgba(6, 182, 212, 0.03)');
+            nebGlow.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx2d.fillStyle = nebGlow;
+            ctx2d.beginPath();
+            ctx2d.arc(centerPointX, centerPointY, baseRadius * 1.5, 0, Math.PI * 2);
+            ctx2d.fill();
+            ctx2d.restore();
+          }
+
+          // Particles
+          if (isPlayingRef.current && bassSmooth > 35 && fallbackParticles.length < 50 && Math.random() < 0.25) {
+            fallbackParticles.push({
+              x: centerPointX,
+              y: centerPointY,
+              vx: (Math.random() - 0.5) * (2 + bassSmooth * 0.04),
+              vy: (Math.random() - 0.5) * (2 + bassSmooth * 0.04),
+              life: 1.0,
+              decay: 0.015 + Math.random() * 0.02,
+              color: isDepthRef.current ? 'rgba(216, 22, 63,' : 'rgba(6, 182, 212,'
+            });
+          }
+          ctx2d.save();
+          fallbackParticles = fallbackParticles.filter(p => {
+            p.x += p.vx;
+            p.y += p.vy;
+            p.life -= p.decay;
+            if (p.life <= 0) return false;
+            ctx2d.fillStyle = `${p.color} ${p.life * 0.35})`;
+            ctx2d.beginPath();
+            ctx2d.arc(p.x, p.y, 1.5 + p.life * 3, 0, Math.PI * 2);
+            ctx2d.fill();
+            return true;
+          });
+          ctx2d.restore();
+
+        } else if (currentMode === 'grid') {
+          // --- RETRO 3D GRID ---
+          const horizon = height * 0.55;
+          const gridDepth = height - horizon;
+          const lineCount = 14;
+          const time = performance.now() * 0.001;
+          const speed = isPlayingRef.current ? 1.0 + bassSmooth * 0.012 : 0.15;
+          const offset = (time * speed * 25) % (gridDepth / lineCount);
+
+          ctx2d.save();
+          ctx2d.strokeStyle = isDepthRef.current ? 'rgba(216, 22, 63, 0.12)' : 'rgba(24, 24, 27, 0.1)';
+          ctx2d.lineWidth = 1.5;
+
+          // Draw horizontal lines
+          for (let i = 0; i < lineCount; i++) {
+            const py = horizon + Math.pow(i / lineCount, 1.8) * gridDepth + offset;
+            if (py > height) continue;
+            
+            ctx2d.beginPath();
+            for (let x = 0; x <= width; x += 10) {
+              const xNormalized = x / width;
+              const wave = Math.sin(xNormalized * Math.PI * 6 + time * 5) * (midSmooth * 0.06) * Math.pow(i / lineCount, 2);
+              if (x === 0) ctx2d.moveTo(x, py + wave);
+              else ctx2d.lineTo(x, py + wave);
+            }
+            ctx2d.stroke();
+          }
+
+          // Draw vertical perspective lines
+          const vLineCount = 18;
+          for (let i = 0; i <= vLineCount; i++) {
+            const xStart = (i / vLineCount) * width;
+            const xEnd = width / 2 + (xStart - width / 2) * 4.5;
+            ctx2d.beginPath();
+            ctx2d.moveTo(xStart, horizon);
+            ctx2d.lineTo(xEnd, height);
+            ctx2d.stroke();
+          }
           ctx2d.restore();
         }
-
-        const barCount = 48;
-        const barWidth = width / barCount;
-        const themeColor = isDepthRef.current ? 'rgba(216, 22, 63,' : 'rgba(24, 24, 27,';
-        ctx2d.save();
-        ctx2d.globalAlpha = 0.07;
-        for (let i = 0; i < barCount; i++) {
-          const sampleIdx = Math.max(0, Math.min(bufferLength - 1, Math.floor(Math.pow(i / barCount, 1.8) * Math.max(1, bufferLength - 10))));
-          const rawVal = isPlayingRef.current && analyser ? (dataArray[sampleIdx] || 0) : 0;
-          let barHeight = (rawVal / 255) * (height * 0.22);
-          barHeight = isPlayingRef.current ? Math.max(4, barHeight + Math.sin(i * 0.15 + performance.now() * 0.005) * 2) : 4;
-          const grad = ctx2d.createLinearGradient(i * barWidth, height, i * barWidth, height - barHeight);
-          grad.addColorStop(0, `${themeColor} 0.8)`);
-          grad.addColorStop(0.5, `${themeColor} 0.3)`);
-          grad.addColorStop(1, `${themeColor} 0.0)`);
-          ctx2d.fillStyle = grad;
-          ctx2d.fillRect(i * barWidth + 2, height - barHeight, barWidth - 4, barHeight);
-        }
-        ctx2d.restore();
 
         rafRef.current = requestAnimationFrame(renderFallback);
       };
@@ -253,7 +363,7 @@ export default function AudioVisualizerBackground({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [analyser]);
 
-  // ── Sync isPlaying / mouse / isDepth changes to OffscreenCanvas worker ─
+  // ── Sync isPlaying / mouse / isDepth / mode changes to OffscreenCanvas worker ─
   useEffect(() => {
     const worker = workerRef.current;
     if (!worker || !offscreenInitialisedRef.current) return;
@@ -267,8 +377,9 @@ export default function AudioVisualizerBackground({
       mouseX: isFinite(mX) ? mX : window.innerWidth / 2,
       mouseY: isFinite(mY) ? mY : window.innerHeight / 2,
       isDepth,
+      mode,
     });
-  }, [isPlaying, isDepth, mouseX, mouseY]);
+  }, [isPlaying, isDepth, mouseX, mouseY, mode]);
 
   return (
     <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">

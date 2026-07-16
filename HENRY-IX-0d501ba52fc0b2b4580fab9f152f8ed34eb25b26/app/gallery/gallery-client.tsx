@@ -6,11 +6,21 @@ import { motion, AnimatePresence } from 'framer-motion';
 import PageShell from '@/components/PageShell';
 import { getStorageUrl } from '@/lib/storage';
 import { client } from '@/sanity/lib/client';
+import { playClick, playTick, playLockoutBlip } from '@/lib/audioUtils';
+import { cn } from '@/lib/utils';
 
 interface GalleryItem {
   src: string;
   title: string;
   gridClass: string;
+}
+
+interface Broadcast {
+  id: string;
+  title: string;
+  url: string;
+  date: string;
+  duration: string;
 }
 
 const ME_IMAGES: GalleryItem[] = [
@@ -86,9 +96,160 @@ const ARTWORK_IMAGES: GalleryItem[] = [
   }
 ];
 
+const BROADCAST_DATA: Broadcast[] = [
+  { id: '1', title: 'KNIGHT CLUB SESSION 1 - LIVE PERFORMANCE', url: 'https://www.youtube.com/embed/dQw4w9WgXcQ', date: 'JULY 2026', duration: '58:12' },
+  { id: '2', title: 'ROYAL COURT SESSION 2 - STUDIO RECORDING', url: 'https://www.youtube.com/embed/dQw4w9WgXcQ', date: 'MAY 2026', duration: '45:30' },
+  { id: '3', title: 'CORNER NEW CROSS NIGHT 1 - CLUB DJ GIG', url: 'https://www.youtube.com/embed/dQw4w9WgXcQ', date: 'APRIL 2026', duration: '1:12:05' }
+];
+
+function CRTBroadcastDeck() {
+  const [activeChannel, setActiveChannel] = useState(0);
+  const [crtPower, setCrtPower] = useState(true);
+  const [flickerEffect, setFlickerEffect] = useState(false);
+
+  const currentBroadcast = BROADCAST_DATA[activeChannel];
+
+  const handleChannelChange = (idx: number) => {
+    if (!crtPower) return;
+    playClick(600, 'sine', 0.025);
+    setFlickerEffect(true);
+    setTimeout(() => setFlickerEffect(false), 250);
+    setActiveChannel(idx);
+  };
+
+  const togglePower = () => {
+    playClick(400, 'triangle', 0.08);
+    setCrtPower(!crtPower);
+  };
+
+  return (
+    <div className="w-full max-w-4xl mx-auto flex flex-col md:flex-row gap-6 md:gap-8 items-stretch select-none font-mono mt-8">
+      {/* Left Column: The TV Bezel Screen */}
+      <div className="flex-1 bg-zinc-950 border border-zinc-900 rounded-[32px] p-5 shadow-2xl relative flex flex-col items-center min-h-[300px]">
+        {/* Carbon texture backdrop */}
+        <div className="absolute inset-0 opacity-[0.015] pointer-events-none z-0" style={{
+          backgroundImage: 'radial-gradient(#fff 1.5px, transparent 1.5px)',
+          backgroundSize: '16px 16px'
+        }} />
+
+        {/* Screen inner enclosure */}
+        <div className="relative w-full aspect-video rounded-2xl overflow-hidden border border-black bg-black flex items-center justify-center flex-grow">
+          {/* CRT Screen Tube Power collapse/expansion */}
+          <AnimatePresence mode="wait">
+            {crtPower ? (
+              <motion.div 
+                key="screen-on"
+                initial={{ scaleY: 0.005, scaleX: 0.1, opacity: 0 }}
+                animate={{ scaleY: 1, scaleX: 1, opacity: 1 }}
+                exit={{ scaleY: 0.005, scaleX: 0.1, opacity: 0 }}
+                transition={{ duration: 0.35, ease: "easeOut" }}
+                className={cn(
+                  "relative w-full h-full bg-zinc-950 flex items-center justify-center",
+                  flickerEffect && "animate-[pulse_0.1s_infinite_alternate]"
+                )}
+              >
+                {/* Scanline pattern mask */}
+                <div className="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.3)_50%)] bg-[length:100%_4px] pointer-events-none z-10 opacity-70" />
+                <div className="absolute inset-0 bg-primary/[0.02] pointer-events-none z-10" />
+
+                {/* Simulated Glass curvature reflection */}
+                <div className="absolute inset-0 pointer-events-none z-15 opacity-10" style={{
+                  backgroundImage: 'radial-gradient(circle at 50% 15%, #ffffff 0%, transparent 60%)'
+                }} />
+
+                {/* Actual Video Iframe */}
+                <iframe
+                  src={currentBroadcast.url}
+                  title={currentBroadcast.title}
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  allowFullScreen
+                  className="w-full h-full border-0 relative z-0 opacity-90 filter brightness-110 contrast-125"
+                />
+              </motion.div>
+            ) : (
+              <div key="screen-off" className="w-full h-full bg-black flex items-center justify-center">
+                {/* Tiny glowing dot when shut off */}
+                <div className="w-1.5 h-1.5 rounded-full bg-white opacity-40 animate-ping" />
+              </div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* Brand logo at bottom of bezel */}
+        <span className="text-[8px] text-zinc-600 font-bold uppercase tracking-[0.3em] mt-3 leading-none select-none">
+          BROADCAST DECK // CRT-1985
+        </span>
+      </div>
+
+      {/* Right Column: Skewomorphic Control Module Panel */}
+      <div className="w-full md:w-[240px] bg-zinc-950 border border-zinc-900 rounded-[24px] p-5 shadow-xl flex flex-col justify-between shrink-0 select-none">
+        {/* Panel Head */}
+        <div className="w-full border-b border-zinc-900 pb-2 flex justify-between items-center text-[7px] text-zinc-500 uppercase tracking-widest font-bold">
+          <span>MONITOR SYSTEM</span>
+          <span className="text-zinc-600">UK_PATENT_PEND</span>
+        </div>
+
+        {/* Channel Selection dial block */}
+        <div className="flex flex-col gap-4 my-6">
+          <span className="text-[8px] text-zinc-500 font-bold uppercase tracking-wider text-left">CHANNELS</span>
+          <div className="grid grid-cols-3 gap-2">
+            {BROADCAST_DATA.map((ch, idx) => (
+              <button
+                key={ch.id}
+                onClick={() => handleChannelChange(idx)}
+                className={cn(
+                  "h-10 rounded-lg border font-mono font-bold text-xs uppercase tracking-wider flex items-center justify-center transition-all cursor-pointer select-none active:scale-95",
+                  activeChannel === idx && crtPower
+                    ? "bg-primary border-primary/25 text-black font-black shadow-[0_0_8px_rgba(216,22,63,0.3)]"
+                    : "bg-black border-zinc-900 text-zinc-500 hover:text-zinc-300"
+                )}
+              >
+                0{idx + 1}
+              </button>
+            ))}
+          </div>
+
+          {/* Active Set Title Display */}
+          <div className="bg-black border border-zinc-900 p-2.5 rounded-lg flex flex-col gap-1.5 mt-2 select-none text-left">
+            <span className="text-[7px] text-zinc-600 uppercase tracking-widest">ACTIVE BROADCAST</span>
+            <div className="text-[9px] font-bold text-primary truncate leading-tight">
+              {crtPower ? currentBroadcast.title : "OFFLINE"}
+            </div>
+            <div className="flex justify-between items-center text-[7.5px] text-zinc-500 font-bold">
+              <span>DATE: {crtPower ? currentBroadcast.date : "--"}</span>
+              <span>DUR: {crtPower ? currentBroadcast.duration : "--"}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Power Toggle Switch */}
+        <div className="flex flex-col items-center gap-1.5 border-t border-zinc-900 pt-4 mt-auto">
+          <span className="text-[7.5px] text-zinc-600 uppercase tracking-widest font-bold">POWER SWITCH</span>
+          <button
+            onClick={togglePower}
+            className={cn(
+              "w-12 h-6 rounded-full p-0.5 transition-all duration-300 flex items-center cursor-pointer",
+              crtPower ? "bg-primary/20 border border-primary/30 justify-end" : "bg-zinc-900 border border-zinc-800 justify-start"
+            )}
+          >
+            <motion.div 
+              layout 
+              className={cn(
+                "w-5 h-5 rounded-full shadow-md",
+                crtPower ? "bg-primary shadow-[0_0_8px_#d8163f]" : "bg-zinc-700"
+              )} 
+            />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function GalleryClient() {
   const [activeItem, setActiveItem] = useState<{ type: 'me' | 'artwork', idx: number } | null>(null);
   const [artworkImages, setArtworkImages] = useState<GalleryItem[]>(ARTWORK_IMAGES);
+  const [activeTab, setActiveTab] = useState<'photos' | 'artwork' | 'videos'>('photos');
 
   useEffect(() => {
     async function loadDynamicArtwork() {
@@ -144,17 +305,16 @@ export default function GalleryClient() {
 
   return (
     <PageShell>
-      <main className="min-h-screen text-zinc-100 selection:bg-primary/30 selection:text-primary pt-24 pb-20 px-4 md:px-8 w-full relative overflow-hidden">
-
+      <main className="min-h-screen text-zinc-100 selection:bg-primary/30 selection:text-primary pt-24 pb-20 px-4 md:px-8 w-full relative overflow-y-auto custom-scrollbar">
         {/* Section Header */}
-        <div className="relative z-10 mb-12 md:mb-16 flex flex-col items-center text-center">
+        <div className="relative z-10 mb-10 flex flex-col items-center text-center">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, ease: 'easeOut' }}
           >
             <h1
-              className="glitch font-sans font-black text-primary text-[clamp(3rem,8vw,6.5rem)] leading-none tracking-wider uppercase select-none"
+              className="glitch font-sans font-black text-primary text-[clamp(2.5rem,7vw,5.5rem)] leading-none tracking-wider uppercase select-none"
               data-text="GALLERY"
             >
               GALLERY
@@ -162,76 +322,119 @@ export default function GalleryClient() {
           </motion.div>
         </div>
 
-        {/* Me Section */}
-        <div className="relative z-10 mb-8 mt-12">
-           <h2 className="font-sans font-bold text-2xl tracking-widest text-zinc-300 uppercase border-b border-zinc-900 pb-4">Me</h2>
-        </div>
-        <div className="relative z-10 grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 mb-16">
-          {ME_IMAGES.map((item, idx) => (
-            <motion.div
-              key={item.src}
-              initial={{ opacity: 0, y: 40 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: idx * 0.1, ease: 'easeOut' }}
-              className={`group overflow-hidden rounded-2xl bg-zinc-950 border border-zinc-900/80 flex flex-col justify-between cursor-pointer hover:border-primary/30 transition-colors duration-500 ${item.gridClass}`}
-              onClick={() => startTransition(() => setActiveItem({ type: 'me', idx }))}
-            >
-              {/* Image Box */}
-              <div className="relative flex-grow overflow-hidden aspect-video md:aspect-auto h-full min-h-[220px]">
-                <div className="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%)] bg-[length:100%_4px] pointer-events-none z-10 opacity-40 group-hover:opacity-20 transition-opacity duration-500" />
-                <div className="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none z-10" />
-
-                <Image
-                  src={item.src}
-                  alt={item.title}
-                  fill
-                  sizes="(max-width: 768px) 100vw, 33vw"
-                  loading="lazy"
-                  className="object-cover filter grayscale group-hover:grayscale-0 contrast-125 group-hover:scale-[1.03] transition-all duration-700 ease-out"
-                />
-
-                <div className="absolute top-4 left-4 w-2 h-2 border-t border-l border-primary/0 group-hover:border-primary/60 transition-all duration-500 z-10" />
-                <div className="absolute top-4 right-4 w-2 h-2 border-t border-r border-primary/0 group-hover:border-primary/60 transition-all duration-500 z-10" />
-                <div className="absolute bottom-4 left-4 w-2 h-2 border-b border-l border-primary/0 group-hover:border-primary/60 transition-all duration-500 z-10" />
-                <div className="absolute bottom-4 right-4 w-2 h-2 border-b border-r border-primary/0 group-hover:border-primary/60 transition-all duration-500 z-10" />
-                <div className="absolute inset-0 bg-black/40 opacity-100 group-hover:opacity-0 transition-opacity duration-500 z-0" />
-              </div>
-            </motion.div>
-          ))}
+        {/* Skeuomorphic Category Tab Switcher */}
+        <div className="relative z-10 flex justify-center items-center select-none font-mono mb-12">
+          <div className="relative flex p-1 bg-zinc-950 border border-zinc-900 rounded-xl backdrop-blur-md">
+            {[
+              { id: 'photos', label: 'STILL PHOTOS' },
+              { id: 'artwork', label: 'MIX ARTWORKS' },
+              { id: 'videos', label: 'VIDEO BROADCASTS' }
+            ].map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => {
+                  setActiveTab(tab.id as any);
+                  playClick(800, 'sine', 0.025);
+                }}
+                onMouseEnter={() => playTick()}
+                className={cn(
+                  "relative px-4 py-1.5 rounded-lg font-mono text-[9px] md:text-[10px] tracking-widest font-black uppercase transition-colors cursor-pointer flex items-center justify-center w-28 md:w-36 h-8",
+                  activeTab === tab.id ? "text-zinc-950" : "text-zinc-400 hover:text-zinc-200"
+                )}
+              >
+                {activeTab === tab.id && (
+                  <motion.div
+                    layoutId="gallery-tab-highlight"
+                    className="absolute inset-0 bg-primary rounded-lg shadow-[0_0_10px_rgba(216,22,63,0.4)]"
+                    transition={{ type: "spring", bounce: 0.15, duration: 0.4 }}
+                  />
+                )}
+                <span className="relative z-10">{tab.label}</span>
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* Mix Artwork Section */}
-        <div className="relative z-10 mb-8 mt-16">
-           <h2 className="font-sans font-bold text-2xl tracking-widest text-zinc-300 uppercase border-b border-zinc-900 pb-4">Mix Artwork</h2>
-        </div>
-        <div className="relative z-10 grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6">
-          {artworkImages.map((item, idx) => (
-            <motion.div
-              key={item.src}
-              initial={{ opacity: 0, y: 40 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: idx * 0.1, ease: 'easeOut' }}
-              className={`group overflow-hidden rounded-2xl bg-zinc-950 border border-zinc-900/80 flex flex-col justify-between cursor-pointer hover:border-primary/30 transition-colors duration-500 ${item.gridClass}`}
-              onClick={() => startTransition(() => setActiveItem({ type: 'artwork', idx }))}
-            >
-              <div className="relative flex-grow overflow-hidden aspect-square h-full min-h-[220px]">
-                <div className="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%)] bg-[length:100%_4px] pointer-events-none z-10 opacity-40 group-hover:opacity-20 transition-opacity duration-500" />
-                <div className="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none z-10" />
+        {/* Tab contents */}
+        <div className="relative z-10 w-full">
+          {activeTab === 'photos' && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 mb-16">
+              {ME_IMAGES.map((item, idx) => (
+                <motion.div
+                  key={item.src}
+                  initial={{ opacity: 0, y: 40 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.8, delay: idx * 0.1, ease: 'easeOut' }}
+                  className={cn(
+                    "group overflow-hidden rounded-2xl bg-zinc-950 border border-zinc-900/80 flex flex-col justify-between cursor-pointer hover:border-primary/30 transition-colors duration-500",
+                    item.gridClass
+                  )}
+                  onClick={() => startTransition(() => setActiveItem({ type: 'me', idx }))}
+                >
+                  <div className="relative flex-grow overflow-hidden aspect-video md:aspect-auto h-full min-h-[220px]">
+                    <div className="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%)] bg-[length:100%_4px] pointer-events-none z-10 opacity-40 group-hover:opacity-20 transition-opacity duration-500" />
+                    <div className="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none z-10" />
 
-                <Image
-                  src={item.src}
-                  alt={item.title}
-                  fill
-                  sizes="(max-width: 768px) 100vw, 25vw"
-                  loading="lazy"
-                  unoptimized={true}
-                  className="object-cover filter grayscale group-hover:grayscale-0 contrast-125 group-hover:scale-[1.03] transition-all duration-700 ease-out"
-                />
+                    <Image
+                      src={item.src}
+                      alt={item.title}
+                      fill
+                      sizes="(max-width: 768px) 100vw, 33vw"
+                      loading="lazy"
+                      className="object-cover filter grayscale group-hover:grayscale-0 contrast-125 group-hover:scale-[1.03] transition-all duration-700 ease-out"
+                    />
 
-                <div className="absolute inset-0 bg-black/40 opacity-100 group-hover:opacity-0 transition-opacity duration-500 z-0" />
-              </div>
-            </motion.div>
-          ))}
+                    <div className="absolute top-4 left-4 w-2 h-2 border-t border-l border-primary/0 group-hover:border-primary/60 transition-all duration-500 z-10" />
+                    <div className="absolute top-4 right-4 w-2 h-2 border-t border-r border-primary/0 group-hover:border-primary/60 transition-all duration-500 z-10" />
+                    <div className="absolute bottom-4 left-4 w-2 h-2 border-b border-l border-primary/0 group-hover:border-primary/60 transition-all duration-500 z-10" />
+                    <div className="absolute bottom-4 right-4 w-2 h-2 border-b border-r border-primary/0 group-hover:border-primary/60 transition-all duration-500 z-10" />
+                    <div className="absolute inset-0 bg-black/40 opacity-100 group-hover:opacity-0 transition-opacity duration-500 z-0" />
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          )}
+
+          {activeTab === 'artwork' && (
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6 mb-16">
+              {artworkImages.map((item, idx) => (
+                <motion.div
+                  key={item.src}
+                  initial={{ opacity: 0, y: 40 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.8, delay: idx * 0.1, ease: 'easeOut' }}
+                  className={cn(
+                    "group overflow-hidden rounded-2xl bg-zinc-950 border border-zinc-900/80 flex flex-col justify-between cursor-pointer hover:border-primary/30 transition-colors duration-500",
+                    item.gridClass
+                  )}
+                  onClick={() => startTransition(() => setActiveItem({ type: 'artwork', idx }))}
+                >
+                  <div className="relative flex-grow overflow-hidden aspect-square h-full min-h-[220px]">
+                    <div className="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%)] bg-[length:100%_4px] pointer-events-none z-10 opacity-40 group-hover:opacity-20 transition-opacity duration-500" />
+                    <div className="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none z-10" />
+
+                    <Image
+                      src={item.src}
+                      alt={item.title}
+                      fill
+                      sizes="(max-width: 768px) 100vw, 25vw"
+                      loading="lazy"
+                      unoptimized={true}
+                      className="object-cover filter grayscale group-hover:grayscale-0 contrast-125 group-hover:scale-[1.03] transition-all duration-700 ease-out"
+                    />
+
+                    <div className="absolute inset-0 bg-black/40 opacity-100 group-hover:opacity-0 transition-opacity duration-500 z-0" />
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          )}
+
+          {activeTab === 'videos' && (
+            <div className="w-full flex justify-center pb-12">
+              <CRTBroadcastDeck />
+            </div>
+          )}
         </div>
 
         {/* Lightbox Overlay */}
@@ -320,11 +523,9 @@ export default function GalleryClient() {
                   </svg>
                 </button>
               </div>
-
             </motion.div>
           )}
         </AnimatePresence>
-
       </main>
     </PageShell>
   );

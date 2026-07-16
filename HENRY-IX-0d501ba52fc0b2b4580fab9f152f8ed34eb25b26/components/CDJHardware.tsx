@@ -390,6 +390,20 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
     setDeck(deckId, { masterTempo: !deck.masterTempo });
   };
 
+  const handleSlipPress = (e: React.PointerEvent) => {
+    e.preventDefault();
+    if (isLocked) return;
+    playClick(850, 'sine', 0.015);
+    setDeck(deckId, { slipEnabled: !deck.slipEnabled });
+  };
+
+  const handleQuantizePress = (e: React.PointerEvent) => {
+    e.preventDefault();
+    if (isLocked) return;
+    playClick(920, 'sine', 0.015);
+    setDeck(deckId, { quantizeEnabled: !deck.quantizeEnabled });
+  };
+
   // --- Jog Wheel Event Handler Stubs for Scratching / Pitch Bend ---
   const handlePlatterDown = (e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -733,6 +747,32 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
                 )}
               >
                 MT
+              </button>
+
+              {/* SLIP Button */}
+              <button
+                onPointerDown={handleSlipPress}
+                className={cn(
+                  "h-5 rounded text-[7px] font-mono font-black tracking-widest uppercase border transition-colors cursor-pointer leading-none w-full",
+                  deck?.slipEnabled
+                    ? "bg-red-500 border-red-400 text-black shadow-[0_0_8px_rgba(239,68,68,0.35)]"
+                    : "bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-300"
+                )}
+              >
+                SLIP
+              </button>
+
+              {/* QUANTIZE Button */}
+              <button
+                onPointerDown={handleQuantizePress}
+                className={cn(
+                  "h-5 rounded text-[7px] font-mono font-black tracking-widest uppercase border transition-colors cursor-pointer leading-none w-full",
+                  deck?.quantizeEnabled
+                    ? "bg-primary border-primary text-white shadow-neon-glow"
+                    : "bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-300"
+                )}
+              >
+                QNTZ
               </button>
             </div>
           </div>

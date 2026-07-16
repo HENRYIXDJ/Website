@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
-import { trackWaveforms } from '@/app/trackWaveforms';
 import { getStorageUrl } from '@/lib/storage';
 // useShallow is re-exported here so consumers can import from one place:
 //   import { useAudioStore, useShallow } from '@/store/audioStore';
@@ -45,6 +44,7 @@ export interface DeckState {
   mainCue: number;
   isCueStuttering: boolean;
   hotCues: Record<string, number | null>;
+  slipEnabled: boolean;
 }
 
 export interface AudioStoreState {
@@ -166,7 +166,7 @@ const INITIAL_DECKS: Record<number, DeckState> = {
     progress: 0, duration: 0, volume: 80, eqHi: 50, eqMid: 50, eqLow: 50,
     filter: 50, trim: 50, syncEnabled: false, syncMode: 'BEAT', quantizeEnabled: true, crossfaderAssign: 'L',
     loopIn: null, loopOut: null, isLoopActive: false,
-    waveformPeaks: trackWaveforms['kc-1'] ?? generateStaticPeaks(500),
+    waveformPeaks: generateStaticPeaks(500),
     cuePoints: [0, 1127, 2112, 2772],
     firstBeatOffset: 0.413793,
     jogMode: 'VINYL',
@@ -174,7 +174,8 @@ const INITIAL_DECKS: Record<number, DeckState> = {
     isMaster: false,
     mainCue: 0,
     isCueStuttering: false,
-    hotCues: { A: null, B: null, C: null, D: null, E: null, F: null, G: null, H: null }
+    hotCues: { A: null, B: null, C: null, D: null, E: null, F: null, G: null, H: null },
+    slipEnabled: false
   },
   2: {
     id: 'kc-2', title: 'Knight Club: Session 2',
@@ -184,7 +185,7 @@ const INITIAL_DECKS: Record<number, DeckState> = {
     progress: 0, duration: 0, volume: 80, eqHi: 50, eqMid: 50, eqLow: 50,
     filter: 50, trim: 50, syncEnabled: false, syncMode: 'BEAT', quantizeEnabled: true, crossfaderAssign: 'L',
     loopIn: null, loopOut: null, isLoopActive: false,
-    waveformPeaks: trackWaveforms['kc-2'] ?? generateStaticPeaks(500),
+    waveformPeaks: generateStaticPeaks(500),
     firstBeatOffset: 0.394737,
     cuePoints: [0, 2468, 4084, 6270],
     jogMode: 'VINYL',
@@ -192,7 +193,8 @@ const INITIAL_DECKS: Record<number, DeckState> = {
     isMaster: false,
     mainCue: 0,
     isCueStuttering: false,
-    hotCues: { A: null, B: null, C: null, D: null, E: null, F: null, G: null, H: null }
+    hotCues: { A: null, B: null, C: null, D: null, E: null, F: null, G: null, H: null },
+    slipEnabled: false
   },
   3: {
     id: 'kc-3', title: 'Knight Club: Session 3',
@@ -202,7 +204,7 @@ const INITIAL_DECKS: Record<number, DeckState> = {
     progress: 0, duration: 0, volume: 80, eqHi: 50, eqMid: 50, eqLow: 50,
     filter: 50, trim: 50, syncEnabled: false, syncMode: 'BEAT', quantizeEnabled: true, crossfaderAssign: 'R',
     loopIn: null, loopOut: null, isLoopActive: false,
-    waveformPeaks: trackWaveforms['kc-3'] ?? generateStaticPeaks(500),
+    waveformPeaks: generateStaticPeaks(500),
     firstBeatOffset: 0.0,
     cuePoints: [0, 1940, 3685, 5509],
     jogMode: 'VINYL',
@@ -210,7 +212,8 @@ const INITIAL_DECKS: Record<number, DeckState> = {
     isMaster: false,
     mainCue: 0,
     isCueStuttering: false,
-    hotCues: { A: null, B: null, C: null, D: null, E: null, F: null, G: null, H: null }
+    hotCues: { A: null, B: null, C: null, D: null, E: null, F: null, G: null, H: null },
+    slipEnabled: false
   },
   4: {
     id: 'kc-4', title: 'Knight Club: Session 4',
@@ -220,7 +223,7 @@ const INITIAL_DECKS: Record<number, DeckState> = {
     progress: 0, duration: 0, volume: 80, eqHi: 50, eqMid: 50, eqLow: 50,
     filter: 50, trim: 50, syncEnabled: false, syncMode: 'BEAT', quantizeEnabled: true, crossfaderAssign: 'R',
     loopIn: null, loopOut: null, isLoopActive: false,
-    waveformPeaks: trackWaveforms['kc-4'] ?? generateStaticPeaks(500),
+    waveformPeaks: generateStaticPeaks(500),
     firstBeatOffset: 0.0,
     cuePoints: [0, 1834, 3582, 5552],
     jogMode: 'VINYL',
@@ -228,7 +231,8 @@ const INITIAL_DECKS: Record<number, DeckState> = {
     isMaster: false,
     mainCue: 0,
     isCueStuttering: false,
-    hotCues: { A: null, B: null, C: null, D: null, E: null, F: null, G: null, H: null }
+    hotCues: { A: null, B: null, C: null, D: null, E: null, F: null, G: null, H: null },
+    slipEnabled: false
   },
 };
 

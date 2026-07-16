@@ -1293,13 +1293,286 @@ function MixArchive({
     return `control${id}`;
   };
 
-  // --- Slip Mode and Loop Roll states ---
-  const [slipMode, setSlipMode] = useState<Record<number, boolean>>({
-    1: false, 2: false, 3: false, 4: false
+  // --- Visualizer and Keyboard Modal states ---
+  const [visualizerMode, setVisualizerMode] = useState<'ambient' | 'circular' | 'grid'>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('henryix_visualizer_mode') as 'ambient' | 'circular' | 'grid';
+      if (saved && ['ambient', 'circular', 'grid'].includes(saved)) {
+        return saved;
+      }
+    }
+    return 'ambient';
   });
-  const slipModeRef = useRef(slipMode);
-  useEffect(() => { slipModeRef.current = slipMode; }, [slipMode]);
+  const [isShortcutsModalOpen, setIsShortcutsModalOpen] = useState(false);
 
+  // --- Virtual USB Drag and Drop states ---
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
+  const [dragTargetDeck, setDragTargetDeck] = useState<number | null>(null);
+
+  useEffect(() => {
+    const handleDragOver = (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.dataTransfer && e.dataTransfer.types.includes('Files')) {
+        setIsDraggingFile(true);
+      }
+    };
+
+    const handleDragLeave = (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.clientX <= 0 || e.clientY <= 0 || e.clientX >= window.innerWidth || e.clientY >= window.innerHeight) {
+        setIsDraggingFile(false);
+      }
+    };
+
+    const handleDrop = (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDraggingFile(false);
+    };
+
+    window.addEventListener('dragover', handleDragOver);
+    window.addEventListener('dragleave', handleDragLeave);
+    window.addEventListener('drop', handleDrop);
+
+    return () => {
+      window.removeEventListener('dragover', handleDragOver);
+      window.removeEventListener('dragleave', handleDragLeave);
+      window.removeEventListener('drop', handleDrop);
+    };
+  }, []);
+
+  // --- Keyboard Shortcuts System ---
+  const triggerCueDown = (deckId: number) => {
+    const deck = useAudioStore.getState().decks[deckId];
+    if (!deck || deck.id === 'locked') return;
+
+    playClick(720, 'sine', 0.015);
+    const audioEl = audioElementsRef?.current?.[deckId];
+    if (!audioEl) return;
+
+    const mainCueTime = deck.mainCue || 0;
+    const currentProgress = deck.progress || 0;
+
+    if (deck.isPlaying) {
+      audioEl.pause();
+      if (seekLocalBuffer) seekLocalBuffer(deckId, mainCueTime);
+      useAudioStore.getState().setDeck(deckId, { isPlaying: false, isCueStuttering: false });
+    } else {
+      if (Math.abs(currentProgress - mainCueTime) > 0.08) {
+        const bpm = deck.bpm || 120;
+        const pitch = deck.pitch || 0;
+        const currentBpm = bpm * (1 + pitch / 100);
+        const beatInterval = 60 / currentBpm;
+        const offset = deck.firstBeatOffset || 0;
+        const elapsed = currentProgress - offset;
+        const closestBeatIndex = Math.round(elapsed / beatInterval);
+        const snappedTime = Math.max(0, offset + closestBeatIndex * beatInterval);
+
+        useAudioStore.getState().setDeck(deckId, { mainCue: snappedTime });
+      } else {
+        useAudioStore.getState().setDeck(deckId, { isPlaying: true, isCueStuttering: true });
+        audioEl.play().catch((err: any) => {
+          if (err.name !== 'AbortError') {
+            useAudioStore.getState().setDeck(deckId, { isPlaying: false, isCueStuttering: false });
+          }
+        });
+      }
+    }
+  };
+
+  const triggerCueUp = (deckId: number) => {
+    const deck = useAudioStore.getState().decks[deckId];
+    if (!deck || deck.id === 'locked') return;
+
+    if (deck.isCueStuttering) {
+      const audioEl = audioElementsRef?.current?.[deckId];
+      if (audioEl) {
+        audioEl.pause();
+      }
+      if (seekLocalBuffer) seekLocalBuffer(deckId, deck.mainCue || 0);
+      useAudioStore.getState().setDeck(deckId, { isPlaying: false, isCueStuttering: false });
+    }
+  };
+
+  const triggerPadHotCue = (deckId: number, pad: string) => {
+    const deck = useAudioStore.getState().decks[deckId];
+    if (!deck || deck.id === 'locked') return;
+
+    const currentProgress = deck.progress || 0;
+    const savedTime = deck.hotCues?.[pad];
+
+    if (savedTime === null || savedTime === undefined) {
+      const bpm = deck.bpm || 120;
+      const pitch = deck.pitch || 0;
+      const currentBpm = bpm * (1 + pitch / 100);
+      const beatInterval = 60 / currentBpm;
+      const offset = deck.firstBeatOffset || 0;
+      const elapsed = currentProgress - offset;
+      const closestBeatIndex = Math.round(elapsed / beatInterval);
+      const snappedTime = Math.max(0, offset + closestBeatIndex * beatInterval);
+
+      playClick(880, 'sine', 0.02);
+      useAudioStore.getState().setDeck(deckId, {
+        hotCues: {
+          ...deck.hotCues,
+          [pad]: snappedTime
+        }
+      });
+    } else {
+      playClick(960, 'sine', 0.015);
+      if (seekLocalBuffer) seekLocalBuffer(deckId, savedTime);
+
+      const audioEl = audioElementsRef?.current?.[deckId];
+      if (audioEl) {
+        if (!deck.isPlaying) {
+          useAudioStore.getState().setDeck(deckId, { isPlaying: true });
+          if (deck.syncEnabled && alignSyncPlayback) {
+            alignSyncPlayback(deckId);
+          }
+          audioEl.play().catch((err: any) => {
+            if (err.name !== 'AbortError') {
+              useAudioStore.getState().setDeck(deckId, { isPlaying: false });
+            }
+          });
+        }
+      }
+    }
+  };
+
+  const pressedKeysRef = useRef<Record<string, boolean>>({});
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.isContentEditable
+      ) {
+        return;
+      }
+
+      const key = e.key.toLowerCase();
+      if (pressedKeysRef.current[key]) return;
+      pressedKeysRef.current[key] = true;
+
+      const state = useAudioStore.getState();
+      const leftId = state.leftActiveDeck;
+      const rightId = state.rightActiveDeck;
+
+      // --- Left Deck Controls ---
+      if (key === ' ' || key === 'a') {
+        e.preventDefault();
+        if (togglePlayGlobal) togglePlayGlobal(leftId);
+      } else if (key === 'q') {
+        e.preventDefault();
+        triggerCueDown(leftId);
+      } else if (key === '1') {
+        e.preventDefault();
+        triggerPadHotCue(leftId, 'A');
+      } else if (key === '2') {
+        e.preventDefault();
+        triggerPadHotCue(leftId, 'B');
+      } else if (key === '3') {
+        e.preventDefault();
+        triggerPadHotCue(leftId, 'C');
+      } else if (key === '4') {
+        e.preventDefault();
+        triggerPadHotCue(leftId, 'D');
+      } else if (key === 'z') {
+        e.preventDefault();
+        const deck = state.decks[leftId];
+        if (deck && deck.id !== 'locked') {
+          const currentPitch = deck.pitch || 0;
+          useAudioStore.getState().setDeck(leftId, { pitch: Math.max(-8, currentPitch - 0.5), syncEnabled: false });
+          playClick(600, 'sine', 0.01);
+        }
+      } else if (key === 'x') {
+        e.preventDefault();
+        const deck = state.decks[leftId];
+        if (deck && deck.id !== 'locked') {
+          const currentPitch = deck.pitch || 0;
+          useAudioStore.getState().setDeck(leftId, { pitch: Math.min(8, currentPitch + 0.5), syncEnabled: false });
+          playClick(900, 'sine', 0.01);
+        }
+      }
+
+      // --- Right Deck Controls ---
+      else if (key === 'enter' || key === 's') {
+        e.preventDefault();
+        if (togglePlayGlobal) togglePlayGlobal(rightId);
+      } else if (key === 'e') {
+        e.preventDefault();
+        triggerCueDown(rightId);
+      } else if (key === '7') {
+        e.preventDefault();
+        triggerPadHotCue(rightId, 'A');
+      } else if (key === '8') {
+        e.preventDefault();
+        triggerPadHotCue(rightId, 'B');
+      } else if (key === '9') {
+        e.preventDefault();
+        triggerPadHotCue(rightId, 'C');
+      } else if (key === '0') {
+        e.preventDefault();
+        triggerPadHotCue(rightId, 'D');
+      } else if (key === 'n') {
+        e.preventDefault();
+        const deck = state.decks[rightId];
+        if (deck && deck.id !== 'locked') {
+          const currentPitch = deck.pitch || 0;
+          useAudioStore.getState().setDeck(rightId, { pitch: Math.max(-8, currentPitch - 0.5), syncEnabled: false });
+          playClick(600, 'sine', 0.01);
+        }
+      } else if (key === 'm') {
+        e.preventDefault();
+        const deck = state.decks[rightId];
+        if (deck && deck.id !== 'locked') {
+          const currentPitch = deck.pitch || 0;
+          useAudioStore.getState().setDeck(rightId, { pitch: Math.min(8, currentPitch + 0.5), syncEnabled: false });
+          playClick(900, 'sine', 0.01);
+        }
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.isContentEditable
+      ) {
+        return;
+      }
+
+      const key = e.key.toLowerCase();
+      pressedKeysRef.current[key] = false;
+
+      const state = useAudioStore.getState();
+      const leftId = state.leftActiveDeck;
+      const rightId = state.rightActiveDeck;
+
+      if (key === 'q') {
+        e.preventDefault();
+        triggerCueUp(leftId);
+      } else if (key === 'e') {
+        e.preventDefault();
+        triggerCueUp(rightId);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [togglePlayGlobal, seekLocalBuffer, alignSyncPlayback]);
+
+  // --- Active Loop Roll states ---
   const [activeRoll, setActiveRoll] = useState<Record<number, { division: number; startTime: number; virtualTime: number } | null>>({
     1: null, 2: null, 3: null, 4: null
   });
@@ -1531,7 +1804,8 @@ function MixArchive({
       playClick(900, 'sine', 0.02);
       const audio = audioElementsRef?.current?.[deckId];
       if (audio && isFinite(audio.duration)) {
-        if (slipMode[deckId]) {
+        const deck = decksRef.current[deckId];
+        if (deck?.slipEnabled) {
           let targetTime = roll.virtualTime;
           if (targetTime > audio.duration) targetTime = audio.duration;
           if (isFinite(targetTime) && !isNaN(targetTime)) {
@@ -2367,7 +2641,7 @@ function MixArchive({
           isDepth ? "border-zinc-800 bg-zinc-950/40" : "border-black/20"
         )}
       >
-        <AudioVisualizerBackground isDepth={isDepth} mouseX={mouseX} mouseY={mouseY} isPlaying={activeVisualizer.isPlaying} />
+        <AudioVisualizerBackground isDepth={isDepth} mouseX={mouseX} mouseY={mouseY} isPlaying={activeVisualizer.isPlaying} mode={visualizerMode} />
 
         {/* Forced Landscape Overlay */}
         <AnimatePresence>
@@ -2485,38 +2759,84 @@ function MixArchive({
               ))}
             </div>
 
-            {/* Sub Slider for 2 or 4 decks - only shown in Deck View and when not on mobile */}
-            {activeView === 'cdj' && (
-              <div className="absolute right-3 flex items-center gap-1.5 md:gap-2">
-                <span className="text-[7.5px] md:text-[8px] text-zinc-500 font-bold uppercase tracking-wider select-none">
-                  DECKS:
-                </span>
-                <div className="relative flex p-0.5 bg-zinc-950/80 border border-zinc-900 rounded-md backdrop-blur-md">
-                  {([2, 4] as const).map((count) => (
-                    <button
-                      key={count}
-                      onClick={() => {
-                        setDeckCount(count);
-                        playClick(800, 'sine', 0.02);
-                      }}
-                      className={cn(
-                        "relative px-2 py-0.5 rounded font-mono text-[8px] font-black uppercase transition-colors cursor-pointer flex items-center justify-center w-8 h-5",
-                        deckCount === count ? "text-zinc-950 font-black" : "text-zinc-500 hover:text-zinc-300"
-                      )}
-                    >
-                      {deckCount === count && (
-                        <motion.div
-                          layoutId="deck-count-highlight"
-                          className="absolute inset-0 bg-primary rounded shadow-[0_0_8px_rgba(216,22,63,0.3)]"
-                          transition={{ type: "spring", bounce: 0.2, duration: 0.4 }}
-                        />
-                      )}
-                      <span className="relative z-10">{count}</span>
-                    </button>
-                  ))}
-                </div>
+            {/* Control Panel in Header */}
+            <div className="absolute right-3 flex items-center gap-1.5 md:gap-2">
+              {/* Decks selection */}
+              {activeView === 'cdj' && (
+                <>
+                  <span className="text-[7px] md:text-[8px] text-zinc-500 font-bold uppercase tracking-wider select-none">
+                    DECKS:
+                  </span>
+                  <div className="relative flex p-0.5 bg-zinc-950/80 border border-zinc-900 rounded-md backdrop-blur-md">
+                    {([2, 4] as const).map((count) => (
+                      <button
+                        key={count}
+                        onClick={() => {
+                          setDeckCount(count);
+                          playClick(800, 'sine', 0.02);
+                        }}
+                        className={cn(
+                          "relative px-2 py-0.5 rounded font-mono text-[7.5px] md:text-[8px] font-black uppercase transition-colors cursor-pointer flex items-center justify-center w-6 md:w-8 h-5",
+                          deckCount === count ? "text-zinc-950 font-black" : "text-zinc-500 hover:text-zinc-300"
+                        )}
+                      >
+                        {deckCount === count && (
+                          <motion.div
+                            layoutId="deck-count-highlight"
+                            className="absolute inset-0 bg-primary rounded shadow-[0_0_8px_rgba(216,22,63,0.3)]"
+                            transition={{ type: "spring", bounce: 0.2, duration: 0.4 }}
+                          />
+                        )}
+                        <span className="relative z-10">{count}</span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {/* Visualizer Mode Selection */}
+              <span className="text-[7px] md:text-[8px] text-zinc-500 font-bold uppercase tracking-wider select-none ml-1 md:ml-2">
+                VISUALIZER:
+              </span>
+              <div className="relative flex p-0.5 bg-zinc-950/80 border border-zinc-900 rounded-md backdrop-blur-md">
+                {(['ambient', 'circular', 'grid'] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    onClick={() => {
+                      setVisualizerMode(mode);
+                      localStorage.setItem('henryix_visualizer_mode', mode);
+                      playClick(800, 'sine', 0.02);
+                    }}
+                    className={cn(
+                      "relative px-2 py-0.5 rounded font-mono text-[7.5px] md:text-[8px] font-black uppercase transition-colors cursor-pointer flex items-center justify-center w-11 md:w-14 h-5",
+                      visualizerMode === mode ? "text-zinc-950 font-black" : "text-zinc-500 hover:text-zinc-300"
+                    )}
+                  >
+                    {visualizerMode === mode && (
+                      <motion.div
+                        layoutId="visualizer-mode-highlight"
+                        className="absolute inset-0 bg-primary rounded shadow-[0_0_8px_rgba(216,22,63,0.3)]"
+                        transition={{ type: "spring", bounce: 0.1, duration: 0.4 }}
+                      />
+                    )}
+                    <span className="relative z-10">{mode}</span>
+                  </button>
+                ))}
               </div>
-            )}
+
+              {/* Keyboard Shortcuts Trigger */}
+              {activeView === 'cdj' && (
+                <button
+                  onClick={() => {
+                    setIsShortcutsModalOpen(true);
+                    playClick(900, 'sine', 0.02);
+                  }}
+                  className="px-2 py-1 bg-zinc-900/60 hover:bg-zinc-900 border border-zinc-900 hover:border-zinc-800 rounded-md text-zinc-400 hover:text-zinc-200 transition-all cursor-pointer flex items-center gap-1 active:scale-95 text-[7.5px] md:text-[8px] font-bold"
+                >
+                  <span>⌨️</span> KEYBOARD
+                </button>
+              )}
+            </div>
           </div>
         )}
 
@@ -2721,6 +3041,170 @@ function MixArchive({
           renderTracklist()
         )}
       </div>
+
+      {/* Keyboard Shortcuts Modal */}
+      <AnimatePresence>
+        {isShortcutsModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsShortcutsModalOpen(false)}
+              className="fixed inset-0 bg-black/85 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              transition={{ type: "spring", duration: 0.4 }}
+              className="relative w-full max-w-lg border border-zinc-900 bg-zinc-950/95 rounded-2xl p-6 shadow-2xl font-mono text-zinc-300 z-10 select-none"
+            >
+              <button
+                onClick={() => setIsShortcutsModalOpen(false)}
+                className="absolute top-4 right-4 text-zinc-500 hover:text-white transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <h3 className="text-primary text-[10px] md:text-[11px] font-black tracking-[0.25em] uppercase border-b border-zinc-900 pb-3 mb-5 flex items-center gap-2">
+                <span>⌨️</span> KEYBOARD SHORTCUTS INTERFACE
+              </h3>
+
+              <div className="grid grid-cols-2 gap-6 text-[10px] tracking-wide mb-4">
+                <div className="flex flex-col gap-4 border-r border-zinc-900/60 pr-4">
+                  <span className="text-zinc-500 font-bold tracking-widest text-[8px] uppercase">Left Active Deck</span>
+                  <div className="flex flex-col gap-3">
+                    <div className="flex justify-between items-center"><span className="text-zinc-400">Play / Pause</span><kbd className="px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-primary font-bold">Space / A</kbd></div>
+                    <div className="flex justify-between items-center"><span className="text-zinc-400">Cue Stutter</span><kbd className="px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-primary font-bold">Q (Hold)</kbd></div>
+                    <div className="flex justify-between items-center"><span className="text-zinc-400">Hot Cues A-D</span><kbd className="px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-primary font-bold">1 - 4</kbd></div>
+                    <div className="flex justify-between items-center"><span className="text-zinc-400">Pitch Bend - / +</span><kbd className="px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-primary font-bold">Z / X</kbd></div>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-4 pl-2">
+                  <span className="text-zinc-500 font-bold tracking-widest text-[8px] uppercase">Right Active Deck</span>
+                  <div className="flex flex-col gap-3">
+                    <div className="flex justify-between items-center"><span className="text-zinc-400">Play / Pause</span><kbd className="px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-cyan-400 font-bold">Enter / S</kbd></div>
+                    <div className="flex justify-between items-center"><span className="text-zinc-400">Cue Stutter</span><kbd className="px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-cyan-400 font-bold">E (Hold)</kbd></div>
+                    <div className="flex justify-between items-center"><span className="text-zinc-400">Hot Cues A-D</span><kbd className="px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-cyan-400 font-bold">7 - 0</kbd></div>
+                    <div className="flex justify-between items-center"><span className="text-zinc-400">Pitch Bend - / +</span><kbd className="px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-cyan-400 font-bold">N / M</kbd></div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-6 border-t border-zinc-900 pt-4 text-center text-[7px] text-zinc-500 uppercase tracking-widest leading-relaxed">
+                SHORTCUTS ARE SCALED AND ENABLED GLOBALLY. CLICK OR DRAG DECKS TO MIX SIMULTANEOUSLY.
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Skeuomorphic Virtual USB Drag-and-Drop Overlay */}
+      <AnimatePresence>
+        {isDraggingFile && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[200] bg-black/85 backdrop-blur-xl flex flex-col items-center justify-center font-mono p-6"
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setIsDraggingFile(false);
+              
+              const files = e.dataTransfer?.files;
+              if (files && files.length > 0) {
+                const file = files[0];
+                if (file.type.startsWith('audio/') || /\.(mp3|wav|m4a|aac|flac)$/i.test(file.name)) {
+                  const leftId = useAudioStore.getState().leftActiveDeck;
+                  if (loadLocalFile) loadLocalFile(leftId, file);
+                } else {
+                  playLockoutBlip && playLockoutBlip();
+                }
+              }
+            }}
+          >
+            {/* USB Enclosure Card */}
+            <div className="w-full max-w-xl bg-zinc-950 border-2 border-dashed border-zinc-900 rounded-3xl p-8 shadow-2xl flex flex-col items-center gap-6 relative overflow-hidden">
+              
+              {/* Spinning Pioneer Record visual indicator */}
+              <div className="w-20 h-20 rounded-full border-2 border-zinc-800 flex items-center justify-center relative animate-[spin_6s_linear_infinite]">
+                <div className="w-10 h-10 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center">
+                  <div className="w-2.5 h-2.5 rounded-full bg-primary" />
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2 text-center">
+                <span className="text-primary font-black text-lg md:text-xl tracking-[0.25em] uppercase animate-pulse">
+                  INSERT VIRTUAL USB
+                </span>
+                <span className="text-zinc-500 text-[10px] tracking-widest uppercase">
+                  DROP AUDIO FILE (.mp3, .wav, .m4a) ONTO A DECK DROPZONE
+                </span>
+              </div>
+
+              {/* Target Dropzones Grid */}
+              <div className="grid grid-cols-2 gap-4 w-full mt-4">
+                {[
+                  { label: 'LOAD TO DECK LEFT', id: leftActiveDeck, name: 'LEFT' },
+                  { label: 'LOAD TO DECK RIGHT', id: rightActiveDeck, name: 'RIGHT' }
+                ].map(target => (
+                  <div
+                    key={target.name}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setDragTargetDeck(target.id);
+                    }}
+                    onDragLeave={() => setDragTargetDeck(null)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setIsDraggingFile(false);
+                      setDragTargetDeck(null);
+                      
+                      const files = e.dataTransfer?.files;
+                      if (files && files.length > 0) {
+                        const file = files[0];
+                        if (file.type.startsWith('audio/') || /\.(mp3|wav|m4a|aac|flac)$/i.test(file.name)) {
+                          if (loadLocalFile) loadLocalFile(target.id, file);
+                        } else {
+                          playLockoutBlip && playLockoutBlip();
+                        }
+                      }
+                    }}
+                    className={cn(
+                      "border-2 border-dashed rounded-2xl p-6 flex flex-col items-center justify-center gap-2.5 transition-all duration-200 cursor-pointer h-36 text-center select-none",
+                      dragTargetDeck === target.id
+                        ? "bg-primary/10 border-primary text-primary shadow-[0_0_15px_rgba(216,22,63,0.25)] scale-[1.02]"
+                        : "bg-black/40 border-zinc-900 text-zinc-400 hover:border-zinc-800 hover:text-zinc-300"
+                    )}
+                  >
+                    <span className="text-[9px] font-black tracking-widest uppercase">
+                      {target.label}
+                    </span>
+                    <span className="text-[12px] font-bold text-white uppercase truncate max-w-[150px]">
+                      {target.name === 'LEFT' ? `DECK ${leftActiveDeck}` : `DECK ${rightActiveDeck}`}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Bezel footer details */}
+              <span className="text-[7.5px] text-zinc-600 font-bold uppercase tracking-widest border-t border-zinc-900/60 w-full pt-4 text-center mt-2 leading-none">
+                PIONEER VIRTUAL LINK // FILE_LOADER_PORT
+              </span>
+
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </section>
   );
 }
