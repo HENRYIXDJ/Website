@@ -896,6 +896,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     if (widget) { try { widget.pause(); } catch (e) {} }
 
     if (isLocal) {
+      const firstBeatOffset = track.firstBeatOffset || 0.0;
       if (audio) {
         const absoluteUrl = track.url.startsWith('blob:') || track.url.startsWith('http')
           ? track.url
@@ -905,15 +906,18 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
           audio.src = absoluteUrl;
           audio.load();
         }
+        seekToFirstBeatOneOfBar(deckId, firstBeatOffset, track.bpm);
       }
       setDeck(deckId, {
         id: track.id, title: track.title, url: track.url, link: track.link,
-        bpm: track.bpm, isPlaying: false, progress: 0, scMode: false, isReady: false,
+        bpm: track.bpm, isPlaying: false, progress: audio ? audio.currentTime : 0, scMode: false, isReady: false,
         waveformPeaks: trackWaveforms[track.id] || generateStaticPeaks(500),
         cuePoints: track.cuePoints,
+        firstBeatOffset: firstBeatOffset,
       });
     } else {
       // SoundCloud mode — lazily mount iframe if not yet done
+      const firstBeatOffset = track.firstBeatOffset || 0.0;
       if (!mountedIframeIds.current.has(deckId)) {
         mountedIframeIds.current.add(deckId);
         setMountedDecks(prev => [...prev, deckId]);
@@ -923,6 +927,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
         bpm: track.bpm, isPlaying: false, progress: 0, scMode: true, isReady: false,
         waveformPeaks: trackWaveforms[track.id] || generateStaticPeaks(500),
         cuePoints: track.cuePoints,
+        firstBeatOffset: firstBeatOffset,
       });
       if (widget) {
         try {

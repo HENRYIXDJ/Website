@@ -561,9 +561,9 @@ function SingleDeckWaveform({
           const hiMod = eqHi / 50;
           const volumeMod = volume / 80;
           
-          const baseLow = hVal * (0.6 + 0.4 * Math.abs(Math.cos((barTime - offset) * beatFreq)));
-          const baseMid = hVal * (0.55 + 0.45 * Math.abs(Math.cos((barTime - offset) * 1.8 + 0.5)));
-          const baseHigh = hVal * (0.4 + 0.6 * Math.abs(Math.cos((barTime - offset) * beatFreq * 4 + 1.2)));
+          const baseLow = hVal * 0.9;
+          const baseMid = hVal * 0.65;
+          const baseHigh = hVal * 0.45;
 
           const lowHeight = Math.max(1, baseLow * (height - 4) * lowMod * volumeMod);
           const midHeight = Math.max(1, baseMid * (height - 8) * midMod * volumeMod);
