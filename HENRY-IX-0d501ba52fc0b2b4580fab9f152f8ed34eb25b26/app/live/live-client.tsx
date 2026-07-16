@@ -31,7 +31,18 @@ const CHAT_PHRASES = [
   'The Pioneer simulation is so dope.'
 ];
 
-export default function LiveClient() {
+interface LiveClientProps {
+  initialSettings: {
+    title: string;
+    playbackId: string;
+    viewerUserId: string;
+    streamStatus: string;
+    resolution: string;
+    latency: string;
+  };
+}
+
+export default function LiveClient({ initialSettings }: LiveClientProps) {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
     { id: '1', user: 'System', text: 'ESTABLISHING PORT TRANSMISSION ON COORD_51.5074...', time: '16:00' },
     { id: '2', user: 'System', text: 'DECODING AUDIO LAYER // AUDIO_RATE: 320KBPS...', time: '16:00' },
@@ -104,12 +115,23 @@ export default function LiveClient() {
 
             {/* Top Stats Bar */}
             <div className="w-full flex justify-between items-center text-[7.5px] text-zinc-500 uppercase tracking-widest border-b border-zinc-900/60 pb-2 z-10">
-              <span className="flex items-center gap-1.5">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                </span>
-                LIVE BROADCAST ACTIVE
+              <span className="flex items-center gap-1.5 text-zinc-300">
+                {initialSettings.streamStatus === 'active' ? (
+                  <>
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                    </span>
+                    LIVE BROADCAST ACTIVE
+                  </>
+                ) : (
+                  <>
+                    <span className="relative flex h-2 w-2">
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                    </span>
+                    OFFLINE / LAST BROADCAST ARCHIVE
+                  </>
+                )}
               </span>
               <span className="font-bold text-primary">PORT_3000 // DECODER_ENGAGED</span>
             </div>
@@ -117,11 +139,11 @@ export default function LiveClient() {
             {/* Mux Player element */}
             <div className="relative w-full aspect-video rounded-2xl overflow-hidden border border-black bg-black z-10 shadow-inner">
               <MuxPlayer
-                playbackId="EcHgOK9coz5K4rjSwOkoE7Y7O01201YMIC200RI6lNxnhs"
+                playbackId={initialSettings.playbackId}
                 accentColor="#d8163f"
                 metadata={{
-                  videoTitle: "Test VOD",
-                  viewerUserId: "user-id-007"
+                  videoTitle: initialSettings.title,
+                  viewerUserId: initialSettings.viewerUserId
                 }}
                 className="w-full h-full object-contain"
               />
@@ -133,7 +155,7 @@ export default function LiveClient() {
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-2 text-[8px] text-zinc-400 font-bold uppercase tracking-wider">
                 <div className="flex flex-col gap-0.5">
                   <span className="text-[6.5px] text-zinc-600">RESOLUTION</span>
-                  <span className="text-primary font-black">1080P60 HD</span>
+                  <span className="text-primary font-black">{initialSettings.resolution}</span>
                 </div>
                 <div className="flex flex-col gap-0.5">
                   <span className="text-[6.5px] text-zinc-600">CODEC LAYER</span>
@@ -145,7 +167,10 @@ export default function LiveClient() {
                 </div>
                 <div className="flex flex-col gap-0.5">
                   <span className="text-[6.5px] text-zinc-600">LATENCY MODE</span>
-                  <span className="text-emerald-500 font-black">LOW LATENCY</span>
+                  <span className={cn(
+                    "font-black",
+                    initialSettings.latency.toLowerCase().includes('low') ? "text-emerald-500" : "text-yellow-500"
+                  )}>{initialSettings.latency}</span>
                 </div>
               </div>
             </div>

@@ -1177,6 +1177,14 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       // Components should use: useAudioStore(useShallow(selectActiveDeckInfo))
       // AnalyserNode getter
       get analyserNode() { return masterAnalyserRef.current; },
+      get deckAnalysers() {
+        return {
+          1: deckNodesRef.current[1]?.analyserNode || null,
+          2: deckNodesRef.current[2]?.analyserNode || null,
+          3: deckNodesRef.current[3]?.analyserNode || null,
+          4: deckNodesRef.current[4]?.analyserNode || null,
+        };
+      },
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   ), [isMuted, preloaderComplete]);

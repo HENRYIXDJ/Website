@@ -2324,6 +2324,10 @@ function MixArchive({
             eqHi={activeEqHi}
             eqMid={activeEqMid}
             eqLow={activeEqLow}
+            leftDeckId={leftActiveDeck}
+            rightDeckId={rightActiveDeck}
+            leftPlaying={decks[leftActiveDeck]?.isPlaying}
+            rightPlaying={decks[rightActiveDeck]?.isPlaying}
           />
         </div>
 

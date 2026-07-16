@@ -540,6 +540,10 @@ interface LEDEqualizerProps {
   eqHi?: number;
   eqMid?: number;
   eqLow?: number;
+  leftDeckId?: number;
+  rightDeckId?: number;
+  leftPlaying?: boolean;
+  rightPlaying?: boolean;
 }
 
 export function LEDEqualizer({ 
@@ -547,50 +551,104 @@ export function LEDEqualizer({
   bpm, 
   eqHi = 50, 
   eqMid = 50, 
-  eqLow = 50 
+  eqLow = 50,
+  leftDeckId,
+  rightDeckId,
+  leftPlaying = false,
+  rightPlaying = false
 }: LEDEqualizerProps) {
   const [leftVU, setLeftVU] = useState<number>(0);
   const [rightVU, setRightVU] = useState<number>(0);
   const [waveform, setWaveform] = useState<number[]>(Array(24).fill(2));
 
-  const { analyserNode } = useAudio() ?? {};
+  const { analyserNode, deckAnalysers } = useAudio() ?? {};
   const dataArrayRef = useRef<Uint8Array | null>(null);
+  const dataArrayRefLeft = useRef<Uint8Array | null>(null);
+  const dataArrayRefRight = useRef<Uint8Array | null>(null);
   const lastScrollTimeRef = useRef(0);
 
   useEffect(() => {
-    if (!analyserNode) return;
-    if (!dataArrayRef.current) {
+    if (analyserNode && !dataArrayRef.current) {
       dataArrayRef.current = new Uint8Array(analyserNode.frequencyBinCount);
     }
+
+    const initLeftRight = () => {
+      const analysers = deckAnalysers || {};
+      const leftAnalyser = leftDeckId ? analysers[leftDeckId] : null;
+      const rightAnalyser = rightDeckId ? analysers[rightDeckId] : null;
+      if (leftAnalyser && !dataArrayRefLeft.current) {
+        dataArrayRefLeft.current = new Uint8Array(leftAnalyser.frequencyBinCount);
+      }
+      if (rightAnalyser && !dataArrayRefRight.current) {
+        dataArrayRefRight.current = new Uint8Array(rightAnalyser.frequencyBinCount);
+      }
+    };
+    initLeftRight();
 
     let frame: number;
 
     const animate = (timestamp: number) => {
-      const dataArray = dataArrayRef.current;
-      if (isPlaying && dataArray) {
-        analyserNode.getByteFrequencyData(dataArray);
-
+      initLeftRight();
+      const analysers = deckAnalysers || {};
+      const leftAnalyser = leftDeckId ? analysers[leftDeckId] : null;
+      const rightAnalyser = rightDeckId ? analysers[rightDeckId] : null;
+      
+      const leftData = dataArrayRefLeft.current;
+      const rightData = dataArrayRefRight.current;
+      
+      // Update Left VU meter
+      if (leftAnalyser && leftData && leftPlaying) {
+        leftAnalyser.getByteFrequencyData(leftData);
         let bassSum = 0;
-        for (let i = 0; i < Math.min(10, dataArray.length); i++) bassSum += dataArray[i];
-        const averageBass = bassSum / Math.min(10, dataArray.length);
+        const limit = Math.min(10, leftData.length);
+        for (let i = 0; i < limit; i++) bassSum += leftData[i];
+        const averageBass = bassSum / limit;
         const vuLevel = Math.min(8, Math.max(1, Math.floor((averageBass / 255) * 8.5)));
         setLeftVU(vuLevel);
+      } else {
+        setLeftVU(1);
+      }
+
+      // Update Right VU meter
+      if (rightAnalyser && rightData && rightPlaying) {
+        rightAnalyser.getByteFrequencyData(rightData);
+        let bassSum = 0;
+        const limit = Math.min(10, rightData.length);
+        for (let i = 0; i < limit; i++) bassSum += rightData[i];
+        const averageBass = bassSum / limit;
+        const vuLevel = Math.min(8, Math.max(1, Math.floor((averageBass / 255) * 8.5)));
         setRightVU(vuLevel);
+      } else {
+        setRightVU(1);
+      }
+
+      // Center Waveform display
+      const mainAnalyser = leftAnalyser || rightAnalyser || analyserNode;
+      const mainData = leftData || rightData || dataArrayRef.current;
+      const isMainPlaying = leftPlaying || rightPlaying || isPlaying;
+
+      if (mainAnalyser && mainData && isMainPlaying) {
+        if (mainAnalyser !== leftAnalyser && mainAnalyser !== rightAnalyser) {
+          mainAnalyser.getByteFrequencyData(mainData);
+        }
+        let bassSum = 0;
+        const limit = Math.min(10, mainData.length);
+        for (let i = 0; i < limit; i++) bassSum += mainData[i];
+        const averageBass = bassSum / limit;
 
         if (timestamp - lastScrollTimeRef.current > 33) {
           lastScrollTimeRef.current = timestamp;
           setWaveform((prev) => {
             const next = [...prev.slice(1)];
             let midSum = 0;
-            for (let i = 10; i < Math.min(30, dataArray.length); i++) midSum += dataArray[i];
-            const energy = ((averageBass * 0.7) + ((midSum / Math.max(1, Math.min(20, dataArray.length - 10))) * 0.3)) / 255;
+            const midLimit = Math.min(30, mainData.length);
+            for (let i = 10; i < midLimit; i++) midSum += mainData[i];
+            const energy = ((averageBass * 0.7) + ((midSum / Math.max(1, midLimit - 10)) * 0.3)) / 255;
             next.push(Math.max(1.5, energy * 12));
             return next;
           });
         }
       } else {
-        setLeftVU(1);
-        setRightVU(1);
         if (timestamp - lastScrollTimeRef.current > 33) {
           lastScrollTimeRef.current = timestamp;
           setWaveform((prev) => [...prev.slice(1), 1.5]);
@@ -602,7 +660,7 @@ export function LEDEqualizer({
 
     frame = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(frame);
-  }, [analyserNode, isPlaying]);
+  }, [analyserNode, deckAnalysers, leftDeckId, rightDeckId, leftPlaying, rightPlaying, isPlaying]);
 
   return (
     <div className="flex gap-2 items-center h-16 bg-zinc-950 p-1 rounded border border-zinc-900 shadow-inner w-full justify-between relative overflow-hidden select-none">
