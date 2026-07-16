@@ -2547,7 +2547,7 @@ export default function MixPortfolio({ isDepth = true, activeView: initialActive
           });
         }
       } catch (err) {
-        console.error('Error fetching dynamic mixes:', err);
+        console.warn('Could not load dynamic mixes from Sanity, falling back to static database:', String(err));
       }
     }
     loadDynamicMixes();
