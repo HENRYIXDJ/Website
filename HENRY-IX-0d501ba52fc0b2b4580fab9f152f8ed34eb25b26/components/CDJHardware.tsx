@@ -37,8 +37,6 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
     deckId === 3 ? 'rgba(16,185,129,1)' : // D3: Emerald/Green
     'rgba(234,179,8,1)';                  // D4: Gold/Yellow
 
-  const audio = audioElementsRef?.current?.[deckId];
-
   const faderContainerRef = useRef<HTMLDivElement>(null);
   const lastUpdateRef = useRef({ time: 0, value: deck?.pitch || 0 });
 
