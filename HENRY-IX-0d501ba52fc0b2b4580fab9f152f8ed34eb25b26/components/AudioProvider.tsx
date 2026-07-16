@@ -212,7 +212,21 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       const deck = state.decks[deckId];
       const pitch = deck?.pitch ?? 0;
       audio.playbackRate = 1 + pitch / 100;
-      setDeck(deckId, { duration: audio.duration, isReady: true });
+      
+      const offset = deck?.firstBeatOffset || 0;
+      audio.currentTime = offset;
+      
+      let newCuePoints = deck?.cuePoints || [];
+      if (newCuePoints.length === 0 || Math.abs(newCuePoints[0] - offset) > 0.05) {
+        newCuePoints = [offset, ...newCuePoints.filter((c: number) => Math.abs(c - offset) > 0.05)];
+      }
+
+      setDeck(deckId, { 
+        duration: audio.duration, 
+        isReady: true,
+        progress: offset,
+        cuePoints: newCuePoints
+      });
     });
 
     // Keep Zustand in sync with the native audio element state.
@@ -1094,12 +1108,21 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
             const detectedOffset = audio.currentTime;
             console.log(`[ONSET] Dynamic sound onset detected for Deck ${deckId} at ${detectedOffset.toFixed(3)}s`);
             
+            const currentCuePoints = deck.cuePoints || [];
+            let newCuePoints = currentCuePoints;
+            if (currentCuePoints.length === 0 || Math.abs(currentCuePoints[0] - detectedOffset) > 0.05) {
+              newCuePoints = [detectedOffset, ...currentCuePoints.filter((c: number) => Math.abs(c - detectedOffset) > 0.05)];
+            }
+            
             // Align firstBeatOffset in Zustand store
-            setDeck(deckId, { firstBeatOffset: detectedOffset });
+            setDeck(deckId, { 
+              firstBeatOffset: detectedOffset,
+              cuePoints: newCuePoints,
+              progress: detectedOffset
+            });
             
             // Seek playhead to snap it instantly to the newly aligned starting beat
             audio.currentTime = detectedOffset;
-            setDeck(deckId, { progress: detectedOffset });
           }
         }
       });
