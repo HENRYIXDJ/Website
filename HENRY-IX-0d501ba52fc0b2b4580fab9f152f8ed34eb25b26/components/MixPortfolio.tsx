@@ -562,16 +562,19 @@ function SingleDeckWaveform({
   const allDecks = useAudioStore(s => s.decks);
   const leftActiveDeck = useAudioStore(s => s.leftActiveDeck);
   const rightActiveDeck = useAudioStore(s => s.rightActiveDeck);
+  const visualLatencyOffset = useAudioStore(s => s.visualLatencyOffset);
 
   const allDecksRef = useRef(allDecks);
   const leftActiveDeckRef = useRef(leftActiveDeck);
   const rightActiveDeckRef = useRef(rightActiveDeck);
+  const visualLatencyOffsetRef = useRef(visualLatencyOffset);
 
   useEffect(() => {
     allDecksRef.current = allDecks;
     leftActiveDeckRef.current = leftActiveDeck;
     rightActiveDeckRef.current = rightActiveDeck;
-  }, [allDecks, leftActiveDeck, rightActiveDeck]);
+    visualLatencyOffsetRef.current = visualLatencyOffset;
+  }, [allDecks, leftActiveDeck, rightActiveDeck, visualLatencyOffset]);
 
   const [dragState, setDragState] = useState<{
     startX: number;
@@ -684,7 +687,8 @@ function SingleDeckWaveform({
       }
       lastFrameTimeRef.current = sysTime;
 
-      const progress = smoothProgressRef.current;
+      const rawProgress = smoothProgressRef.current;
+      const progress = rawProgress - (visualLatencyOffsetRef.current / 1000);
 
       const isLocked = currentDeck.id === 'locked';
 
@@ -708,7 +712,7 @@ function SingleDeckWaveform({
           }
         }
 
-        const phaseCurrent = ((progress - (currentDeck.firstBeatOffset || 0)) % beatIntervalCurrent) / beatIntervalCurrent;
+        const phaseCurrent = ((rawProgress - (currentDeck.firstBeatOffset || 0)) % beatIntervalCurrent) / beatIntervalCurrent;
         const phaseOther = ((progressOther - (otherDeck.firstBeatOffset || 0)) % beatIntervalOther) / beatIntervalOther;
 
         const isBothPlaying = isCurrentlyPlaying && (otherDeck.isPlaying || (audioElementsRef?.current?.[otherActiveDeckId] && !audioElementsRef.current[otherActiveDeckId]?.paused));
@@ -740,213 +744,203 @@ function SingleDeckWaveform({
         ctx.textBaseline = 'middle';
         ctx.fillText("COMING SOON", width / 2, height / 2);
       } else {
-        // Draw Beatgrid lines and BAR numbers
+        const eqLow = currentDeck.eqLow ?? 50;
+        const eqMid = currentDeck.eqMid ?? 50;
+        const eqHi = currentDeck.eqHi ?? 50;
+        const volume = currentDeck.volume ?? 80;
+        
+        const lowMod = eqLow / 50;
+        const midMod = eqMid / 50;
+        const hiMod = eqHi / 50;
+        const volumeMod = volume / 80;
+
+        const peaks = currentDeck.waveformPeaks || [];
+        const halfH = height / 2;
+        const PEAK_DENSITY = 4;
+        const centerX = width / 2;
+
+        const t_start = progress - centerX / pixelsPerSecond;
+        const t_end = progress + centerX / pixelsPerSecond;
+
+        // Build points in track coordinate space
+        const points: { x: number; lowH: number; midH: number; highH: number; }[] = [];
+        
+        if (peaks.length > 0) {
+          const i_start = Math.max(0, Math.floor(t_start * PEAK_DENSITY) - 2);
+          const i_end = Math.min(peaks.length - 1, Math.ceil(t_end * PEAK_DENSITY) + 2);
+
+          for (let i = i_start; i <= i_end; i++) {
+            const t = i / PEAK_DENSITY;
+            const x = t * pixelsPerSecond;
+            const hVal = peaks[i];
+
+            const baseLow = hVal * 0.9;
+            const baseMid = hVal * 0.65;
+            const baseHigh = hVal * 0.45;
+
+            const lowHeight = Math.max(1.5, baseLow * (height - 4) * lowMod * volumeMod);
+            const midHeight = Math.max(1.5, baseMid * (height - 8) * midMod * volumeMod);
+            const highHeight = Math.max(1.5, baseHigh * (height - 12) * hiMod * volumeMod);
+
+            points.push({ x, lowH: lowHeight, midH: midHeight, highH: highHeight });
+          }
+        } else {
+          // Fallback static peaks using getWaveformHeight
+          const sampleStep = 0.25;
+          const idxStart = Math.max(0, Math.floor(t_start / sampleStep));
+          const idxEnd = Math.ceil(t_end / sampleStep);
+          const seedStr = currentDeck.link || currentDeck.id || '';
+          const duration = currentDeck.duration || 300;
+
+          for (let idx = idxStart; idx <= idxEnd; idx++) {
+            const t = idx * sampleStep;
+            const x = t * pixelsPerSecond;
+            
+            const idxVal = idx % 14;
+            const hVal = getWaveformHeight(seedStr, idxVal, duration);
+
+            const baseLow = hVal * 0.9;
+            const baseMid = hVal * 0.65;
+            const baseHigh = hVal * 0.45;
+
+            const lowHeight = Math.max(1.5, baseLow * (height - 4) * lowMod * volumeMod);
+            const midHeight = Math.max(1.5, baseMid * (height - 8) * midMod * volumeMod);
+            const highHeight = Math.max(1.5, baseHigh * (height - 12) * hiMod * volumeMod);
+
+            points.push({ x, lowH: lowHeight, midH: midHeight, highH: highHeight });
+          }
+        }
+
+        // SAVE & TRANSLATE CONTEXT TO PLAYHEAD ALIGNMENT
+        ctx.save();
+        ctx.translate(centerX - progress * pixelsPerSecond, 0);
+
+        // 1. Draw Beatgrid lines inside translated space
         const currentBpm = currentDeck.bpm * (1 + (currentDeck.pitch || 0) / 100);
         const beatInterval = 60 / currentBpm;
-        const beatFreq = (2 * Math.PI) / beatInterval;
-        const centerX = width / 2;
         const offset = currentDeck.firstBeatOffset || 0;
-        const visibleRangeSec = centerX / pixelsPerSecond;
-        const startBeat = Math.floor((progress - offset - visibleRangeSec) / beatInterval);
-        const endBeat = Math.ceil((progress - offset + visibleRangeSec) / beatInterval);
+        const startBeat = Math.floor((t_start - offset) / beatInterval);
+        const endBeat = Math.ceil((t_end - offset) / beatInterval);
 
         for (let b = startBeat; b <= endBeat; b++) {
           const beatTime = offset + b * beatInterval;
-          const x = Math.round(centerX + (beatTime - progress) * pixelsPerSecond);
-          if (x >= 0 && x <= width) {
-            const isMajorBar = b % 4 === 0;
-            ctx.strokeStyle = isMajorBar ? 'rgba(255, 255, 255, 0.15)' : 'rgba(255, 255, 255, 0.05)';
-            ctx.lineWidth = isMajorBar ? 1.25 : 0.5;
-            ctx.beginPath();
-            ctx.moveTo(x, 0);
-            ctx.lineTo(x, height);
-            ctx.stroke();
+          const x = beatTime * pixelsPerSecond;
+          const isMajorBar = b % 4 === 0;
+          ctx.strokeStyle = isMajorBar ? 'rgba(255, 255, 255, 0.15)' : 'rgba(255, 255, 255, 0.05)';
+          ctx.lineWidth = isMajorBar ? 1.25 : 0.5;
+          ctx.beginPath();
+          ctx.moveTo(x, 0);
+          ctx.lineTo(x, height);
+          ctx.stroke();
 
-            if (isMajorBar && b >= 0) {
-              ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-              ctx.font = 'bold 7.5px monospace';
-              ctx.textAlign = 'center';
-              ctx.textBaseline = 'top';
-              ctx.fillText(`BAR ${Math.floor(b / 4) + 1}`, x, 2);
-            } else {
-              // Non-major ticks on top and bottom boundaries
-              ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
-              ctx.beginPath();
-              // Top boundary tick
-              ctx.moveTo(x - 2, 0);
-              ctx.lineTo(x + 2, 0);
-              ctx.lineTo(x, 2.5);
-              ctx.fill();
-
-              // Bottom boundary tick
-              ctx.beginPath();
-              ctx.moveTo(x - 2, height);
-              ctx.lineTo(x + 2, height);
-              ctx.lineTo(x, height - 2.5);
-              ctx.fill();
-            }
-          }
-        }
-
-        // Draw Waveform peaks
-        const halfH = height / 2;
-        const PEAK_DENSITY = 4;
-
-        const getPeakHeight = (time: number) => {
-          if (time < 0 || time > (currentDeck.duration || 300)) return 0.02;
-          if (currentDeck.waveformPeaks && currentDeck.waveformPeaks.length > 0) {
-            const exactIdx = time * PEAK_DENSITY;
-            const idxBase = Math.floor(exactIdx);
-            const fract = exactIdx - idxBase;
-            
-            const p0 = currentDeck.waveformPeaks[idxBase] !== undefined 
-              ? currentDeck.waveformPeaks[idxBase] 
-              : 0.02;
-            const p1 = currentDeck.waveformPeaks[idxBase + 1] !== undefined 
-              ? currentDeck.waveformPeaks[idxBase + 1] 
-              : p0;
-            return p0 + (p1 - p0) * fract;
+          if (isMajorBar && b >= 0) {
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+            ctx.font = 'bold 7.5px monospace';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            ctx.fillText(`BAR ${Math.floor(b / 4) + 1}`, x, 2);
           } else {
-            const idx = Math.floor(time * 14);
-            const seedStr = currentDeck.link || currentDeck.id || '';
-            return getWaveformHeight(seedStr, idx, currentDeck.duration || 300);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+            ctx.beginPath();
+            ctx.moveTo(x - 2, 0);
+            ctx.lineTo(x + 2, 0);
+            ctx.lineTo(x, 2.5);
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.moveTo(x - 2, height);
+            ctx.lineTo(x + 2, height);
+            ctx.lineTo(x, height - 2.5);
+            ctx.fill();
           }
-        };
-
-        const points: { drawX: number; lowH: number; midH: number; highH: number }[] = [];
-
-        for (let drawX = 0; drawX < width; drawX += 1) {
-          const barTime = progress + (drawX - centerX) / pixelsPerSecond;
-          const hVal = getPeakHeight(barTime);
-
-          const eqLow = currentDeck.eqLow ?? 50;
-          const eqMid = currentDeck.eqMid ?? 50;
-          const eqHi = currentDeck.eqHi ?? 50;
-          const volume = currentDeck.volume ?? 80;
-          
-          const lowMod = eqLow / 50;
-          const midMod = eqMid / 50;
-          const hiMod = eqHi / 50;
-          const volumeMod = volume / 80;
-          
-          const baseLow = hVal * 0.9;
-          const baseMid = hVal * 0.65;
-          const baseHigh = hVal * 0.45;
-
-          const lowHeight = Math.max(1, baseLow * (height - 4) * lowMod * volumeMod);
-          const midHeight = Math.max(1, baseMid * (height - 8) * midMod * volumeMod);
-          const highHeight = Math.max(1, baseHigh * (height - 12) * hiMod * volumeMod);
-
-          points.push({ drawX, lowH: lowHeight, midH: midHeight, highH: highHeight });
         }
 
-        // Use Math.round/Math.floor in path plotting to avoid sub-pixel anti-aliasing blur
-        // 1. Low Band (Vivid Cyan/Blue foundation: rgba(0, 162, 255, 1))
-        ctx.fillStyle = 'rgba(0, 162, 255, 0.4)';
-        ctx.strokeStyle = 'rgba(0, 190, 255, 0.85)';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(0, halfH);
-        for (let i = 0; i < points.length; i++) {
-          ctx.lineTo(Math.round(points[i].drawX), Math.round(halfH - points[i].lowH / 2));
-        }
-        for (let i = points.length - 1; i >= 0; i--) {
-          ctx.lineTo(Math.round(points[i].drawX), Math.round(halfH + points[i].lowH / 2));
-        }
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-
-        // 2. Mid Band (Vivid Neon Orange: rgba(255, 120, 0, 1))
-        ctx.fillStyle = 'rgba(255, 120, 0, 0.7)';
-        ctx.strokeStyle = 'rgba(255, 150, 0, 0.95)';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(0, halfH);
-        for (let i = 0; i < points.length; i++) {
-          ctx.lineTo(Math.round(points[i].drawX), Math.round(halfH - points[i].midH / 2));
-        }
-        for (let i = points.length - 1; i >= 0; i--) {
-          ctx.lineTo(Math.round(points[i].drawX), Math.round(halfH + points[i].midH / 2));
-        }
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-
-        // 3. High Band (Pure Bright White: rgba(255, 255, 255, 1))
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
-        ctx.strokeStyle = 'rgba(255, 255, 255, 1)';
-        ctx.lineWidth = 0.8;
-        ctx.beginPath();
-        ctx.moveTo(0, halfH);
-        for (let i = 0; i < points.length; i++) {
-          ctx.lineTo(Math.round(points[i].drawX), Math.round(halfH - points[i].highH / 2));
-        }
-        for (let i = points.length - 1; i >= 0; i--) {
-          ctx.lineTo(Math.round(points[i].drawX), Math.round(halfH + points[i].highH / 2));
-        }
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-      }
-
-      // Draw Active Loop Highlight Overlay
-      if (currentDeck.isLoopActive && currentDeck.loopIn !== null && currentDeck.loopIn !== undefined && currentDeck.loopOut !== null && currentDeck.loopOut !== undefined) {
-        const loopCenterX = width / 2;
-        const xIn = Math.round(loopCenterX + (currentDeck.loopIn - progress) * pixelsPerSecond);
-        const xOut = Math.round(loopCenterX + (currentDeck.loopOut - progress) * pixelsPerSecond);
-        
-        const drawStart = Math.max(0, Math.min(width, xIn));
-        const drawEnd = Math.max(0, Math.min(width, xOut));
-        
-        if (drawStart < drawEnd) {
-          ctx.save();
-          // Glow/Overlay fill between loop points
-          ctx.fillStyle = 'rgba(245, 158, 11, 0.12)';
-          ctx.fillRect(drawStart, 0, drawEnd - drawStart, height);
-          
-          // Draw subtle solid amber border lines on boundaries
-          ctx.strokeStyle = 'rgba(245, 158, 11, 0.35)';
+        // 2. Draw Waveform bands inside translated space
+        if (points.length > 0) {
+          // Low Band (Vivid Cyan/Blue foundation)
+          ctx.fillStyle = 'rgba(0, 162, 255, 0.4)';
+          ctx.strokeStyle = 'rgba(0, 190, 255, 0.85)';
           ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(points[0].x, halfH);
+          for (let i = 0; i < points.length; i++) {
+            ctx.lineTo(points[i].x, halfH - points[i].lowH / 2);
+          }
+          for (let i = points.length - 1; i >= 0; i--) {
+            ctx.lineTo(points[i].x, halfH + points[i].lowH / 2);
+          }
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+
+          // Mid Band (Vivid Neon Orange)
+          ctx.fillStyle = 'rgba(255, 120, 0, 0.7)';
+          ctx.strokeStyle = 'rgba(255, 150, 0, 0.95)';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(points[0].x, halfH);
+          for (let i = 0; i < points.length; i++) {
+            ctx.lineTo(points[i].x, halfH - points[i].midH / 2);
+          }
+          for (let i = points.length - 1; i >= 0; i--) {
+            ctx.lineTo(points[i].x, halfH + points[i].midH / 2);
+          }
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+
+          // High Band (Pure Bright White)
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+          ctx.strokeStyle = 'rgba(255, 255, 255, 1)';
+          ctx.lineWidth = 0.8;
+          ctx.beginPath();
+          ctx.moveTo(points[0].x, halfH);
+          for (let i = 0; i < points.length; i++) {
+            ctx.lineTo(points[i].x, halfH - points[i].highH / 2);
+          }
+          for (let i = points.length - 1; i >= 0; i--) {
+            ctx.lineTo(points[i].x, halfH + points[i].highH / 2);
+          }
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+        }
+
+        // 3. Draw Loop Overlay inside translated space
+        if (currentDeck.isLoopActive && currentDeck.loopIn !== null && currentDeck.loopIn !== undefined && currentDeck.loopOut !== null && currentDeck.loopOut !== undefined) {
+          const xIn = currentDeck.loopIn * pixelsPerSecond;
+          const xOut = currentDeck.loopOut * pixelsPerSecond;
           
-          if (xIn >= 0 && xIn <= width) {
+          if (xIn < xOut) {
+            ctx.fillStyle = 'rgba(245, 158, 11, 0.12)';
+            ctx.fillRect(xIn, 0, xOut - xIn, height);
+            
+            ctx.strokeStyle = 'rgba(245, 158, 11, 0.35)';
+            ctx.lineWidth = 1;
+            
             ctx.beginPath();
             ctx.moveTo(xIn, 0);
             ctx.lineTo(xIn, height);
             ctx.stroke();
-          }
-          if (xOut >= 0 && xOut <= width) {
+
             ctx.beginPath();
             ctx.moveTo(xOut, 0);
             ctx.lineTo(xOut, height);
             ctx.stroke();
           }
-          ctx.restore();
         }
-      }
 
-      // Draw Cue Line & Hot Cues
-      const centerX = width / 2;
-
-      // Draw Cue Line (linked to deck.mainCue)
-      if (currentDeck.mainCue !== undefined && currentDeck.mainCue !== null) {
-        const timeVal = currentDeck.mainCue;
-        const x = Math.round(centerX + (timeVal - progress) * pixelsPerSecond);
-        if (x >= 0 && x <= width) {
-          const color = '#f97316'; // Orange cue line
-          
-          // Draw the orange cue line
-          ctx.save();
+        // 4. Draw main cue line inside translated space
+        if (currentDeck.mainCue !== undefined && currentDeck.mainCue !== null) {
+          const x = currentDeck.mainCue * pixelsPerSecond;
+          const color = '#f97316';
           ctx.strokeStyle = color;
           ctx.lineWidth = 1.5;
           ctx.beginPath();
           ctx.moveTo(x, 0);
           ctx.lineTo(x, height);
           ctx.stroke();
-          ctx.restore();
           
-          // Draw flag tag at the top
-          ctx.save();
           ctx.fillStyle = color;
           ctx.beginPath();
           ctx.moveTo(x - 5, 0);
@@ -962,46 +956,33 @@ function SingleDeckWaveform({
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
           ctx.fillText('CUE', x, 4.5);
-          ctx.restore();
         }
-      }
 
-      // Draw Hot Cues
-      const hotCues = currentDeck.hotCues || {};
-      const HOT_CUE_COLORS: Record<string, string> = {
-        A: '#ef4444', // Red
-        B: '#f97316', // Orange
-        C: '#eab308', // Yellow
-        D: '#22c55e', // Green
-        E: '#06b6d4', // Cyan
-        F: '#3b82f6', // Blue
-        G: '#a855f7', // Purple
-        H: '#ec4899'  // Pink
-      };
+        // 5. Draw Hot Cues inside translated space
+        const hotCues = currentDeck.hotCues || {};
+        const HOT_CUE_COLORS: Record<string, string> = {
+          A: '#ef4444',
+          B: '#f97316',
+          C: '#eab308',
+          D: '#22c55e',
+          E: '#06b6d4',
+          F: '#3b82f6',
+          G: '#a855f7',
+          H: '#ec4899'
+        };
 
-      Object.entries(hotCues).forEach(([pad, time]) => {
-        if (time !== null && time !== undefined) {
-          const timeVal = time as number;
-          const x = Math.round(centerX + (timeVal - progress) * pixelsPerSecond);
-          if (x >= 0 && x <= width) {
+        Object.entries(hotCues).forEach(([pad, time]) => {
+          if (time !== null && time !== undefined) {
+            const x = (time as number) * pixelsPerSecond;
             const color = HOT_CUE_COLORS[pad] || '#ffffff';
             
-            // Draw the matching colored bar
-            ctx.save();
             ctx.strokeStyle = color;
             ctx.lineWidth = 1.5;
-            
-            ctx.shadowColor = color;
-            ctx.shadowBlur = 3;
-            
             ctx.beginPath();
             ctx.moveTo(x, 0);
             ctx.lineTo(x, height);
             ctx.stroke();
-            ctx.restore();
             
-            // Draw flag tag at the top
-            ctx.save();
             ctx.fillStyle = color;
             ctx.beginPath();
             ctx.moveTo(x - 5, 0);
@@ -1017,10 +998,12 @@ function SingleDeckWaveform({
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText(pad, x, 4.5);
-            ctx.restore();
           }
-        }
-      });
+        });
+
+        // RESTORE TRANSLATION TO ABSOLUTE PAGE COORDINATES
+        ctx.restore();
+      }
 
       // CENTER PLAYHEAD LINE (GLOWING CRIMSON or GREEN SYNC)
       ctx.save();
@@ -1244,6 +1227,8 @@ function MixArchive({
 
   const isStacked = useAudioStore(s => s.isStacked);
   const setStacked = useAudioStore(s => s.setStacked);
+  const visualLatencyOffset = useAudioStore(s => s.visualLatencyOffset);
+  const setVisualLatencyOffset = useAudioStore(s => s.setVisualLatencyOffset);
 
   useEffect(() => {
     const handleResize = () => {
@@ -2827,6 +2812,31 @@ function MixArchive({
                   </button>
                 ))}
               </div>
+
+              {/* Visual Latency Calibration */}
+              {activeView === 'cdj' && (
+                <div className="flex items-center gap-1.5 border border-zinc-900 bg-zinc-950/80 px-2 py-0.5 rounded-md backdrop-blur-md">
+                  <span className="text-[7px] md:text-[8px] text-zinc-500 font-bold uppercase tracking-wider select-none font-mono">
+                    LATENCY:
+                  </span>
+                  <input 
+                    type="range"
+                    min="0"
+                    max="200"
+                    step="5"
+                    value={visualLatencyOffset}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value);
+                      setVisualLatencyOffset(val);
+                    }}
+                    className="w-16 md:w-20 h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-primary"
+                    title="Calibrate visual latency (0ms to 200ms)"
+                  />
+                  <span className="text-[7.5px] md:text-[8px] font-mono text-zinc-400 font-bold w-9 text-right shrink-0">
+                    {visualLatencyOffset}ms
+                  </span>
+                </div>
+              )}
 
               {/* Keyboard Shortcuts Trigger */}
               {activeView === 'cdj' && (

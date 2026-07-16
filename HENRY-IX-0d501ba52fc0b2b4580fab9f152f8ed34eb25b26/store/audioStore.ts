@@ -61,6 +61,7 @@ export interface AudioStoreState {
   preloaderComplete: boolean;
   audioDSPInitialized: boolean;
   isStacked: boolean;
+  visualLatencyOffset: number;
 
   // ---------- Actions ----------
   setDeck: (id: number, patch: Partial<DeckState>) => void;
@@ -71,6 +72,7 @@ export interface AudioStoreState {
   setPreloaderComplete: (val: boolean) => void;
   setAudioDSPInitialized: (val: boolean) => void;
   setStacked: (val: boolean) => void;
+  setVisualLatencyOffset: (val: number) => void;
 
   // Legacy-compat: full decks setter (accepts updater fn or object)
   setDecks: (updater: Record<number, DeckState> | ((prev: Record<number, DeckState>) => Record<number, DeckState>)) => void;
@@ -249,6 +251,7 @@ export const useAudioStore = create<AudioStoreState>()(
     preloaderComplete: false,
     audioDSPInitialized: false,
     isStacked: false,
+    visualLatencyOffset: 45,
 
     // Atomic deck patch — only touches the specified deck
     setDeck: (id, patch) =>
@@ -266,6 +269,7 @@ export const useAudioStore = create<AudioStoreState>()(
     setPreloaderComplete: val => set({ preloaderComplete: val }),
     setAudioDSPInitialized: val => set({ audioDSPInitialized: val }),
     setStacked: val => set({ isStacked: val }),
+    setVisualLatencyOffset: val => set({ visualLatencyOffset: val }),
 
     // Legacy-compat: accepts an updater function or a plain object
     setDecks: updater => {
