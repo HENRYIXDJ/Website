@@ -1632,7 +1632,7 @@ function MixArchive({
         </div>
 
         {/* Mixer Channels Grid */}
-        <div className="grid grid-cols-4 gap-2.5 my-2.5 items-start justify-center z-10 flex-grow select-none">
+        <div className="grid grid-cols-4 gap-1.5 md:gap-2.5 my-2 items-stretch justify-center z-10 flex-grow min-h-0 select-none">
           {[3, 1, 2, 4].map(id => {
             const deck = decks[id];
             const isLocked = deck?.id === 'locked';
@@ -1648,7 +1648,7 @@ function MixArchive({
               <div 
                 key={id}
                 className={cn(
-                  "flex flex-col items-center gap-3.5 py-2 px-1 rounded-xl transition-all border",
+                  "flex flex-col items-center justify-between gap-2 py-2 px-1 rounded-xl transition-all border h-full min-h-0",
                   isActive ? "bg-zinc-900/30 border-zinc-800/80" : "border-transparent opacity-60 hover:opacity-90"
                 )}
               >
@@ -1736,12 +1736,12 @@ function MixArchive({
                 </div>
 
                 {/* Vertical Fader */}
-                <div className="flex flex-col items-center gap-1 mt-2 relative w-10">
-                  <span className="text-[6.5px] text-zinc-500 font-mono uppercase tracking-widest leading-none font-bold">
+                <div className="flex flex-col items-center gap-1 mt-1 relative w-10 flex-grow min-h-0 h-full">
+                  <span className="text-[6.5px] text-zinc-500 font-mono uppercase tracking-widest leading-none font-bold shrink-0">
                     VOL
                   </span>
                   
-                  <div className="relative h-32 w-6 bg-zinc-950 border border-zinc-900 focus-within:border-zinc-500 focus-within:shadow-[0_0_8px_rgba(255,255,255,0.15)] rounded flex items-center justify-center overflow-hidden shadow-inner">
+                  <div className="relative flex-grow min-h-[50px] max-h-[140px] w-6 bg-zinc-950 border border-zinc-900 focus-within:border-zinc-500 focus-within:shadow-[0_0_8px_rgba(255,255,255,0.15)] rounded flex items-center justify-center overflow-hidden shadow-inner">
                     <input 
                       type="range"
                       min="0"

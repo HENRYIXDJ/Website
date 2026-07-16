@@ -27,14 +27,14 @@ export function RotaryKnob({ label, value, onChange, disabled = false, colorClas
     <div className="flex flex-col items-center select-none cursor-pointer relative group">
       <span className={cn(
         "text-zinc-500 font-mono tracking-widest uppercase font-bold", 
-        isSm ? "text-[5.5px] mb-0.5" : isLg ? "text-[8px] mb-1.5" : "text-[6.5px] mb-1"
+        isSm ? "text-[5.5px] mb-0.5" : isLg ? "text-[6px] sm:text-[6.5px] md:text-[7px] xl:text-[8px] mb-1 xl:mb-1.5" : "text-[6.5px] mb-1"
       )}>
         {label}
       </span>
       
       <div className={cn(
         "relative flex items-center justify-center", 
-        isSm ? "w-6 h-6" : isLg ? "w-11 h-11" : "w-8 h-8"
+        isSm ? "w-6 h-6" : isLg ? "w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 xl:w-11 xl:h-11" : "w-8 h-8"
       )}>
         {/* Invisible range input overlaid exactly on the knob cap for 1:1 drag responsiveness */}
         <input 
@@ -70,14 +70,14 @@ export function RotaryKnob({ label, value, onChange, disabled = false, colorClas
           style={{ transform: `rotate(${rotationAngle}deg)` }}
           className={cn(
             "rounded-full bg-gradient-to-b from-zinc-800 to-zinc-950 border flex items-center justify-center shadow relative pointer-events-none z-10 transition-colors duration-300",
-            isSm ? "w-5.5 h-5.5" : isLg ? "w-10 h-10" : "w-7.5 h-7.5",
+            isSm ? "w-5.5 h-5.5" : isLg ? "w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 xl:w-10 xl:h-10" : "w-7.5 h-7.5",
             disabled ? "border-zinc-900" : "border-zinc-700"
           )}
         >
           {/* Active pointer tick marker */}
           <div className={cn(
             "absolute top-0.5 rounded-full",
-            isSm ? "h-1.5 w-[1px]" : isLg ? "h-3 w-[2px] top-1" : "h-2 w-[1.5px]",
+            isSm ? "h-1.5 w-[1px]" : isLg ? "h-2 w-[1.5px] top-0.5 md:h-2.5 md:w-[2px] xl:h-3 xl:top-1" : "h-2 w-[1.5px]",
             disabled ? "bg-zinc-800" : "bg-primary shadow-[0_0_3px_#d8163f]"
           )} />
           <div className="absolute inset-0.5 rounded-full bg-gradient-to-tr from-transparent via-white/5 to-transparent" />
@@ -86,7 +86,7 @@ export function RotaryKnob({ label, value, onChange, disabled = false, colorClas
 
       <span className={cn(
         "text-zinc-600 font-mono select-none font-bold",
-        isLg ? "text-[7.5px] mt-1" : "text-[6px] mt-0.5"
+        isLg ? "text-[5.5px] sm:text-[6px] md:text-[6.5px] xl:text-[7.5px] mt-0.5 xl:mt-1" : "text-[6px] mt-0.5"
       )}>
         {value === 50 ? "0" : value < 50 ? `-${Math.round((50 - value) / 5 * 1.2)}` : `+${Math.round((value - 50) / 5 * 1.2)}`}
       </span>
