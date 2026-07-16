@@ -709,53 +709,6 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
         </div>
 
       </div>
-
-      {/* 3. Hardware Premium LCD Panel Display */}
-      <div className="w-full bg-zinc-950 border border-zinc-900 rounded-lg p-2.5 font-mono text-[9px] shadow-inner flex flex-col gap-1 select-none shrink-0 border-l-2" style={{ borderLeftColor: themeColor }}>
-        
-        {/* LCD Status Indicators */}
-        <div className="flex items-center justify-between text-zinc-500 text-[6.5px] tracking-widest border-b border-zinc-900 pb-1 uppercase font-black">
-          <span>DECK_{deckId} STATE LOG</span>
-          <span style={{ color: isLocked ? 'rgb(234,179,8)' : deck?.isPlaying ? themeColor : 'rgb(113,113,122)' }}>
-            {isLocked ? "ACCESS_LOCKED" : deck?.isPlaying ? "● PLAYING" : "■ PAUSED"}
-          </span>
-        </div>
-
-        {/* Current loaded track metadata */}
-        <div className="flex flex-col mt-0.5">
-          <span className="text-[5.5px] text-zinc-600 uppercase tracking-widest font-black mb-0.5">TRACK NAME</span>
-          <span className="font-black truncate tracking-wider text-zinc-300 font-mono uppercase">
-            {isLocked ? "LOCKED DECK (PREVIEW ONLY)" : deck?.title || "NO TRACK LOADED"}
-          </span>
-        </div>
-
-        {/* Tempo, Playhead and Sync values */}
-        <div className="grid grid-cols-3 gap-2 mt-1.5 border-t border-zinc-900/50 pt-1.5 select-none">
-          <div className="flex flex-col">
-            <span className="text-[5px] text-zinc-600 uppercase tracking-widest font-bold">SPEED</span>
-            <span className="font-bold text-zinc-400">
-              {isLocked ? "130.00 BPM" : `${(deck?.bpm * (1 + (deck?.pitch || 0) / 100)).toFixed(2)} BPM`}
-            </span>
-          </div>
-          <div className="flex flex-col text-center">
-            <span className="text-[5px] text-zinc-600 uppercase tracking-widest font-bold">PLAYHEAD</span>
-            <span className="font-bold text-zinc-400 font-mono">
-              {isLocked ? "LOCKED" : `${(deck?.progress || 0).toFixed(2)}s`}
-            </span>
-          </div>
-          <div className="flex flex-col text-right">
-            <span className="text-[5px] text-zinc-600 uppercase tracking-widest font-bold">SYNC STATUS</span>
-            <span className={cn(
-              "font-black text-mono tracking-wide uppercase transition-colors duration-300",
-              deck?.syncEnabled ? "text-emerald-400" : "text-zinc-600"
-            )}>
-              {deck?.syncEnabled ? "SYNCED" : "OFF"}
-            </span>
-          </div>
-        </div>
-
-      </div>
-
     </div>
   );
 }

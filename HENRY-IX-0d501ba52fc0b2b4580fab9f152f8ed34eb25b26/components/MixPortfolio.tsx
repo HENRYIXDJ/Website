@@ -2243,9 +2243,18 @@ function MixArchive({
               })}
 
               {/* Waveforms */}
+              {/* Waveforms */}
               {([3, 1, 2, 4] as const).map(id => {
                 const isLeft = (id === 1 || id === 3);
                 const isActive = isLeft ? (leftActiveDeck === id) : (rightActiveDeck === id);
+                const deck = decks[id];
+                const isLocked = deck?.id === 'locked';
+                const themeColor = 
+                  id === 1 ? 'rgba(211,15,49,1)' : // red
+                  id === 2 ? 'rgba(34,211,238,1)' : // cyan
+                  id === 3 ? 'rgba(16,185,129,1)' : // green
+                  'rgba(234,179,8,1)'; // yellow
+                  
                 return (
                   <div 
                     key={`wave-container-${id}`}
@@ -2256,21 +2265,69 @@ function MixArchive({
                     )}
                   >
                     {isStacked ? renderStackedWaveform(id) : (
-                      <div className="bg-zinc-950 border border-zinc-900/50 rounded-xl p-1.5 flex flex-col justify-center items-center w-full shadow-md">
-                        <div 
-                          className="text-[7.5px] font-mono tracking-widest font-black uppercase self-start mb-1 px-1"
-                          style={{
-                            color: id === 1 ? 'rgba(211,15,49,1)' : id === 2 ? 'rgba(34,211,238,1)' : id === 3 ? 'rgba(16,185,129,1)' : 'rgba(234,179,8,1)'
-                          }}
-                        >
-                          DECK {id} WAVEFORM
+                      <div 
+                        className="bg-zinc-950 border border-zinc-900/60 rounded-xl p-2 md:p-2.5 flex flex-col gap-2 w-full shadow-md border-l-2 select-none" 
+                        style={{ borderLeftColor: themeColor }}
+                      >
+                        {/* LCD State Log Info Header (combined) */}
+                        <div className="w-full flex flex-col gap-1 font-mono text-[9px]">
+                          {/* LCD Status Indicators */}
+                          <div className="flex items-center justify-between text-zinc-500 text-[6.5px] tracking-widest border-b border-zinc-900 pb-1 uppercase font-black">
+                            <span>DECK_{id} STATE LOG</span>
+                            <span style={{ color: isLocked ? 'rgb(234,179,8)' : deck?.isPlaying ? themeColor : 'rgb(113,113,122)' }}>
+                              {isLocked ? "ACCESS_LOCKED" : deck?.isPlaying ? "● PLAYING" : "■ PAUSED"}
+                            </span>
+                          </div>
+
+                          {/* Track Name */}
+                          <div className="flex flex-col mt-0.5">
+                            <span className="text-[5.5px] text-zinc-600 uppercase tracking-widest font-black mb-0.5 leading-none">TRACK NAME</span>
+                            <span className="font-black truncate tracking-wider text-zinc-300 font-mono uppercase text-[9.5px] leading-none">
+                              {isLocked ? "LOCKED DECK (PREVIEW ONLY)" : deck?.title || "NO TRACK LOADED"}
+                            </span>
+                          </div>
+
+                          {/* Tempo, Playhead and Sync values */}
+                          <div className="grid grid-cols-3 gap-2 mt-1 border-t border-zinc-900/50 pt-1 select-none">
+                            <div className="flex flex-col">
+                              <span className="text-[5px] text-zinc-600 uppercase tracking-widest font-bold leading-none mb-0.5">SPEED</span>
+                              <span className="font-bold text-zinc-400 text-[8.5px] leading-none">
+                                {isLocked ? "130.00 BPM" : `${(deck?.bpm * (1 + (deck?.pitch || 0) / 100)).toFixed(2)} BPM`}
+                              </span>
+                            </div>
+                            <div className="flex flex-col text-center">
+                              <span className="text-[5px] text-zinc-600 uppercase tracking-widest font-bold leading-none mb-0.5">PLAYHEAD</span>
+                              <span className="font-bold text-zinc-400 font-mono text-[8.5px] leading-none">
+                                {isLocked ? "LOCKED" : `${(deck?.progress || 0).toFixed(2)}s`}
+                              </span>
+                            </div>
+                            <div className="flex flex-col text-right">
+                              <span className="text-[5px] text-zinc-600 uppercase tracking-widest font-bold leading-none mb-0.5">SYNC STATUS</span>
+                              <span className={cn(
+                                "font-black text-mono tracking-wide uppercase transition-colors duration-300 text-[8.5px] leading-none",
+                                deck?.syncEnabled ? "text-emerald-400" : "text-zinc-600"
+                              )}>
+                                {deck?.syncEnabled ? "SYNCED" : "OFF"}
+                              </span>
+                            </div>
+                          </div>
                         </div>
-                        <SingleDeckWaveform 
-                          deckId={id} 
-                          deck={decks[id]} 
-                          isDepth={isDepth} 
-                          audioElementsRef={audioElementsRef} 
-                        />
+
+                        {/* Scrolling Waveform */}
+                        <div className="w-full relative bg-black/40 rounded p-1 border border-zinc-900/50 flex flex-col justify-center items-center">
+                          <div 
+                            className="text-[6.5px] font-mono tracking-widest font-black uppercase self-start mb-0.5 px-0.5"
+                            style={{ color: themeColor }}
+                          >
+                            WAVE DISPLAY
+                          </div>
+                          <SingleDeckWaveform 
+                            deckId={id} 
+                            deck={deck} 
+                            isDepth={isDepth} 
+                            audioElementsRef={audioElementsRef} 
+                          />
+                        </div>
                       </div>
                     )}
                   </div>
