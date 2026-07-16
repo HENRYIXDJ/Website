@@ -15,39 +15,125 @@ interface RotaryKnobProps {
   onChange: (val: number) => void;
   disabled?: boolean;
   colorClass?: string;
-  size?: "sm" | "md" | "lg";
+  size?: "sm" | "md" | "lg" | "flex";
 }
 
 export function RotaryKnob({ label, value, onChange, disabled = false, colorClass = "border-primary", size = "md" }: RotaryKnobProps) {
   const rotationAngle = (value - 50) * 2.7; // 270 degree sweep from 7 to 5 o'clock
   const isSm = size === "sm";
   const isLg = size === "lg";
+  const isFlex = size === "flex";
   
+  const containerRef = useRef<HTMLDivElement>(null);
+  const lastUpdateRef = useRef({ time: 0, value: value });
+  
+  // Track value changes in ref
+  useEffect(() => {
+    lastUpdateRef.current.value = value;
+  }, [value]);
+
+  // Handle high-precision wheel scroll adjustment when input is focused/clicked
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const onWheel = (e: WheelEvent) => {
+      const input = container.querySelector('input');
+      // Only adjust value if user has clicked/focused the input element
+      if (document.activeElement !== input || disabled) return;
+
+      e.preventDefault();
+
+      // Slow/precise wheel adjustments by 0.5 per notch
+      const delta = -Math.sign(e.deltaY) * 0.5;
+      let newValue = lastUpdateRef.current.value + delta;
+
+      const center = 50;
+      const snapThreshold = 1.5;
+
+      // Apply magnetic snap lock to 50 (noon)
+      if (Math.abs(newValue - center) < snapThreshold) {
+        if (lastUpdateRef.current.value !== center) {
+          newValue = center;
+          playClick(880, 'sine', 0.004);
+        }
+      } else {
+        // Snap to nearest integer if change is very precise
+        const nearestInt = Math.round(newValue);
+        if (Math.abs(newValue - nearestInt) < 0.15) {
+          newValue = nearestInt;
+        }
+      }
+
+      newValue = Math.max(0, Math.min(100, newValue));
+      onChange(newValue);
+    };
+
+    container.addEventListener('wheel', onWheel, { passive: false });
+    return () => {
+      container.removeEventListener('wheel', onWheel);
+    };
+  }, [onChange, disabled]);
+
   return (
-    <div className="flex flex-col items-center select-none cursor-pointer relative group">
+    <div ref={containerRef} className="flex flex-col items-center select-none cursor-pointer relative group">
       <span className={cn(
         "text-zinc-500 font-mono tracking-widest uppercase font-bold", 
-        isSm ? "text-[5.5px] mb-0.5" : isLg ? "text-[8px] mb-1.5" : "text-[6.5px] mb-1"
+        isFlex ? "text-[min(8.5px,max(6px,8.5cqw))] mb-[4cqw]" : (isSm ? "text-[5.5px] mb-0.5" : isLg ? "text-[6px] sm:text-[6.5px] md:text-[7px] xl:text-[8px] mb-1 xl:mb-1.5" : "text-[6.5px] mb-1")
       )}>
         {label}
       </span>
       
-      <div className={cn(
-        "relative flex items-center justify-center", 
-        isSm ? "w-6 h-6" : isLg ? "w-11 h-11" : "w-8 h-8"
-      )}>
+      <div 
+        style={isFlex ? {
+          width: 'min(44px, max(24px, 48cqw))',
+          height: 'min(44px, max(24px, 48cqw))'
+        } : undefined}
+        className={cn(
+          "relative flex items-center justify-center", 
+          isFlex ? "" : (isSm ? "w-6 h-6" : isLg ? "w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 xl:w-11 xl:h-11" : "w-8 h-8")
+        )}
+      >
         {/* Invisible range input overlaid exactly on the knob cap for 1:1 drag responsiveness */}
         <input 
           type="range"
           min="0"
           max="100"
+          step="0.1"
           value={value}
           onChange={(e) => {
             if (!disabled) {
-              onChange(Number(e.target.value));
-              if (Math.abs(Number(e.target.value) - 50) < 3) {
-                playClick(880, 'sine', 0.004); // Noon snap tactile blip
+              const now = performance.now();
+              const rawValue = Number(e.target.value);
+              
+              const dt = now - lastUpdateRef.current.time;
+              const dp = Math.abs(rawValue - lastUpdateRef.current.value);
+              const velocity = dt > 0 ? dp / dt : 0;
+              
+              lastUpdateRef.current = { time: now, value: rawValue };
+
+              let targetValue = rawValue;
+              const center = 50;
+              const snapThreshold = 2.0;
+
+              // High-precision magnetic locking to Noon center
+              if (Math.abs(rawValue - center) < snapThreshold) {
+                // Snap if velocity is low (precise movement)
+                if (velocity < 0.15) {
+                  targetValue = center;
+                  if (value !== center) {
+                    playClick(880, 'sine', 0.004);
+                  }
+                }
+              } else {
+                // Snap to nearest integer if velocity is low
+                const nearestInt = Math.round(rawValue);
+                if (velocity < 0.08 && Math.abs(rawValue - nearestInt) < 0.25) {
+                  targetValue = nearestInt;
+                }
               }
+
+              onChange(Math.max(0, Math.min(100, targetValue)));
             }
           }}
           disabled={disabled}
@@ -67,17 +153,23 @@ export function RotaryKnob({ label, value, onChange, disabled = false, colorClas
         
         {/* Rotating dial body */}
         <motion.div 
-          style={{ transform: `rotate(${rotationAngle}deg)` }}
+          style={{ 
+            transform: `rotate(${rotationAngle}deg)`,
+            ...(isFlex ? {
+              width: 'min(38px, max(20px, 42cqw))',
+              height: 'min(38px, max(20px, 42cqw))'
+            } : {})
+          }}
           className={cn(
             "rounded-full bg-gradient-to-b from-zinc-800 to-zinc-950 border flex items-center justify-center shadow relative pointer-events-none z-10 transition-colors duration-300",
-            isSm ? "w-5.5 h-5.5" : isLg ? "w-10 h-10" : "w-7.5 h-7.5",
+            isFlex ? "" : (isSm ? "w-5.5 h-5.5" : isLg ? "w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 xl:w-10 xl:h-10" : "w-7.5 h-7.5"),
             disabled ? "border-zinc-900" : "border-zinc-700"
           )}
         >
           {/* Active pointer tick marker */}
           <div className={cn(
             "absolute top-0.5 rounded-full",
-            isSm ? "h-1.5 w-[1px]" : isLg ? "h-3 w-[2px] top-1" : "h-2 w-[1.5px]",
+            isFlex ? "h-[20%] w-[1.5px]" : (isSm ? "h-1.5 w-[1px]" : isLg ? "h-2 w-[1.5px] top-0.5 md:h-2.5 md:w-[2px] xl:h-3 xl:top-1" : "h-2 w-[1.5px]"),
             disabled ? "bg-zinc-800" : "bg-primary shadow-[0_0_3px_#d8163f]"
           )} />
           <div className="absolute inset-0.5 rounded-full bg-gradient-to-tr from-transparent via-white/5 to-transparent" />
@@ -86,7 +178,7 @@ export function RotaryKnob({ label, value, onChange, disabled = false, colorClas
 
       <span className={cn(
         "text-zinc-600 font-mono select-none font-bold",
-        isLg ? "text-[7.5px] mt-1" : "text-[6px] mt-0.5"
+        isFlex ? "text-[min(8px,max(5.5px,7.5cqw))] mt-[2cqw]" : (isLg ? "text-[5.5px] sm:text-[6px] md:text-[6.5px] xl:text-[7.5px] mt-0.5 xl:mt-1" : "text-[6px] mt-0.5")
       )}>
         {value === 50 ? "0" : value < 50 ? `-${Math.round((50 - value) / 5 * 1.2)}` : `+${Math.round((value - 50) / 5 * 1.2)}`}
       </span>

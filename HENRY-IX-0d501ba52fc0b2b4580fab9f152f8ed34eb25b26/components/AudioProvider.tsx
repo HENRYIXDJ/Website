@@ -92,6 +92,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     highShelf: BiquadFilterNode;
     filterNode: BiquadFilterNode;
     gainNode: GainNode;
+    analyserNode: AnalyserNode;
   }>>({});
 
   const audioElementsRef = useRef<Record<number, HTMLAudioElement | null>>({});
@@ -181,6 +182,9 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     const gainNode = ctx.createGain();
     gainNode.gain.value = 0;
 
+    const analyserNode = ctx.createAnalyser();
+    analyserNode.fftSize = 256;
+
     trimNode.connect(lowShelf);
     lowShelf.connect(midPeak);
     midPeak.connect(highShelf);
@@ -188,7 +192,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     filterNode.connect(gainNode);
     gainNode.connect(masterAnalyserRef.current!);
 
-    deckNodesRef.current[deckId] = { trimNode, lowShelf, midPeak, highShelf, filterNode, gainNode };
+    deckNodesRef.current[deckId] = { trimNode, lowShelf, midPeak, highShelf, filterNode, gainNode, analyserNode };
 
     const audio = new Audio();
     audio.crossOrigin = 'anonymous';
@@ -198,7 +202,8 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     audioElementsRef.current[deckId] = audio;
 
     const source = ctx.createMediaElementSource(audio);
-    source.connect(trimNode);
+    source.connect(analyserNode);
+    analyserNode.connect(trimNode);
     mediaSourcesRef.current[deckId] = source;
 
     // Load metadata when available
@@ -896,6 +901,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     if (widget) { try { widget.pause(); } catch (e) {} }
 
     if (isLocal) {
+      const firstBeatOffset = track.firstBeatOffset || 0.0;
       if (audio) {
         const absoluteUrl = track.url.startsWith('blob:') || track.url.startsWith('http')
           ? track.url
@@ -905,81 +911,33 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
           audio.src = absoluteUrl;
           audio.load();
         }
-        
-        // Attempt synchronous play first
-        playPendingRef.current[deckId] = true;
-        if (deck.syncEnabled) {
-          alignSyncPlayback(deckId);
-        }
-        audio.play()
-          .then(() => { playPendingRef.current[deckId] = false; })
-          .catch(err => {
-            playPendingRef.current[deckId] = false;
-            if (err.name !== 'AbortError') {
-              console.warn(`Synchronous play attempt on switch failed on deck ${deckId}:`, err.message);
-              
-              // Wait for audio to be ready before playing (fixes "no supported sources" error)
-              const playWhenReady = () => {
-                if (audio.readyState >= 2) { // HAVE_CURRENT_DATA or better
-                  const freshDeck = useAudioStore.getState().decks[deckId];
-                  if (freshDeck?.syncEnabled) {
-                    alignSyncPlayback(deckId);
-                  }
-                  playPendingRef.current[deckId] = true;
-                  audio.play()
-                    .then(() => { playPendingRef.current[deckId] = false; })
-                    .catch(err2 => {
-                      playPendingRef.current[deckId] = false;
-                      if (err2.name !== 'AbortError') {
-                        console.warn(`Play failed on deck ${deckId}:`, err2.message);
-                        setDeck(deckId, { isPlaying: false });
-                      }
-                    });
-                  audio.removeEventListener('canplay', playWhenReady);
-                  audio.removeEventListener('error', handlePlayError);
-                }
-              };
-              
-              const handlePlayError = () => {
-                playPendingRef.current[deckId] = false;
-                console.error(`Audio load failed on deck ${deckId}:`, audio.error?.message);
-                setDeck(deckId, { isPlaying: false, isReady: false });
-                audio.removeEventListener('canplay', playWhenReady);
-              };
-              
-              // If already ready, play immediately
-              if (audio.readyState >= 2) {
-                playWhenReady();
-              } else {
-                // Wait for canplay event
-                audio.addEventListener('canplay', playWhenReady, { once: true });
-                audio.addEventListener('error', handlePlayError, { once: true });
-              }
-            }
-          });
+        seekToFirstBeatOneOfBar(deckId, firstBeatOffset, track.bpm);
       }
       setDeck(deckId, {
         id: track.id, title: track.title, url: track.url, link: track.link,
-        bpm: track.bpm, isPlaying: true, progress: 0, scMode: false, isReady: false,
+        bpm: track.bpm, isPlaying: false, progress: audio ? audio.currentTime : 0, scMode: false, isReady: false,
         waveformPeaks: trackWaveforms[track.id] || generateStaticPeaks(500),
         cuePoints: track.cuePoints,
+        firstBeatOffset: firstBeatOffset,
       });
     } else {
       // SoundCloud mode — lazily mount iframe if not yet done
+      const firstBeatOffset = track.firstBeatOffset || 0.0;
       if (!mountedIframeIds.current.has(deckId)) {
         mountedIframeIds.current.add(deckId);
         setMountedDecks(prev => [...prev, deckId]);
       }
       setDeck(deckId, {
         id: track.id, title: track.title, url: track.url, link: track.link,
-        bpm: track.bpm, isPlaying: true, progress: 0, scMode: true, isReady: false,
+        bpm: track.bpm, isPlaying: false, progress: 0, scMode: true, isReady: false,
         waveformPeaks: trackWaveforms[track.id] || generateStaticPeaks(500),
         cuePoints: track.cuePoints,
+        firstBeatOffset: firstBeatOffset,
       });
       if (widget) {
         try {
           widget.load(track.url, {
-            auto_play: true, hide_related: true, show_comments: false,
+            auto_play: false, hide_related: true, show_comments: false,
             show_user: false, show_reposts: false, visual: false,
           });
         } catch (e) {}
@@ -1092,6 +1050,65 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   ), [isMuted, preloaderComplete]);
   // NOTE: deck/crossfader state are now getters that fetch fresh Zustand state.
   // Components needing reactive updates should subscribe via useAudioStore() directly.
+
+  // Real-time audio onset detection system for automatic beatgrid calibration
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    let frameId: number;
+    const bufferLength = 128;
+    const dataArray = new Uint8Array(bufferLength);
+
+    const checkOnset = () => {
+      const state = useAudioStore.getState();
+      [1, 2, 3, 4].forEach(deckId => {
+        const deck = state.decks[deckId];
+        const audio = audioElementsRef.current[deckId];
+        const nodes = deckNodesRef.current[deckId];
+
+        // Only detect onset if deck is playing, not in SoundCloud mode,
+        // and its firstBeatOffset hasn't been set yet (or is exactly 0)
+        if (
+          deck &&
+          deck.isPlaying &&
+          !deck.scMode &&
+          audio &&
+          nodes &&
+          nodes.analyserNode &&
+          (!deck.firstBeatOffset || deck.firstBeatOffset === 0)
+        ) {
+          const analyser = nodes.analyserNode;
+          analyser.getByteTimeDomainData(dataArray);
+
+          // Calculate Root-Mean-Square (RMS) amplitude
+          let sum = 0;
+          for (let i = 0; i < bufferLength; i++) {
+            const val = (dataArray[i] - 128) / 128;
+            sum += val * val;
+          }
+          const rms = Math.sqrt(sum / bufferLength);
+
+          // Threshold: if RMS is > 0.012 (sound has started playing!)
+          // Check currentTime > 0.02 to avoid initial click or pop at 0.00
+          if (rms > 0.012 && audio.currentTime > 0.02) {
+            const detectedOffset = audio.currentTime;
+            console.log(`[ONSET] Dynamic sound onset detected for Deck ${deckId} at ${detectedOffset.toFixed(3)}s`);
+            
+            // Align firstBeatOffset in Zustand store
+            setDeck(deckId, { firstBeatOffset: detectedOffset });
+            
+            // Seek playhead to snap it instantly to the newly aligned starting beat
+            audio.currentTime = detectedOffset;
+            setDeck(deckId, { progress: detectedOffset });
+          }
+        }
+      });
+      frameId = requestAnimationFrame(checkOnset);
+    };
+
+    frameId = requestAnimationFrame(checkOnset);
+    return () => cancelAnimationFrame(frameId);
+  }, [setDeck]);
 
   return (
     <AudioContext.Provider value={contextValue}>

@@ -341,3 +341,24 @@ html:has(.home-snap-container) {
   scroll-behavior: smooth;
 }
 
+/* ─── CUSTOM SCROLLBARS (BLACK & RED Theme) ───────────────────── */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #09090b; /* Dark zinc black */
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #D8163F; /* Site primary red */
+  border-radius: 9999px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #f43f5e; /* Lighter hover red */
+}
+/* Firefox scrollbar support */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #D8163F #09090b;
+}
+

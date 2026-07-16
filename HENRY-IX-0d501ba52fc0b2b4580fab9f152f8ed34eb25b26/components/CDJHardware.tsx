@@ -39,11 +39,77 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
 
   const audio = audioElementsRef?.current?.[deckId];
 
+  const faderContainerRef = useRef<HTMLDivElement>(null);
+  const lastUpdateRef = useRef({ time: 0, value: deck?.pitch || 0 });
+
+  useEffect(() => {
+    lastUpdateRef.current.value = deck?.pitch || 0;
+  }, [deck?.pitch]);
+
+  useEffect(() => {
+    const container = faderContainerRef.current;
+    if (!container) return;
+
+    const onWheel = (e: WheelEvent) => {
+      const input = container.querySelector('input');
+      if (document.activeElement !== input || isLocked) return;
+
+      e.preventDefault();
+
+      // Pitch fader scroll sensitivity: 0.02% per step
+      const delta = Math.sign(e.deltaY) * 0.02;
+      let newValue = lastUpdateRef.current.value + delta;
+
+      const center = 0.0;
+      const snapThreshold = 0.1;
+
+      if (Math.abs(newValue - center) < snapThreshold) {
+        if (lastUpdateRef.current.value !== center) {
+          newValue = center;
+          playClick(880, 'sine', 0.004);
+        }
+      } else {
+        const nearestInt = Math.round(newValue);
+        if (Math.abs(newValue - nearestInt) < 0.03) {
+          newValue = nearestInt;
+        }
+      }
+
+      newValue = Math.max(-8.0, Math.min(8.0, newValue));
+      setDeck(deckId, { pitch: newValue, syncEnabled: false });
+    };
+
+    container.addEventListener('wheel', onWheel, { passive: false });
+    return () => {
+      container.removeEventListener('wheel', onWheel);
+    };
+  }, [deckId, isLocked, setDeck]);
+
   // --- Hot Cue Delete Mode State ---
   const [deleteMode, setDeleteMode] = useState(false);
 
   // --- Simulated Long Press for 4-Beat Loop ---
   const loopInTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // --- Jog Wheel Dynamic Resizing ---
+  const jogContainerRef = useRef<HTMLDivElement>(null);
+  const [jogSize, setJogSize] = useState(144); // default 144px (w-36)
+  const innerPlatterSize = jogSize * (80 / 144);
+
+  useEffect(() => {
+    if (!jogContainerRef.current) return;
+    const observer = new ResizeObserver((entries) => {
+      for (let entry of entries) {
+        const { width, height } = entry.contentRect;
+        const size = Math.min(width, height);
+        // Use 85% of the smaller dimension, clamped between 144px (w-36) and 210px (w-52)
+        const targetSize = Math.max(144, Math.min(210, size * 0.85));
+        setJogSize(targetSize);
+      }
+    });
+    observer.observe(jogContainerRef.current);
+    return () => observer.disconnect();
+  }, []);
 
   // Clean timers on unmount
   useEffect(() => {
@@ -85,8 +151,17 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
     } else {
       // 2. If paused:
       if (Math.abs(currentProgress - mainCueTime) > 0.08) {
-        // Paused at a non-cue point: set new cue point
-        setDeck(deckId, { mainCue: currentProgress });
+        // Paused at a non-cue point: set new cue point snapped to closest beat
+        const bpm = deck.bpm || 120;
+        const pitch = deck.pitch || 0;
+        const currentBpm = bpm * (1 + pitch / 100);
+        const beatInterval = 60 / currentBpm;
+        const offset = deck.firstBeatOffset || 0;
+        const elapsed = currentProgress - offset;
+        const closestBeatIndex = Math.round(elapsed / beatInterval);
+        const snappedTime = Math.max(0, offset + closestBeatIndex * beatInterval);
+
+        setDeck(deckId, { mainCue: snappedTime });
       } else {
         // Paused exactly at cue point: start cue stutter (play while held)
         setDeck(deckId, { isPlaying: true, isCueStuttering: true });
@@ -139,12 +214,21 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
     }
 
     if (savedTime === null || savedTime === undefined) {
-      // Save Hot Cue: record current playhead position
+      // Save Hot Cue: snap to closest beat of the beatgrid
+      const bpm = deck.bpm || 120;
+      const pitch = deck.pitch || 0;
+      const currentBpm = bpm * (1 + pitch / 100);
+      const beatInterval = 60 / currentBpm;
+      const offset = deck.firstBeatOffset || 0;
+      const elapsed = currentProgress - offset;
+      const closestBeatIndex = Math.round(elapsed / beatInterval);
+      const snappedTime = Math.max(0, offset + closestBeatIndex * beatInterval);
+
       playClick(880, 'sine', 0.02); // high beep
       setDeck(deckId, {
         hotCues: {
           ...deck.hotCues,
-          [pad]: currentProgress
+          [pad]: snappedTime
         }
       });
     } else {
@@ -182,22 +266,34 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
     const currentProgress = deck.progress || 0;
     playClick(900, 'sine', 0.015);
 
+    const bpm = deck.bpm || 120;
+    const pitch = deck.pitch || 0;
+    const currentBpm = bpm * (1 + pitch / 100);
+    const beatInterval = 60 / currentBpm;
+    const offset = deck.firstBeatOffset || 0;
+    const elapsed = currentProgress - offset;
+    const closestBeatIndex = Math.round(elapsed / beatInterval);
+    const snappedTime = Math.max(0, offset + closestBeatIndex * beatInterval);
+
     // Setup 4-beat simulated long press: 500ms
     loopInTimerRef.current = setTimeout(() => {
       // LONG PRESS: Auto-calculate 4 beats loop based on BPM
       playClick(1050, 'sine', 0.04);
-      const beatDuration = 60 / (deck.bpm || 120);
-      const loopOutTime = currentProgress + (beatDuration * 4);
+      const loopOutTime = snappedTime + (beatInterval * 4);
       setDeck(deckId, { 
-        loopIn: currentProgress, 
+        loopIn: snappedTime, 
         loopOut: loopOutTime, 
-        isLoopActive: true 
+        isLoopActive: true,
+        mainCue: snappedTime
       });
       loopInTimerRef.current = null;
     }, 500);
 
-    // SHORT PRESS DEFAULT (until/unless timer fires): Set loopIn
-    setDeck(deckId, { loopIn: currentProgress });
+    // SHORT PRESS DEFAULT (until/unless timer fires): Set loopIn and mainCue
+    setDeck(deckId, { 
+      loopIn: snappedTime,
+      mainCue: snappedTime
+    });
   };
 
   const handleLoopInUp = (e: React.PointerEvent) => {
@@ -354,7 +450,7 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
   const sessionImg = getSessionImage(deck?.title || '');
 
   return (
-    <div className="w-full flex flex-col gap-3 p-3 bg-zinc-900 border border-zinc-800 rounded-2xl shadow-[0_4px_30px_rgba(0,0,0,0.8)] relative select-none">
+    <div className="w-full h-full flex flex-col justify-between gap-3 p-3 bg-zinc-900 border border-zinc-800 rounded-2xl shadow-[0_4px_30px_rgba(0,0,0,0.8)] relative select-none">
       
       {/* 1. RGB Hot Cues Row (A-H) */}
       <div className="w-full flex items-center justify-between gap-1.5 border-b border-zinc-800 pb-2">
@@ -412,314 +508,315 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
         </button>
       </div>
 
-      {/* 2. Main Hardware Panel */}
-      <div className="w-full flex items-stretch justify-between gap-3 relative">
+      {/* Symmetrical Layout Split below Hot Cues */}
+      <div className="w-full flex items-stretch justify-between gap-3 flex-grow min-h-0">
         
-        {/* Left Side: Loop Panel & Main Controls */}
-        <div className="flex flex-col justify-between w-20 shrink-0">
+        {/* Left/Center Column (Loop Row + Main Controls) */}
+        <div className="flex flex-col justify-between flex-grow min-h-0 gap-3">
           
-          {/* Looping Controls */}
-          <div className="flex flex-col gap-1.5 border-b border-zinc-800/50 pb-2">
-            <span className="text-[5.5px] text-zinc-600 font-mono tracking-widest font-bold uppercase w-full">LOOPING</span>
+          {/* Loop Row (under hot cues, aligned left) */}
+          <div className="w-full flex items-end justify-start gap-4 px-1.5 border-b border-zinc-800/40 pb-3 shrink-0">
+            <span className="text-[5.5px] text-zinc-500 font-mono tracking-widest font-bold uppercase mb-3 shrink-0">LOOP</span>
             
             {/* IN / -4 BEAT */}
-            <div className="flex flex-col gap-0.5">
+            <div className="flex flex-col items-center gap-1 shrink-0">
+              <span className="text-[5.5px] sm:text-[6px] text-zinc-500 font-mono font-bold tracking-widest uppercase leading-none h-3.5 flex items-center">IN / -4 BEAT</span>
               <button
                 onPointerDown={handleLoopInDown}
                 onPointerUp={handleLoopInUp}
                 className={cn(
-                  "h-7 rounded-md font-mono text-[7px] font-black tracking-widest border transition-all cursor-pointer leading-none uppercase flex flex-col items-center justify-center",
-                  deck?.loopIn !== null && deck?.loopIn !== undefined
-                    ? "bg-amber-500/20 border-amber-500/40 text-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.2)]"
+                  "w-12 h-12 rounded-full border-2 transition-all cursor-pointer shadow-lg shrink-0 flex items-center justify-center font-mono text-[8.5px] font-black tracking-[0.1em]",
+                  (deck?.loopIn !== null && deck?.loopIn !== undefined)
+                    ? "bg-amber-500 border-amber-400 text-black shadow-[0_0_12px_rgba(245,158,11,0.6)]"
                     : "bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700"
                 )}
               >
-                <span>IN</span>
-                <span className="text-[5px] text-zinc-600 font-normal mt-0.5">-4 BEAT</span>
+                IN
               </button>
             </div>
 
             {/* OUT */}
-            <button
-              onPointerDown={handleLoopOutPress}
-              className={cn(
-                "h-7 rounded-md font-mono text-[7px] font-black tracking-widest border transition-all cursor-pointer uppercase flex items-center justify-center",
-                deck?.loopOut !== null && deck?.loopOut !== undefined
-                  ? "bg-amber-500/20 border-amber-500/40 text-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.2)]"
-                  : "bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700"
-              )}
-            >
-              OUT
-            </button>
+            <div className="flex flex-col items-center gap-1 shrink-0">
+              <span className="text-[5.5px] sm:text-[6px] text-zinc-500 font-mono font-bold tracking-widest uppercase leading-none h-3.5 flex items-center">OUT</span>
+              <button
+                onPointerDown={handleLoopOutPress}
+                className={cn(
+                  "w-12 h-12 rounded-full border-2 transition-all cursor-pointer shadow-lg shrink-0 flex items-center justify-center font-mono text-[8.5px] font-black tracking-[0.1em]",
+                  (deck?.loopOut !== null && deck?.loopOut !== undefined)
+                    ? "bg-amber-500 border-amber-400 text-black shadow-[0_0_12px_rgba(245,158,11,0.6)]"
+                    : "bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700"
+                )}
+              >
+                OUT
+              </button>
+            </div>
 
             {/* RELOOP / EXIT */}
-            <button
-              onPointerDown={handleReloopExitPress}
-              className={cn(
-                "h-7 rounded-md font-mono text-[7px] font-black tracking-widest border transition-all cursor-pointer uppercase flex items-center justify-center",
-                deck?.isLoopActive
-                  ? "bg-amber-500 border-amber-400 text-black shadow-[0_0_10px_rgba(245,158,11,0.4)]"
-                  : "bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700"
-              )}
-            >
-              RELOOP
-            </button>
+            <div className="flex flex-col items-center gap-1 shrink-0">
+              <span className="text-[5.5px] sm:text-[6px] text-zinc-500 font-mono font-bold tracking-widest uppercase leading-none h-3.5 flex items-center">RELOOP / EXIT</span>
+              <button
+                onPointerDown={handleReloopExitPress}
+                className={cn(
+                  "w-12 h-12 rounded-full border-2 transition-all cursor-pointer shadow-lg shrink-0 flex items-center justify-center font-mono text-[7px] font-black tracking-tighter leading-none text-center",
+                  deck?.isLoopActive
+                    ? "bg-amber-500 border-amber-400 text-black shadow-[0_0_12px_rgba(245,158,11,0.6)]"
+                    : "bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700"
+                )}
+              >
+                RELOOP
+              </button>
+            </div>
           </div>
 
-          {/* Transport Section (Orange CUE and Green PLAY) */}
-          <div className="flex flex-col gap-2 mt-auto pt-2">
+          {/* Left/Center Main Controls Row */}
+          <div className="w-full flex items-stretch justify-between gap-3 relative flex-grow min-h-0">
             
-            {/* CUE Button */}
-            <button
-              onPointerDown={handleCueDown}
-              onPointerUp={handleCueUp}
-              className={cn(
-                "w-12 h-12 rounded-full border-2 border-zinc-950 bg-gradient-to-b from-zinc-800 to-zinc-950 active:from-zinc-900 active:to-zinc-950 flex flex-col items-center justify-center font-mono text-[8px] font-black tracking-[0.1em] cursor-pointer relative shadow-lg shrink-0",
-                deck?.isCueStuttering || (!deck?.isPlaying && (deck?.progress || 0) > 0 && Math.abs((deck?.progress || 0) - (deck?.mainCue || 0)) < 0.05)
-                  ? "border-amber-400 text-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.5)]"
-                  : "border-zinc-800 text-zinc-500 hover:text-zinc-300"
-              )}
-            >
-              <div className="absolute inset-1 rounded-full border border-dashed border-zinc-700/20" />
-              <span>CUE</span>
-            </button>
-
-            {/* PLAY Button */}
-            <button
-              onClick={handlePlayPausePress}
-              className={cn(
-                "w-12 h-12 rounded-full border-2 border-zinc-950 bg-gradient-to-b from-zinc-800 to-zinc-950 active:from-zinc-900 active:to-zinc-950 flex flex-col items-center justify-center cursor-pointer relative shadow-lg shrink-0",
-                deck?.isPlaying
-                  ? "border-green-500 text-green-400 shadow-[0_0_15px_rgba(34,197,94,0.5)]"
-                  : "border-zinc-800 text-zinc-500 hover:text-zinc-300"
-              )}
-            >
-              <div className="absolute inset-1 rounded-full border border-dashed border-zinc-700/20" />
-              {deck?.isPlaying ? (
-                <Pause className="w-4 h-4 fill-current text-green-400" />
-              ) : (
-                <Play className="w-4 h-4 fill-current text-zinc-500 hover:text-zinc-300 ml-0.5" />
-              )}
-            </button>
-
-          </div>
-
-        </div>
-
-        {/* Center: Tactile Jog Wheel */}
-        <div className="flex-grow flex items-center justify-center relative select-none">
-          
-          {/* SKEUOMORPHIC JOG WHEEL */}
-          <div 
-            onPointerDown={handleRimDown}
-            onPointerMove={handleRimMove}
-            onPointerUp={handleRimUp}
-            className="w-36 h-36 rounded-full border-4 border-zinc-950 bg-zinc-950 flex items-center justify-center cursor-pointer relative shadow-[0_8px_24px_rgba(0,0,0,0.9)]"
-            style={{
-              backgroundImage: 'radial-gradient(circle, #27272a 35%, #18181b 36%, #18181b 50%, #09090b 51%, #09090b 70%, #27272a 71%)'
-            }}
-          >
-            {/* Grooves & Position Stripes */}
-            <div className="absolute inset-3 border border-dashed border-zinc-900/40 rounded-full pointer-events-none" />
-            <div className="absolute inset-7 border border-zinc-900/20 rounded-full pointer-events-none" />
-            <div className="absolute inset-11 border border-dashed border-zinc-900/40 rounded-full pointer-events-none" />
-
-            {/* Platter Marker Needle Ring */}
-            <div 
-              className="absolute top-0 w-0.5 h-4 pointer-events-none z-20 transition-colors duration-300"
-              style={{ backgroundColor: deck?.isPlaying ? themeColor : 'rgb(244, 63, 94)' }}
-            />
-
-            {/* Inner Platter (Spinning artwork in vinyl mode) */}
-            <div 
-              onPointerDown={handlePlatterDown}
-              onPointerMove={handlePlatterMove}
-              onPointerUp={handlePlatterUp}
-              className={cn(
-                "w-20 h-20 rounded-full border border-black overflow-hidden relative shadow-inner bg-cover bg-center select-none pointer-events-none z-10 flex items-center justify-center",
-                (deck?.isPlaying && !deck?.isCueStuttering) && "animate-[spin_1.8s_linear_infinite]" // 33.3 RPM
-              )}
-              style={{ backgroundImage: `url(${sessionImg})` }}
-            >
-              {/* Glossy Overlay */}
-              <div className="absolute inset-0 bg-gradient-to-tr from-white/10 via-transparent to-black/30" />
+            {/* Left Side: Main Controls */}
+            <div className="flex flex-col justify-end w-12 shrink-0">
               
-              {/* Center Spindle Hole */}
-              <div className="w-2.5 h-2.5 rounded-full bg-zinc-950 border border-zinc-800 shadow z-10 flex items-center justify-center">
-                <div className="w-1 h-1 rounded-full bg-zinc-900" />
+              {/* Transport Section (Orange CUE and Green PLAY) */}
+              <div className="flex flex-col gap-2 mt-auto pt-2">
+                
+                {/* CUE Button */}
+                <button
+                  onPointerDown={handleCueDown}
+                  onPointerUp={handleCueUp}
+                  className={cn(
+                    "w-12 h-12 rounded-full border-2 border-zinc-950 bg-gradient-to-b from-zinc-800 to-zinc-950 active:from-zinc-900 active:to-zinc-950 flex flex-col items-center justify-center font-mono text-[8px] font-black tracking-[0.1em] cursor-pointer relative shadow-lg shrink-0",
+                    deck?.isCueStuttering || (!deck?.isPlaying && (deck?.progress || 0) > 0 && Math.abs((deck?.progress || 0) - (deck?.mainCue || 0)) < 0.05)
+                      ? "border-amber-400 text-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.5)]"
+                      : "border-zinc-800 text-zinc-500 hover:text-zinc-300"
+                  )}
+                >
+                  <div className="absolute inset-1 rounded-full border border-dashed border-zinc-700/20" />
+                  <span>CUE</span>
+                </button>
+
+                {/* PLAY Button */}
+                <button
+                  onClick={handlePlayPausePress}
+                  className={cn(
+                    "w-12 h-12 rounded-full border-2 border-zinc-950 bg-gradient-to-b from-zinc-800 to-zinc-950 active:from-zinc-900 active:to-zinc-950 flex flex-col items-center justify-center cursor-pointer relative shadow-lg shrink-0",
+                    deck?.isPlaying
+                      ? "border-green-500 text-green-400 shadow-[0_0_15px_rgba(34,197,94,0.5)]"
+                      : "border-zinc-800 text-zinc-500 hover:text-zinc-300"
+                  )}
+                >
+                  <div className="absolute inset-1 rounded-full border border-dashed border-zinc-700/20" />
+                  {deck?.isPlaying ? (
+                    <Pause className="w-4 h-4 fill-current text-green-400" />
+                  ) : (
+                    <Play className="w-4 h-4 fill-current text-zinc-500 hover:text-zinc-300 ml-0.5" />
+                  )}
+                </button>
               </div>
             </div>
 
-          </div>
+            {/* Center: Tactile Jog Wheel */}
+            <div ref={jogContainerRef} className="flex-grow flex items-center justify-center relative select-none min-h-0 min-w-0">
+              
+              {/* SKEUOMORPHIC JOG WHEEL */}
+              <div 
+                onPointerDown={handleRimDown}
+                onPointerMove={handleRimMove}
+                onPointerUp={handleRimUp}
+                className="rounded-full border-4 border-zinc-950 bg-zinc-950 flex items-center justify-center cursor-pointer relative shadow-[0_8px_24px_rgba(0,0,0,0.9)]"
+                style={{
+                  width: `${jogSize}px`,
+                  height: `${jogSize}px`,
+                  transform: 'translate(-8px, -12px)',
+                  backgroundImage: 'radial-gradient(circle, #27272a 35%, #18181b 36%, #18181b 50%, #09090b 51%, #09090b 70%, #27272a 71%)'
+                }}
+              >
+                {/* Grooves & Position Stripes */}
+                <div className="absolute inset-3 border border-dashed border-zinc-900/40 rounded-full pointer-events-none" />
+                <div className="absolute inset-7 border border-zinc-900/20 rounded-full pointer-events-none" />
+                <div className="absolute inset-11 border border-dashed border-zinc-900/40 rounded-full pointer-events-none" />
 
+                {/* Platter Marker Needle Ring */}
+                <div 
+                  className="absolute top-0 w-0.5 h-4 pointer-events-none z-20 transition-colors duration-300"
+                  style={{ backgroundColor: deck?.isPlaying ? themeColor : 'rgb(244, 63, 94)' }}
+                />
+
+                {/* Inner Platter (Spinning artwork in vinyl mode) */}
+                <div 
+                  onPointerDown={handlePlatterDown}
+                  onPointerMove={handlePlatterMove}
+                  onPointerUp={handlePlatterUp}
+                  className={cn(
+                    "rounded-full border border-black overflow-hidden relative shadow-inner bg-cover bg-center select-none pointer-events-none z-10 flex items-center justify-center",
+                    (deck?.isPlaying && !deck?.isCueStuttering) && "animate-[spin_1.8s_linear_infinite]" // 33.3 RPM
+                  )}
+                  style={{ 
+                    width: `${innerPlatterSize}px`,
+                    height: `${innerPlatterSize}px`,
+                    backgroundImage: `url(${sessionImg})` 
+                  }}
+                >
+                  {/* Glossy Overlay */}
+                  <div className="absolute inset-0 bg-gradient-to-tr from-white/10 via-transparent to-black/30" />
+                  
+                  {/* Center Spindle Hole */}
+                  <div className="w-2.5 h-2.5 rounded-full bg-zinc-950 border border-zinc-800 shadow z-10 flex items-center justify-center">
+                    <div className="w-1 h-1 rounded-full bg-zinc-900" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* Right Side: Speed, Pitch Slider, Mode Buttons */}
-        <div className="flex flex-col justify-between w-20 shrink-0 select-none">
+        {/* Right Side Column: Tall Tempo Slider and Buttons */}
+        <div className="flex flex-col justify-between w-20 shrink-0 select-none bg-zinc-950/25 border border-zinc-900/50 rounded-xl p-2 h-full gap-2">
           
-          {/* Pitch Info & MT Toggle */}
-          <div className="flex flex-col gap-1 pb-1 border-b border-zinc-800/50">
-            <div className="flex items-center justify-between text-[5.5px] font-mono text-zinc-600 font-bold uppercase tracking-wider">
-              <span>RATE</span>
-              <span className="text-zinc-400 font-mono">
-                {deck?.pitch >= 0 ? `+${(deck?.pitch || 0).toFixed(2)}%` : `${(deck?.pitch || 0).toFixed(2)}%`}
-              </span>
-            </div>
+          {/* Top Panel: Rate display and buttons */}
+          <div className="flex flex-col gap-1.5 shrink-0 select-none w-full">
             
-            {/* Master Tempo (MT Keylock) */}
-            <button
-              onPointerDown={handleMasterTempoPress}
-              className={cn(
-                "h-5 rounded text-[7.5px] font-mono font-black tracking-widest uppercase border transition-colors cursor-pointer leading-none w-full",
-                deck?.masterTempo
-                  ? "bg-cyan-500/20 border-cyan-500/40 text-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.25)]"
-                  : "bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-300"
-              )}
-            >
-              MT
-            </button>
-          </div>
-
-          {/* Inverted CDJ Pitch Fader */}
-          <div className="relative w-full h-[120px] bg-zinc-950 border border-zinc-900 rounded-xl flex items-center justify-center shadow-inner border-b-2 my-2" style={{ borderBottomColor: themeColor }}>
-            
-            {/* Pitch detent center tick LED */}
-            <div 
-              className={cn(
-                "absolute top-1/2 -translate-y-1/2 right-1.5 w-1.5 h-1.5 rounded-full z-10 transition-colors duration-300 shadow-[0_0_6px_rgba(34,211,238,0.4)]",
-                deck?.pitch === 0 ? "bg-cyan-400 shadow-[0_0_8px_#22d3ee]" : "bg-zinc-800"
-              )}
-            />
-
-            {/* Slider Scale Line */}
-            <div className="w-[1px] h-[100px] bg-zinc-800 pointer-events-none" />
-
-            {/* Physical Handle position based on math (UP decreases tempo (-), DOWN increases tempo (+)) */}
-            <div 
-              className="absolute w-5 h-8 bg-gradient-to-b from-zinc-700 to-zinc-900 border border-zinc-600 rounded shadow flex items-center justify-center cursor-ns-resize pointer-events-none"
-              style={{
-                // Mapping: -8% (top) -> 8% (bottom)
-                // Offset math: top: calc(6px + (1 - (pitch + 8)/16) * 80px)
-                top: `calc(6px + ${(1 - ((deck?.pitch || 0) + 8) / 16) * 80}px)`
-              }}
-            >
-              <div className="w-4 h-[1px]" style={{ backgroundColor: themeColor }} />
+            {/* Rate display */}
+            <div className="flex flex-col gap-0.5 border-b border-zinc-800/50 pb-1">
+              <div className="flex items-center justify-between text-[5px] font-mono text-zinc-600 font-bold uppercase tracking-wider">
+                <span>RATE</span>
+                <span className="text-zinc-400 font-mono text-[7px]">
+                  {deck?.pitch >= 0 ? `+${(deck?.pitch || 0).toFixed(2)}%` : `${(deck?.pitch || 0).toFixed(2)}%`}
+                </span>
+              </div>
             </div>
 
-            {/* Overlaid invisible fader input */}
-            <input 
-              type="range"
-              min="-8"
-              max="8"
-              step="0.02"
-              value={-(deck?.pitch || 0)} // Invert UI logic for HTML element
-              onChange={(e) => {
-                if (isLocked) return;
-                const rawVal = parseFloat(e.target.value);
-                const targetPitch = -rawVal; // Re-invert to get actual percent value
-                setDeck(deckId, { pitch: targetPitch, syncEnabled: false });
-                if (Math.abs(targetPitch) < 0.1) {
-                  playClick(880, 'sine', 0.004);
-                }
-              }}
-              title="Adjust Pitch Slider"
-              className="absolute inset-0 opacity-0 cursor-ns-resize z-20 w-full h-full [writing-mode:bt-lr] direction-rtl"
-            />
+            {/* Sync, Mstr, Vinyl, MT Stack */}
+            <div className="flex flex-col gap-1.5 w-full">
+              {/* SYNC Button */}
+              <button
+                onPointerDown={handleSyncPress}
+                className={cn(
+                  "h-5 rounded text-[7px] font-mono tracking-widest font-black uppercase border transition-colors cursor-pointer flex justify-center items-center leading-none w-full",
+                  deck?.syncEnabled
+                    ? "bg-emerald-500 border-emerald-400 text-black shadow-[0_0_8px_rgba(16,185,129,0.3)]"
+                    : "bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-300"
+                )}
+              >
+                SYNC
+              </button>
+
+              {/* MASTER Button */}
+              <button
+                onPointerDown={handleMasterPress}
+                className={cn(
+                  "h-5 rounded text-[7px] font-mono tracking-widest font-black uppercase border transition-colors cursor-pointer flex justify-center items-center leading-none w-full",
+                  deck?.isMaster
+                    ? "bg-yellow-500 border-yellow-400 text-black shadow-[0_0_8px_rgba(234,179,8,0.3)]"
+                    : "bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-300"
+                )}
+              >
+                MSTR
+              </button>
+
+              {/* VINYL / Jog Mode Button */}
+              <button
+                onPointerDown={handleJogModePress}
+                className={cn(
+                  "h-5 rounded text-[7px] font-mono font-black tracking-widest uppercase border transition-colors cursor-pointer leading-none w-full",
+                  deck?.jogMode === 'VINYL'
+                    ? "bg-red-500/25 border-red-500/40 text-red-400 shadow-[0_0_8px_rgba(239,68,68,0.2)]"
+                    : "bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-300"
+                )}
+              >
+                {deck?.jogMode}
+              </button>
+
+              {/* MT Button */}
+              <button
+                onPointerDown={handleMasterTempoPress}
+                className={cn(
+                  "h-5 rounded text-[7px] font-mono font-black tracking-widest uppercase border transition-colors cursor-pointer leading-none w-full",
+                  deck?.masterTempo
+                    ? "bg-cyan-500/20 border-cyan-500/40 text-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.25)]"
+                    : "bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-300"
+                )}
+              >
+                MT
+              </button>
+            </div>
           </div>
 
-          {/* Symmetrical Sync/Master Mode Panel */}
-          <div className="grid grid-cols-2 gap-1.5 pt-1.5 border-t border-zinc-800/50 mt-auto">
-            
-            {/* Sync Mode */}
-            <button
-              onPointerDown={handleSyncPress}
-              className={cn(
-                "h-6 rounded text-[6.5px] font-mono tracking-widest font-black uppercase border transition-colors cursor-pointer flex flex-col justify-center items-center leading-none",
-                deck?.syncEnabled
-                  ? "bg-emerald-500 border-emerald-400 text-black shadow-[0_0_8px_rgba(16,185,129,0.3)]"
-                  : "bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-300"
-              )}
-            >
-              SYNC
-            </button>
+          {/* Bottom Panel: The Tall Tempo Slider */}
+          <div className="flex-grow flex flex-col justify-center items-center min-h-0 w-full relative pt-1">
+            <div ref={faderContainerRef} className="relative w-4 h-[90%] bg-zinc-950 border border-zinc-900 rounded-full flex items-center justify-center shadow-inner border-b-2" style={{ borderBottomColor: themeColor }}>
+              
+              {/* Pitch detent center tick LED */}
+              <div 
+                className={cn(
+                  "absolute top-1/2 -translate-y-1/2 right-0.5 w-1 h-1 rounded-full z-10 transition-colors duration-300",
+                  deck?.pitch === 0 ? "bg-cyan-400 shadow-[0_0_8px_#22d3ee]" : "bg-zinc-800"
+                )}
+              />
 
-            {/* Master Mode */}
-            <button
-              onPointerDown={handleMasterPress}
-              className={cn(
-                "h-6 rounded text-[6.5px] font-mono tracking-widest font-black uppercase border transition-colors cursor-pointer flex flex-col justify-center items-center leading-none",
-                deck?.isMaster
-                  ? "bg-yellow-500 border-yellow-400 text-black shadow-[0_0_8px_rgba(234,179,8,0.3)]"
-                  : "bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-300"
-              )}
-            >
-              MSTR
-            </button>
+              {/* Slider Scale Line */}
+              <div className="w-[1px] h-[80%] bg-zinc-800 pointer-events-none" />
+
+              {/* Physical Handle position based on percentage mapping */}
+              <div 
+                className="absolute w-5 h-7 bg-gradient-to-b from-zinc-700 to-zinc-900 border border-zinc-600 rounded shadow flex items-center justify-center cursor-ns-resize pointer-events-none z-10"
+                style={{
+                  top: `calc(${(((deck?.pitch || 0) + 8) / 16) * 90}% + 5%)`,
+                  transform: 'translateY(-50%)'
+                }}
+              >
+                <div className="w-3.5 h-[1px]" style={{ backgroundColor: themeColor }} />
+              </div>
+
+              {/* Overlaid invisible fader input */}
+              <input 
+                type="range"
+                min="-8"
+                max="8"
+                step="0.002"
+                value={-(deck?.pitch || 0)} // Invert UI logic for HTML element
+                onChange={(e) => {
+                  if (isLocked) return;
+                  const now = performance.now();
+                  const rawVal = parseFloat(e.target.value);
+                  const targetPitch = -rawVal; // Re-invert to get actual percent value
+                  
+                  const dt = now - lastUpdateRef.current.time;
+                  const dp = Math.abs(targetPitch - lastUpdateRef.current.value);
+                  const velocity = dt > 0 ? dp / dt : 0;
+                  
+                  lastUpdateRef.current = { time: now, value: targetPitch };
+
+                  let finalPitch = targetPitch;
+                  const center = 0.0;
+                  const snapThreshold = 0.15;
+
+                  // High-precision magnetic locking to center
+                  if (Math.abs(targetPitch - center) < snapThreshold) {
+                    if (velocity < 0.015) {
+                      finalPitch = center;
+                      if (deck?.pitch !== center) {
+                        playClick(880, 'sine', 0.004);
+                      }
+                    }
+                  } else {
+                    // Snap to nearest whole integer if dragging slow
+                    const nearestInt = Math.round(targetPitch);
+                    if (velocity < 0.008 && Math.abs(targetPitch - nearestInt) < 0.05) {
+                      finalPitch = nearestInt;
+                    }
+                  }
+
+                  setDeck(deckId, { pitch: finalPitch, syncEnabled: false });
+                }}
+                title="Adjust Pitch Slider"
+                style={{
+                  writingMode: 'vertical-lr',
+                  direction: 'rtl'
+                }}
+                className="absolute inset-0 opacity-0 cursor-pointer z-20 w-[60px] -left-5 h-full"
+              />
+            </div>
           </div>
-
-          {/* Jog Mode Mode */}
-          <button
-            onPointerDown={handleJogModePress}
-            className={cn(
-              "h-5 mt-1.5 rounded text-[7.5px] font-mono font-black tracking-widest uppercase border transition-colors cursor-pointer leading-none w-full",
-              deck?.jogMode === 'VINYL'
-                ? "bg-red-500/20 border-red-500/40 text-red-400 shadow-[0_0_8px_rgba(239,68,68,0.2)]"
-                : "bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-300"
-            )}
-          >
-            {deck?.jogMode}
-          </button>
-
         </div>
-
       </div>
-
-      {/* 3. Hardware Premium LCD Panel Display */}
-      <div className="w-full bg-zinc-950 border border-zinc-900 rounded-lg p-2.5 font-mono text-[9px] shadow-inner flex flex-col gap-1 select-none shrink-0 border-l-2" style={{ borderLeftColor: themeColor }}>
-        
-        {/* LCD Status Indicators */}
-        <div className="flex items-center justify-between text-zinc-500 text-[6.5px] tracking-widest border-b border-zinc-900 pb-1 uppercase font-black">
-          <span>DECK_{deckId} STATE LOG</span>
-          <span style={{ color: isLocked ? 'rgb(234,179,8)' : deck?.isPlaying ? themeColor : 'rgb(113,113,122)' }}>
-            {isLocked ? "ACCESS_LOCKED" : deck?.isPlaying ? "● PLAYING" : "■ PAUSED"}
-          </span>
-        </div>
-
-        {/* Current loaded track metadata */}
-        <div className="flex flex-col mt-0.5">
-          <span className="text-[5.5px] text-zinc-600 uppercase tracking-widest font-black mb-0.5">TRACK NAME</span>
-          <span className="font-black truncate tracking-wider text-zinc-300 font-mono uppercase">
-            {isLocked ? "LOCKED DECK (PREVIEW ONLY)" : deck?.title || "NO TRACK LOADED"}
-          </span>
-        </div>
-
-        {/* Tempo, Playhead and Sync values */}
-        <div className="grid grid-cols-3 gap-2 mt-1.5 border-t border-zinc-900/50 pt-1.5 select-none">
-          <div className="flex flex-col">
-            <span className="text-[5px] text-zinc-600 uppercase tracking-widest font-bold">SPEED</span>
-            <span className="font-bold text-zinc-400">
-              {isLocked ? "130.00 BPM" : `${(deck?.bpm * (1 + (deck?.pitch || 0) / 100)).toFixed(2)} BPM`}
-            </span>
-          </div>
-          <div className="flex flex-col text-center">
-            <span className="text-[5px] text-zinc-600 uppercase tracking-widest font-bold">PLAYHEAD</span>
-            <span className="font-bold text-zinc-400 font-mono">
-              {isLocked ? "LOCKED" : `${(deck?.progress || 0).toFixed(2)}s`}
-            </span>
-          </div>
-          <div className="flex flex-col text-right">
-            <span className="text-[5px] text-zinc-600 uppercase tracking-widest font-bold">SYNC STATUS</span>
-            <span className={cn(
-              "font-black text-mono tracking-wide uppercase transition-colors duration-300",
-              deck?.syncEnabled ? "text-emerald-400" : "text-zinc-600"
-            )}>
-              {deck?.syncEnabled ? "SYNCED" : "OFF"}
-            </span>
-          </div>
-        </div>
-
-      </div>
-
     </div>
   );
 }

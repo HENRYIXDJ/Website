@@ -23,6 +23,14 @@ const formatTime = (secs: number) => {
   return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 };
 
+const formatPlayheadTime = (secs: number) => {
+  if (isNaN(secs) || secs === undefined) return "00:00.00";
+  const m = Math.floor(secs / 60);
+  const s = Math.floor(secs % 60);
+  const f = Math.floor((secs % 1) * 100);
+  return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}.${f.toString().padStart(2, '0')}`;
+};
+
 const proxyUrl = (url: string) => `/api/assets?url=${encodeURIComponent(url)}`;
 
 const getSessionImage = (title: string, artworkUrl?: string) => {
@@ -62,8 +70,8 @@ const STATIC_MIX_GROUPS = [
   {
     title: "Knight Club",
     mixes: [
-      { id: 'kc-1', title: 'Knight Club: Session 1', url: proxyUrl(getStorageUrl('/Mixes/Knight%20Club/Mix%20Audio/Knight%20Club%20Session%201%20-%20Mastered%20High%20Quality.mp3')), link: 'https://soundcloud.com/henryixdj/knight-club-session-1', bpm: 145, isLocalFile: true, cuePoints: [0, 1127, 2112, 2772] },
-      { id: 'kc-2', title: 'Knight Club: Session 2', url: proxyUrl(getStorageUrl('/Mixes/Knight%20Club/Mix%20Audio/Knight%20Club%20Session%202%20-%20Mastered.mp3')), link: 'https://soundcloud.com/henryixdj/knight-club-session-2', bpm: 152, isLocalFile: true, cuePoints: [0, 2468, 4084, 6270] },
+      { id: 'kc-1', title: 'Knight Club: Session 1', url: proxyUrl(getStorageUrl('/Mixes/Knight%20Club/Mix%20Audio/Knight%20Club%20Session%201%20-%20Mastered%20High%20Quality.mp3')), link: 'https://soundcloud.com/henryixdj/knight-club-session-1', bpm: 145, isLocalFile: true, cuePoints: [0, 1127, 2112, 2772], firstBeatOffset: 0.413793 },
+      { id: 'kc-2', title: 'Knight Club: Session 2', url: proxyUrl(getStorageUrl('/Mixes/Knight%20Club/Mix%20Audio/Knight%20Club%20Session%202%20-%20Mastered.mp3')), link: 'https://soundcloud.com/henryixdj/knight-club-session-2', bpm: 152, isLocalFile: true, cuePoints: [0, 2468, 4084, 6270], firstBeatOffset: 0.394737 },
       { id: 'kc-3', title: 'Knight Club: Session 3', url: proxyUrl(getStorageUrl('/Mixes/Knight%20Club/Mix%20Audio/Knight%20Club%20Session%203%20-%20Mastered.mp3')), link: 'https://soundcloud.com/henryixdj/knight-club-session-3', bpm: 150, isLocalFile: true, cuePoints: [0, 1940, 3685, 5509] },
       { id: 'kc-4', title: 'Knight Club: Session 4', url: proxyUrl(getStorageUrl('/Mixes/Knight%20Club/Mix%20Audio/Knight%20Club%20Session%204%20-%20Remastered.mp3')), link: 'https://soundcloud.com/henryixdj/33baa30a-4980-40da-94c2-41085314ec43', bpm: 155, isLocalFile: true, cuePoints: [0, 1834, 3582, 5552] },
       { id: 'kc-5', title: 'Knight Club: Session 5', url: proxyUrl(getStorageUrl('/Mixes/Knight%20Club/Mix%20Audio/Knight%20Club%20Session%205%20MP3.mp3')), link: 'https://soundcloud.com/henryixdj/knight-club-session-5', bpm: 150, isLocalFile: true }
@@ -85,6 +93,268 @@ const STATIC_MIX_GROUPS = [
   }
 ];
 
+
+
+export function VolumeFader({ 
+  deckId, 
+  volume, 
+  isLocked, 
+  channelColor, 
+  onChange, 
+  onLockout 
+}: { 
+  deckId: number; 
+  volume: number; 
+  isLocked: boolean; 
+  channelColor: string; 
+  onChange: (val: number) => void; 
+  onLockout: () => void; 
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const lastUpdateRef = useRef({ time: 0, value: volume });
+
+  useEffect(() => {
+    lastUpdateRef.current.value = volume;
+  }, [volume]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const onWheel = (e: WheelEvent) => {
+      const input = container.querySelector('input');
+      if (document.activeElement !== input || isLocked) return;
+
+      e.preventDefault();
+
+      const delta = -Math.sign(e.deltaY) * 0.5;
+      let newValue = lastUpdateRef.current.value + delta;
+
+      if (newValue < 1.5) {
+        if (lastUpdateRef.current.value !== 0) {
+          newValue = 0;
+          playClick(880, 'sine', 0.004);
+        }
+      } else if (newValue > 98.5) {
+        if (lastUpdateRef.current.value !== 100) {
+          newValue = 100;
+          playClick(880, 'sine', 0.004);
+        }
+      } else {
+        const nearestInt = Math.round(newValue);
+        if (Math.abs(newValue - nearestInt) < 0.15) {
+          newValue = nearestInt;
+        }
+      }
+
+      newValue = Math.max(0, Math.min(100, newValue));
+      onChange(newValue);
+    };
+
+    container.addEventListener('wheel', onWheel, { passive: false });
+    return () => {
+      container.removeEventListener('wheel', onWheel);
+    };
+  }, [onChange, isLocked]);
+
+  return (
+    <div ref={containerRef} className="relative flex-grow min-h-[50px] max-h-[140px] w-[32cqw] max-w-[28px] min-w-[14px] bg-zinc-950 border border-zinc-900 focus-within:border-zinc-500 focus-within:shadow-[0_0_8px_rgba(255,255,255,0.15)] rounded flex items-center justify-center overflow-hidden shadow-inner">
+      <input 
+        type="range"
+        min="0"
+        max="100"
+        step="0.1"
+        value={volume}
+        title="Volume Fader"
+        placeholder="Volume Fader"
+        onChange={(e) => {
+          if (!isLocked) {
+            const now = performance.now();
+            const rawValue = Number(e.target.value);
+            const dt = now - lastUpdateRef.current.time;
+            const dp = Math.abs(rawValue - lastUpdateRef.current.value);
+            const velocity = dt > 0 ? dp / dt : 0;
+            
+            lastUpdateRef.current = { time: now, value: rawValue };
+
+            let targetValue = rawValue;
+
+            if (rawValue < 2.0) {
+              if (velocity < 0.15) {
+                targetValue = 0;
+                if (volume !== 0) playClick(880, 'sine', 0.004);
+              }
+            } else if (rawValue > 98.0) {
+              if (velocity < 0.15) {
+                targetValue = 100;
+                if (volume !== 100) playClick(880, 'sine', 0.004);
+              }
+            } else {
+              const nearestInt = Math.round(rawValue);
+              if (velocity < 0.08 && Math.abs(rawValue - nearestInt) < 0.25) {
+                targetValue = nearestInt;
+              }
+            }
+
+            onChange(Math.max(0, Math.min(100, targetValue)));
+          } else {
+            onLockout();
+          }
+        }}
+        disabled={isLocked}
+        aria-label={`Volume Fader Deck ${deckId}`}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={volume}
+        style={{
+          writingMode: 'vertical-lr',
+          direction: 'rtl'
+        }}
+        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+      />
+
+      <div 
+        className="absolute bottom-0 w-full"
+        style={{ 
+          height: `${volume}%`,
+          backgroundColor: channelColor,
+          opacity: 0.15
+        }}
+      />
+
+      <div className="absolute inset-y-1 flex flex-col justify-between w-full pointer-events-none opacity-40">
+        {[...Array(11)].map((_, idx) => (
+          <div key={idx} className="h-[1px] bg-zinc-700 w-3 mx-auto" />
+        ))}
+      </div>
+
+      {/* Fader Cap */}
+      <div 
+        className="absolute w-[135%] h-[min(26px,max(18px,28cqw))] bg-gradient-to-b from-zinc-700 to-zinc-900 border border-zinc-600 rounded flex items-center justify-center shadow pointer-events-none"
+        style={{ 
+          bottom: `calc(${volume}% - min(13px,max(9px,14cqw)))`,
+          transform: 'translateY(50%)'
+        }}
+      >
+        <div className="w-full h-[1px] bg-primary shadow-[0_0_2px_#d8163f]" />
+      </div>
+    </div>
+  );
+}
+
+
+export function Crossfader({ 
+  value, 
+  onChange 
+}: { 
+  value: number; 
+  onChange: (val: number) => void; 
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const lastUpdateRef = useRef({ time: 0, value: value });
+
+  useEffect(() => {
+    lastUpdateRef.current.value = value;
+  }, [value]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const onWheel = (e: WheelEvent) => {
+      const input = container.querySelector('input');
+      if (document.activeElement !== input) return;
+
+      e.preventDefault();
+
+      const delta = -Math.sign(e.deltaY) * 0.5;
+      let newValue = lastUpdateRef.current.value + delta;
+
+      const center = 50;
+      const snapThreshold = 1.5;
+
+      if (Math.abs(newValue - center) < snapThreshold) {
+        if (lastUpdateRef.current.value !== center) {
+          newValue = center;
+          playClick(880, 'sine', 0.004);
+        }
+      } else {
+        const nearestInt = Math.round(newValue);
+        if (Math.abs(newValue - nearestInt) < 0.15) {
+          newValue = nearestInt;
+        }
+      }
+
+      newValue = Math.max(0, Math.min(100, newValue));
+      onChange(newValue);
+    };
+
+    container.addEventListener('wheel', onWheel, { passive: false });
+    return () => {
+      container.removeEventListener('wheel', onWheel);
+    };
+  }, [onChange]);
+
+  return (
+    <div ref={containerRef} className="relative w-full h-5 bg-zinc-950 border border-zinc-900 focus-within:border-primary focus-within:shadow-[0_0_8px_rgba(216,22,63,0.5)] rounded flex items-center justify-center px-4 overflow-hidden select-none shadow-inner">
+      <input 
+        type="range"
+        min="0"
+        max="100"
+        step="0.1"
+        value={value}
+        title="Crossfader"
+        placeholder="Crossfader"
+        onChange={(e) => {
+          const now = performance.now();
+          const rawValue = Number(e.target.value);
+          const dt = now - lastUpdateRef.current.time;
+          const dp = Math.abs(rawValue - lastUpdateRef.current.value);
+          const velocity = dt > 0 ? dp / dt : 0;
+          
+          lastUpdateRef.current = { time: now, value: rawValue };
+
+          let targetValue = rawValue;
+          const center = 50;
+          const snapThreshold = 2.0;
+
+          if (Math.abs(rawValue - center) < snapThreshold) {
+            if (velocity < 0.15) {
+              targetValue = center;
+              if (value !== center) {
+                playClick(880, 'sine', 0.004);
+              }
+            }
+          } else {
+            const nearestInt = Math.round(rawValue);
+            if (velocity < 0.08 && Math.abs(rawValue - nearestInt) < 0.25) {
+              targetValue = nearestInt;
+            }
+          }
+
+          onChange(Math.max(0, Math.min(100, targetValue)));
+        }}
+        aria-label="Crossfader"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={value}
+        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+      />
+
+      <div className="w-[95%] h-[1px] bg-zinc-800 absolute" />
+
+      <div 
+        className="absolute h-5 bg-gradient-to-r from-zinc-700 to-zinc-900 border border-zinc-600 rounded flex items-center justify-center shadow pointer-events-none"
+        style={{ 
+          left: `calc(${value}% - 12.5px)`,
+          width: '25px'
+        }}
+      >
+        <div className="h-full w-[1px] bg-primary shadow-[0_0_2px_#d8163f]" />
+      </div>
+    </div>
+  );
+}
 
 const VinylStack = ({ group, onClick, playTick }: { group: any, onClick: () => void, playTick: () => void }) => {
   return (
@@ -286,6 +556,7 @@ function SingleDeckWaveform({
   const isPlayingRef = useRef<boolean>(false);
   const anchorAudioTimeRef = useRef<number>(0);
   const anchorSystemTimeRef = useRef<number>(0);
+  const lastFrameTimeRef = useRef<number>(0);
 
   // Subscribe to Zustand state for real-time phase sync calculations
   const allDecks = useAudioStore(s => s.decks);
@@ -339,7 +610,7 @@ function SingleDeckWaveform({
       }
 
       const width = canvas.parentElement?.clientWidth || 300;
-      const height = 48;
+      const height = 64;
       const dpr = window.devicePixelRatio || 1;
 
       if (canvas.width !== width * dpr || canvas.height !== height * dpr) {
@@ -389,32 +660,29 @@ function SingleDeckWaveform({
       if (isCurrentlyPlaying) {
         if (!isPlayingRef.current) {
           isPlayingRef.current = true;
-          anchorAudioTimeRef.current = targetProgress;
-          anchorSystemTimeRef.current = sysTime;
+          smoothProgressRef.current = targetProgress;
+          lastFrameTimeRef.current = sysTime;
         }
 
-        const elapsed = (sysTime - anchorSystemTimeRef.current) / 1000;
-        let estProgress = anchorAudioTimeRef.current + elapsed * pitchModifier;
+        const dt = (sysTime - lastFrameTimeRef.current) / 1000;
+        const clampedDt = Math.max(0, Math.min(0.1, dt));
+        let estProgress = smoothProgressRef.current + clampedDt * pitchModifier;
 
         const drift = targetProgress - estProgress;
         if (Math.abs(drift) > 0.3) {
-          // Seek/Jump event: instantly snap anchors
-          anchorAudioTimeRef.current = targetProgress;
-          anchorSystemTimeRef.current = sysTime;
+          // Seek/Jump event: snap instantly
           estProgress = targetProgress;
         } else {
-          // Soft nudge: adjusts the system reference time back into alignment
-          // to absorb any clock tick jitter from the browser's audio thread
-          anchorSystemTimeRef.current += drift * 0.05 * 1000;
+          // Gentle pull to prevent drift without wiggles/skips
+          estProgress += drift * 0.08;
         }
 
         smoothProgressRef.current = estProgress;
       } else {
         isPlayingRef.current = false;
-        anchorAudioTimeRef.current = targetProgress;
-        anchorSystemTimeRef.current = sysTime;
         smoothProgressRef.current = targetProgress;
       }
+      lastFrameTimeRef.current = sysTime;
 
       const progress = smoothProgressRef.current;
 
@@ -547,7 +815,7 @@ function SingleDeckWaveform({
 
         const points: { drawX: number; lowH: number; midH: number; highH: number }[] = [];
 
-        for (let drawX = 0; drawX < width; drawX += 2) {
+        for (let drawX = 0; drawX < width; drawX += 1) {
           const barTime = progress + (drawX - centerX) / pixelsPerSecond;
           const hVal = getPeakHeight(barTime);
 
@@ -561,9 +829,9 @@ function SingleDeckWaveform({
           const hiMod = eqHi / 50;
           const volumeMod = volume / 80;
           
-          const baseLow = hVal * (0.6 + 0.4 * Math.abs(Math.cos((barTime - offset) * beatFreq)));
-          const baseMid = hVal * (0.55 + 0.45 * Math.abs(Math.cos((barTime - offset) * 1.8 + 0.5)));
-          const baseHigh = hVal * (0.4 + 0.6 * Math.abs(Math.cos((barTime - offset) * beatFreq * 4 + 1.2)));
+          const baseLow = hVal * 0.9;
+          const baseMid = hVal * 0.65;
+          const baseHigh = hVal * 0.45;
 
           const lowHeight = Math.max(1, baseLow * (height - 4) * lowMod * volumeMod);
           const midHeight = Math.max(1, baseMid * (height - 8) * midMod * volumeMod);
@@ -574,7 +842,9 @@ function SingleDeckWaveform({
 
         // Use Math.round/Math.floor in path plotting to avoid sub-pixel anti-aliasing blur
         // 1. Low Band (Vivid Cyan/Blue foundation: rgba(0, 162, 255, 1))
-        ctx.fillStyle = 'rgba(0, 162, 255, 0.25)';
+        ctx.fillStyle = 'rgba(0, 162, 255, 0.4)';
+        ctx.strokeStyle = 'rgba(0, 190, 255, 0.85)';
+        ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.moveTo(0, halfH);
         for (let i = 0; i < points.length; i++) {
@@ -585,9 +855,12 @@ function SingleDeckWaveform({
         }
         ctx.closePath();
         ctx.fill();
+        ctx.stroke();
 
         // 2. Mid Band (Vivid Neon Orange: rgba(255, 120, 0, 1))
-        ctx.fillStyle = 'rgba(255, 120, 0, 0.55)';
+        ctx.fillStyle = 'rgba(255, 120, 0, 0.7)';
+        ctx.strokeStyle = 'rgba(255, 150, 0, 0.95)';
+        ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.moveTo(0, halfH);
         for (let i = 0; i < points.length; i++) {
@@ -598,9 +871,12 @@ function SingleDeckWaveform({
         }
         ctx.closePath();
         ctx.fill();
+        ctx.stroke();
 
         // 3. High Band (Pure Bright White: rgba(255, 255, 255, 1))
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+        ctx.strokeStyle = 'rgba(255, 255, 255, 1)';
+        ctx.lineWidth = 0.8;
         ctx.beginPath();
         ctx.moveTo(0, halfH);
         for (let i = 0; i < points.length; i++) {
@@ -611,7 +887,140 @@ function SingleDeckWaveform({
         }
         ctx.closePath();
         ctx.fill();
+        ctx.stroke();
       }
+
+      // Draw Active Loop Highlight Overlay
+      if (currentDeck.isLoopActive && currentDeck.loopIn !== null && currentDeck.loopIn !== undefined && currentDeck.loopOut !== null && currentDeck.loopOut !== undefined) {
+        const loopCenterX = width / 2;
+        const xIn = Math.round(loopCenterX + (currentDeck.loopIn - progress) * pixelsPerSecond);
+        const xOut = Math.round(loopCenterX + (currentDeck.loopOut - progress) * pixelsPerSecond);
+        
+        const drawStart = Math.max(0, Math.min(width, xIn));
+        const drawEnd = Math.max(0, Math.min(width, xOut));
+        
+        if (drawStart < drawEnd) {
+          ctx.save();
+          // Glow/Overlay fill between loop points
+          ctx.fillStyle = 'rgba(245, 158, 11, 0.12)';
+          ctx.fillRect(drawStart, 0, drawEnd - drawStart, height);
+          
+          // Draw subtle solid amber border lines on boundaries
+          ctx.strokeStyle = 'rgba(245, 158, 11, 0.35)';
+          ctx.lineWidth = 1;
+          
+          if (xIn >= 0 && xIn <= width) {
+            ctx.beginPath();
+            ctx.moveTo(xIn, 0);
+            ctx.lineTo(xIn, height);
+            ctx.stroke();
+          }
+          if (xOut >= 0 && xOut <= width) {
+            ctx.beginPath();
+            ctx.moveTo(xOut, 0);
+            ctx.lineTo(xOut, height);
+            ctx.stroke();
+          }
+          ctx.restore();
+        }
+      }
+
+      // Draw Cue Line & Hot Cues
+      const centerX = width / 2;
+
+      // Draw Cue Line (linked to deck.mainCue)
+      if (currentDeck.mainCue !== undefined && currentDeck.mainCue !== null) {
+        const timeVal = currentDeck.mainCue;
+        const x = Math.round(centerX + (timeVal - progress) * pixelsPerSecond);
+        if (x >= 0 && x <= width) {
+          const color = '#f97316'; // Orange cue line
+          
+          // Draw the orange cue line
+          ctx.save();
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.moveTo(x, 0);
+          ctx.lineTo(x, height);
+          ctx.stroke();
+          ctx.restore();
+          
+          // Draw flag tag at the top
+          ctx.save();
+          ctx.fillStyle = color;
+          ctx.beginPath();
+          ctx.moveTo(x - 5, 0);
+          ctx.lineTo(x + 5, 0);
+          ctx.lineTo(x + 5, 8);
+          ctx.lineTo(x, 11);
+          ctx.lineTo(x - 5, 8);
+          ctx.closePath();
+          ctx.fill();
+          
+          ctx.fillStyle = '#000000';
+          ctx.font = 'bold 7px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('CUE', x, 4.5);
+          ctx.restore();
+        }
+      }
+
+      // Draw Hot Cues
+      const hotCues = currentDeck.hotCues || {};
+      const HOT_CUE_COLORS: Record<string, string> = {
+        A: '#ef4444', // Red
+        B: '#f97316', // Orange
+        C: '#eab308', // Yellow
+        D: '#22c55e', // Green
+        E: '#06b6d4', // Cyan
+        F: '#3b82f6', // Blue
+        G: '#a855f7', // Purple
+        H: '#ec4899'  // Pink
+      };
+
+      Object.entries(hotCues).forEach(([pad, time]) => {
+        if (time !== null && time !== undefined) {
+          const timeVal = time as number;
+          const x = Math.round(centerX + (timeVal - progress) * pixelsPerSecond);
+          if (x >= 0 && x <= width) {
+            const color = HOT_CUE_COLORS[pad] || '#ffffff';
+            
+            // Draw the matching colored bar
+            ctx.save();
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 1.5;
+            
+            ctx.shadowColor = color;
+            ctx.shadowBlur = 3;
+            
+            ctx.beginPath();
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, height);
+            ctx.stroke();
+            ctx.restore();
+            
+            // Draw flag tag at the top
+            ctx.save();
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.moveTo(x - 5, 0);
+            ctx.lineTo(x + 5, 0);
+            ctx.lineTo(x + 5, 8);
+            ctx.lineTo(x, 11);
+            ctx.lineTo(x - 5, 8);
+            ctx.closePath();
+            ctx.fill();
+            
+            ctx.fillStyle = '#000000';
+            ctx.font = 'bold 7px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(pad, x, 4.5);
+            ctx.restore();
+          }
+        }
+      });
 
       // CENTER PLAYHEAD LINE (GLOWING CRIMSON or GREEN SYNC)
       ctx.save();
@@ -732,8 +1141,9 @@ function SingleDeckWaveform({
       useAudioStore.getState().setDeck(deckId, { firstBeatOffset: newOffset });
     } else {
       const audio = audioElementsRef?.current?.[deckId];
-      const newTime = Math.max(0, Math.min(drag.duration, drag.startTime - deltaSec));
-      if (audio) {
+      const dur = isFinite(drag.duration) && !isNaN(drag.duration) ? drag.duration : 300;
+      const newTime = Math.max(0, Math.min(dur, drag.startTime - deltaSec));
+      if (audio && isFinite(newTime) && !isNaN(newTime)) {
         // eslint-disable-next-line react-hooks/immutability
         audio.currentTime = newTime;
       }
@@ -746,7 +1156,7 @@ function SingleDeckWaveform({
   };
 
   return (
-    <div className="relative w-full h-[48px] bg-black rounded border border-zinc-900 overflow-hidden shadow-inner flex items-center justify-center mb-1 select-none shrink-0 z-10">
+    <div className="relative w-full h-[64px] bg-black rounded border border-zinc-900 overflow-hidden shadow-inner flex items-center justify-center mb-1 select-none shrink-0 z-10">
       <canvas 
         ref={canvasRef} 
         className={cn("w-full h-full block touch-none", dragState ? 'cursor-grabbing' : 'cursor-grab')} 
@@ -826,6 +1236,9 @@ function MixArchive({
   const mouseY = useMotionValue(0);
   const [embedSCPlayerId, setEmbedSCPlayerId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'all' | 'knight club' | 'royal court' | 'corner new cross'>('all');
+  const [deckCount, setDeckCount] = useState<2 | 4>(4);
+  const [isMobile, setIsMobile] = useState(false);
+  const activeDeckIds = (deckCount === 2 ? [1, 2] : [3, 1, 2, 4]) as readonly (1 | 2 | 3 | 4)[];
 
   const isStacked = useAudioStore(s => s.isStacked);
   const setStacked = useAudioStore(s => s.setStacked);
@@ -834,6 +1247,12 @@ function MixArchive({
     const handleResize = () => {
       const isWindowStacked = window.innerWidth < 1536;
       setStacked(isWindowStacked);
+      
+      const mobile = window.innerWidth < 1024;
+      setIsMobile(mobile);
+      if (mobile) {
+        setDeckCount(2);
+      }
     };
     handleResize();
     window.addEventListener('resize', handleResize);
@@ -1380,7 +1799,7 @@ function MixArchive({
           className="rounded-xl border border-zinc-900 bg-zinc-950 p-4 font-mono select-none flex flex-col justify-center items-center h-full min-h-[160px] text-center"
           style={{ borderTop: `2px solid ${themeColor}` }}
         >
-          <span className="text-yellow-500 font-bold tracking-widest text-[11px] uppercase glitch" data-text="DECK LOCKED // COMING SOON">
+          <span className="text-yellow-500 font-bold tracking-widest text-[11px] uppercase">
             DECK LOCKED // COMING SOON
           </span>
           <span className="text-zinc-600 text-[8px] mt-2 tracking-wider">
@@ -1417,7 +1836,7 @@ function MixArchive({
         {/* Directory & Tracks Split Grid */}
         <div className="flex flex-1 min-h-0 w-full">
           {/* Left Column: Playlist Folders Tree */}
-          <div className="w-[35%] border-r border-zinc-900 bg-black/25 flex flex-col p-1.5 gap-1 shrink-0 overflow-y-auto min-w-0">
+          <div className="w-[35%] border-r border-zinc-900 bg-black/25 flex flex-col p-1.5 gap-1 shrink-0 overflow-y-auto custom-scrollbar min-w-0">
             <span className="text-[6.5px] text-zinc-600 uppercase font-black tracking-widest px-1 mb-1">Source</span>
             <button
               onClick={() => {
@@ -1485,7 +1904,7 @@ function MixArchive({
             </div>
 
             {/* Table Rows */}
-            <div className="flex-1 overflow-y-auto p-1 flex flex-col gap-0.5 min-h-0">
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-1 flex flex-col gap-0.5 min-h-0">
               {tracks.length === 0 ? (
                 <div className="flex-grow flex items-center justify-center text-zinc-600 text-[8px] italic py-4">
                   No tracks available
@@ -1632,8 +2051,11 @@ function MixArchive({
         </div>
 
         {/* Mixer Channels Grid */}
-        <div className="grid grid-cols-4 gap-2.5 my-2.5 items-start justify-center z-10 flex-grow select-none">
-          {[3, 1, 2, 4].map(id => {
+        <div className={cn(
+          "grid gap-1.5 md:gap-2.5 my-2 items-stretch justify-center z-10 flex-grow min-h-0 select-none",
+          deckCount === 2 ? "grid-cols-2" : "grid-cols-4"
+        )}>
+          {(deckCount === 2 ? [1, 2] : [3, 1, 2, 4]).map(id => {
             const deck = decks[id];
             const isLocked = deck?.id === 'locked';
             const isActive = (id <= 2 ? leftActiveDeck === id : rightActiveDeck === id);
@@ -1647,8 +2069,9 @@ function MixArchive({
             return (
               <div 
                 key={id}
+                style={{ containerType: 'inline-size' }}
                 className={cn(
-                  "flex flex-col items-center gap-3.5 py-2 px-1 rounded-xl transition-all border",
+                  "w-full flex flex-col items-center justify-between gap-2 py-2 px-1 rounded-xl transition-all border h-full min-h-0",
                   isActive ? "bg-zinc-900/30 border-zinc-800/80" : "border-transparent opacity-60 hover:opacity-90"
                 )}
               >
@@ -1659,11 +2082,11 @@ function MixArchive({
                   CH {id}
                 </span>
 
-                <div className="flex flex-col gap-2">
+                <div className="flex flex-col gap-2 w-full">
                   <RotaryKnob 
                     label="TRIM"
                     value={deck.trim ?? 50}
-                    size="lg"
+                    size="flex"
                     onChange={(val) => {
                       audioEngine.setTrim(id, val);
                       setDecks((prev: any) => ({
@@ -1676,7 +2099,7 @@ function MixArchive({
                   <RotaryKnob 
                     label="HI"
                     value={deck.eqHi}
-                    size="lg"
+                    size="flex"
                     onChange={(val) => {
                       // 1. Instant audio DSP update (zero latency)
                       audioEngine.setEQ(id, 'high', val);
@@ -1691,7 +2114,7 @@ function MixArchive({
                   <RotaryKnob 
                     label="MID"
                     value={deck.eqMid}
-                    size="lg"
+                    size="flex"
                     onChange={(val) => {
                       // 1. Instant audio DSP update (zero latency)
                       audioEngine.setEQ(id, 'mid', val);
@@ -1706,7 +2129,7 @@ function MixArchive({
                   <RotaryKnob 
                     label="LOW"
                     value={deck.eqLow}
-                    size="lg"
+                    size="flex"
                     onChange={(val) => {
                       // 1. Instant audio DSP update (zero latency)
                       audioEngine.setEQ(id, 'low', val);
@@ -1721,7 +2144,7 @@ function MixArchive({
                   <RotaryKnob 
                     label="FLT"
                     value={deck.filter}
-                    size="lg"
+                    size="flex"
                     onChange={(val) => {
                       // 1. Instant audio DSP update (zero latency)
                       audioEngine.setFilter(id, val);
@@ -1736,65 +2159,19 @@ function MixArchive({
                 </div>
 
                 {/* Vertical Fader */}
-                <div className="flex flex-col items-center gap-1 mt-2 relative w-10">
-                  <span className="text-[6.5px] text-zinc-500 font-mono uppercase tracking-widest leading-none font-bold">
+                <div className="flex flex-col items-center gap-1 mt-1 relative w-[50cqw] max-w-[40px] min-w-[20px] flex-grow min-h-0 h-full">
+                  <span className="text-[min(8px,max(5.5px,7cqw))] text-zinc-500 font-mono uppercase tracking-widest leading-none font-bold shrink-0">
                     VOL
                   </span>
                   
-                  <div className="relative h-32 w-6 bg-zinc-950 border border-zinc-900 focus-within:border-zinc-500 focus-within:shadow-[0_0_8px_rgba(255,255,255,0.15)] rounded flex items-center justify-center overflow-hidden shadow-inner">
-                    <input 
-                      type="range"
-                      min="0"
-                      max="100"
-                      value={deck.volume}
-                      title="Volume Fader"
-                      placeholder="Volume Fader"
-                      onChange={(e) => {
-                        if (!isLocked) {
-                          const val = Number(e.target.value);
-                          handleVolumeChange(id, val);
-                        } else {
-                          playLockoutBlip();
-                        }
-                      }}
-                      disabled={isLocked}
-                      aria-label={`Volume Fader Deck ${id}`}
-                      aria-valuemin={0}
-                      aria-valuemax={100}
-                      aria-valuenow={deck.volume}
-                      style={{
-                        writingMode: 'vertical-lr',
-                        direction: 'rtl'
-                      }}
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
-                    />
-
-                    <div 
-                      className="absolute bottom-0 w-full"
-                      style={{ 
-                        height: `${deck.volume}%`,
-                        backgroundColor: channelColor,
-                        opacity: 0.15
-                      }}
-                    />
-
-                    <div className="absolute inset-y-1 flex flex-col justify-between w-full pointer-events-none opacity-40">
-                      {[...Array(11)].map((_, idx) => (
-                        <div key={idx} className={cn("h-[1px] bg-zinc-700 w-3 mx-auto", idx === 0 && "w-5 bg-zinc-500")} />
-                      ))}
-                    </div>
-
-                    {/* Fader Cap */}
-                    <div 
-                      className="absolute w-6 h-5 bg-gradient-to-b from-zinc-700 to-zinc-900 border border-zinc-600 rounded flex items-center justify-center shadow pointer-events-none"
-                      style={{ 
-                        bottom: `calc(${deck.volume}% - 10px)`,
-                        transform: 'translateY(50%)'
-                      }}
-                    >
-                      <div className="w-full h-[1px] bg-primary shadow-[0_0_2px_#d8163f]" />
-                    </div>
-                  </div>
+                  <VolumeFader
+                    deckId={id}
+                    volume={deck.volume}
+                    isLocked={isLocked}
+                    channelColor={channelColor}
+                    onChange={(val) => handleVolumeChange(id, val)}
+                    onLockout={playLockoutBlip}
+                  />
                 </div>
 
                 {/* headphones cue fader assign */}
@@ -1844,40 +2221,10 @@ function MixArchive({
             <span>C/D DECK</span>
           </div>
 
-          <div className="relative w-full h-5 bg-zinc-950 border border-zinc-900 focus-within:border-primary focus-within:shadow-[0_0_8px_rgba(216,22,63,0.5)] rounded flex items-center justify-center px-4 overflow-hidden select-none shadow-inner">
-            <input 
-              type="range"
-              min="0"
-              max="100"
-              value={crossfader}
-              title="Crossfader"
-              placeholder="Crossfader"
-              onChange={(e) => {
-                const val = Number(e.target.value);
-                handleCrossfaderChange(val);
-                if (Math.abs(val - 50) < 3) {
-                  playClick(880, 'sine', 0.004);
-                }
-              }}
-              aria-label="Crossfader"
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-valuenow={crossfader}
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
-            />
-
-            <div className="w-[95%] h-[1px] bg-zinc-800 absolute" />
-
-            <div 
-              className="absolute h-5 bg-gradient-to-r from-zinc-700 to-zinc-900 border border-zinc-600 rounded flex items-center justify-center shadow pointer-events-none"
-              style={{ 
-                left: `calc(${crossfader}% - 12.5px)`,
-                width: '25px'
-              }}
-            >
-              <div className="h-full w-[1px] bg-primary shadow-[0_0_2px_#d8163f]" />
-            </div>
-          </div>
+          <Crossfader
+            value={crossfader}
+            onChange={handleCrossfaderChange}
+          />
         </div>
       </div>
     );
@@ -2023,7 +2370,7 @@ function MixArchive({
         <div className="w-full relative flex justify-center items-center z-30 font-mono select-none px-3 py-2 shrink-0 border-b border-zinc-900 bg-black/60 backdrop-blur rounded-lg mb-1">
           <div className="absolute left-3 flex items-center gap-3">
             <span className="w-2 h-2 rounded-full bg-primary animate-pulse shadow-[0_0_8px_#D8163F]" />
-            <span className="text-primary font-black uppercase tracking-[0.3em] text-[10px] md:text-xs glitch" data-text="HENRY IX // CDJ PORTFOLIO">
+            <span className="text-primary font-black uppercase tracking-[0.3em] text-[10px] md:text-xs">
               HENRY IX // CDJ PORTFOLIO
             </span>
           </div>
@@ -2053,6 +2400,39 @@ function MixArchive({
               </button>
             ))}
           </div>
+
+          {/* Sub Slider for 2 or 4 decks - only shown in Deck View and when not on mobile */}
+          {activeView === 'cdj' && !isMobile && (
+            <div className="absolute right-3 flex items-center gap-1.5 md:gap-2">
+              <span className="text-[7.5px] md:text-[8px] text-zinc-500 font-bold uppercase tracking-wider select-none">
+                DECKS:
+              </span>
+              <div className="relative flex p-0.5 bg-zinc-950/80 border border-zinc-900 rounded-md backdrop-blur-md">
+                {([2, 4] as const).map((count) => (
+                  <button
+                    key={count}
+                    onClick={() => {
+                      setDeckCount(count);
+                      playClick(800, 'sine', 0.02);
+                    }}
+                    className={cn(
+                      "relative px-2 py-0.5 rounded font-mono text-[8px] font-black uppercase transition-colors cursor-pointer flex items-center justify-center w-8 h-5",
+                      deckCount === count ? "text-zinc-950 font-black" : "text-zinc-500 hover:text-zinc-300"
+                    )}
+                  >
+                    {deckCount === count && (
+                      <motion.div
+                        layoutId="deck-count-highlight"
+                        className="absolute inset-0 bg-primary rounded shadow-[0_0_8px_rgba(216,22,63,0.3)]"
+                        transition={{ type: "spring", bounce: 0.2, duration: 0.4 }}
+                      />
+                    )}
+                    <span className="relative z-10">{count}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {activeView === 'cdj' ? (
@@ -2080,12 +2460,21 @@ function MixArchive({
               /* Standard Mode (Screens >= 1536px) */
               @media (min-width: 1536px) {
                 .dj-grid-container {
-                  grid-template-columns: 1fr 1fr minmax(280px, 1.2fr) 1fr 1fr;
-                  grid-template-rows: 240px auto 1fr;
-                  grid-template-areas:
-                    "browser3 browser1 mixer browser2 browser4"
-                    "wave3    wave1    mixer wave2    wave4"
-                    "control3 control1 mixer control2 control4";
+                  ${deckCount === 2 ? `
+                    grid-template-columns: minmax(0, 1fr) minmax(280px, 1.2fr) minmax(0, 1fr);
+                    grid-template-rows: 200px auto 1fr;
+                    grid-template-areas:
+                      "browser1 mixer browser2"
+                      "wave1    mixer wave2"
+                      "control1 mixer control2";
+                  ` : `
+                    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(280px, 1.2fr) minmax(0, 1fr) minmax(0, 1fr);
+                    grid-template-rows: 200px auto 1fr;
+                    grid-template-areas:
+                      "browser3 browser1 mixer browser2 browser4"
+                      "wave3    wave1    mixer wave2    wave4"
+                      "control3 control1 mixer control2 control4";
+                  `}
                 }
               }
             `}} />
@@ -2093,7 +2482,7 @@ function MixArchive({
             <div className="dj-grid-container select-none flex-grow min-h-0 h-full overflow-y-auto 2xl:overflow-hidden p-1">
               
               {/* Browsers */}
-              {([3, 1, 2, 4] as const).map(id => {
+              {activeDeckIds.map(id => {
                 const isLeft = (id === 1 || id === 3);
                 const isActive = isLeft ? (leftActiveDeck === id) : (rightActiveDeck === id);
                 return (
@@ -2111,9 +2500,17 @@ function MixArchive({
               })}
 
               {/* Waveforms */}
-              {([3, 1, 2, 4] as const).map(id => {
+              {activeDeckIds.map(id => {
                 const isLeft = (id === 1 || id === 3);
                 const isActive = isLeft ? (leftActiveDeck === id) : (rightActiveDeck === id);
+                const deck = decks[id];
+                const isLocked = deck?.id === 'locked';
+                const themeColor = 
+                  id === 1 ? 'rgba(211,15,49,1)' : // red
+                  id === 2 ? 'rgba(34,211,238,1)' : // cyan
+                  id === 3 ? 'rgba(16,185,129,1)' : // green
+                  'rgba(234,179,8,1)'; // yellow
+                  
                 return (
                   <div 
                     key={`wave-container-${id}`}
@@ -2124,21 +2521,69 @@ function MixArchive({
                     )}
                   >
                     {isStacked ? renderStackedWaveform(id) : (
-                      <div className="bg-zinc-950 border border-zinc-900/50 rounded-xl p-1.5 flex flex-col justify-center items-center w-full shadow-md">
-                        <div 
-                          className="text-[7.5px] font-mono tracking-widest font-black uppercase self-start mb-1 px-1"
-                          style={{
-                            color: id === 1 ? 'rgba(211,15,49,1)' : id === 2 ? 'rgba(34,211,238,1)' : id === 3 ? 'rgba(16,185,129,1)' : 'rgba(234,179,8,1)'
-                          }}
-                        >
-                          DECK {id} WAVEFORM
+                      <div 
+                        className="bg-zinc-950 border border-zinc-900/60 rounded-xl p-2 md:p-2.5 flex flex-col gap-2 w-full shadow-md border-l-2 select-none" 
+                        style={{ borderLeftColor: themeColor }}
+                      >
+                        {/* LCD State Log Info Header (combined) */}
+                        <div className="w-full flex flex-col gap-1 font-mono text-[9px]">
+                          {/* LCD Status Indicators */}
+                          <div className="flex items-center justify-between text-zinc-500 text-[6.5px] tracking-widest border-b border-zinc-900 pb-1 uppercase font-black">
+                            <span>DECK_{id} STATE LOG</span>
+                            <span style={{ color: isLocked ? 'rgb(234,179,8)' : deck?.isPlaying ? themeColor : 'rgb(113,113,122)' }}>
+                              {isLocked ? "ACCESS_LOCKED" : deck?.isPlaying ? "● PLAYING" : "■ PAUSED"}
+                            </span>
+                          </div>
+
+                          {/* Track Name */}
+                          <div className="flex flex-col mt-0.5">
+                            <span className="text-[5.5px] text-zinc-600 uppercase tracking-widest font-black mb-0.5 leading-none">TRACK NAME</span>
+                            <span className="font-black truncate tracking-wider text-zinc-300 font-mono uppercase text-[9.5px] leading-none">
+                              {isLocked ? "LOCKED DECK (PREVIEW ONLY)" : deck?.title || "NO TRACK LOADED"}
+                            </span>
+                          </div>
+
+                          {/* Tempo, Playhead and Sync values */}
+                          <div className="grid grid-cols-3 gap-2 mt-1 border-t border-zinc-900/50 pt-1 select-none">
+                            <div className="flex flex-col">
+                              <span className="text-[5px] text-zinc-600 uppercase tracking-widest font-bold leading-none mb-0.5">SPEED</span>
+                              <span className="font-bold text-zinc-400 text-[8.5px] leading-none">
+                                {isLocked ? "130.00 BPM" : `${(deck?.bpm * (1 + (deck?.pitch || 0) / 100)).toFixed(2)} BPM`}
+                              </span>
+                            </div>
+                            <div className="flex flex-col text-center">
+                              <span className="text-[5px] text-zinc-600 uppercase tracking-widest font-bold leading-none mb-0.5">PLAYHEAD</span>
+                              <span className="font-bold text-zinc-400 font-mono text-[8.5px] leading-none">
+                                {isLocked ? "LOCKED" : formatPlayheadTime(deck?.progress || 0)}
+                              </span>
+                            </div>
+                            <div className="flex flex-col text-right">
+                              <span className="text-[5px] text-zinc-600 uppercase tracking-widest font-bold leading-none mb-0.5">SYNC STATUS</span>
+                              <span className={cn(
+                                "font-black text-mono tracking-wide uppercase transition-colors duration-300 text-[8.5px] leading-none",
+                                deck?.syncEnabled ? "text-emerald-400" : "text-zinc-600"
+                              )}>
+                                {deck?.syncEnabled ? "SYNCED" : "OFF"}
+                              </span>
+                            </div>
+                          </div>
                         </div>
-                        <SingleDeckWaveform 
-                          deckId={id} 
-                          deck={decks[id]} 
-                          isDepth={isDepth} 
-                          audioElementsRef={audioElementsRef} 
-                        />
+
+                        {/* Scrolling Waveform */}
+                        <div className="w-full relative bg-black/40 rounded p-1 border border-zinc-900/50 flex flex-col justify-center items-center">
+                          <div 
+                            className="text-[6.5px] font-mono tracking-widest font-black uppercase self-start mb-0.5 px-0.5"
+                            style={{ color: themeColor }}
+                          >
+                            WAVE DISPLAY
+                          </div>
+                          <SingleDeckWaveform 
+                            deckId={id} 
+                            deck={deck} 
+                            isDepth={isDepth} 
+                            audioElementsRef={audioElementsRef} 
+                          />
+                        </div>
                       </div>
                     )}
                   </div>
@@ -2146,7 +2591,7 @@ function MixArchive({
               })}
 
               {/* Controls / Jogwheels */}
-              {([3, 1, 2, 4] as const).map(id => {
+              {activeDeckIds.map(id => {
                 const isLeft = (id === 1 || id === 3);
                 const isActive = isLeft ? (leftActiveDeck === id) : (rightActiveDeck === id);
                 return (
