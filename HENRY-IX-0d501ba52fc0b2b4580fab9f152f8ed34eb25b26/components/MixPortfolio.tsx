@@ -613,6 +613,41 @@ function SingleDeckWaveform({
         ctx.fill();
       }
 
+      // Draw Active Loop Highlight Overlay
+      if (currentDeck.isLoopActive && currentDeck.loopIn !== null && currentDeck.loopIn !== undefined && currentDeck.loopOut !== null && currentDeck.loopOut !== undefined) {
+        const loopCenterX = width / 2;
+        const xIn = Math.round(loopCenterX + (currentDeck.loopIn - progress) * pixelsPerSecond);
+        const xOut = Math.round(loopCenterX + (currentDeck.loopOut - progress) * pixelsPerSecond);
+        
+        const drawStart = Math.max(0, Math.min(width, xIn));
+        const drawEnd = Math.max(0, Math.min(width, xOut));
+        
+        if (drawStart < drawEnd) {
+          ctx.save();
+          // Glow/Overlay fill between loop points
+          ctx.fillStyle = 'rgba(245, 158, 11, 0.12)';
+          ctx.fillRect(drawStart, 0, drawEnd - drawStart, height);
+          
+          // Draw subtle solid amber border lines on boundaries
+          ctx.strokeStyle = 'rgba(245, 158, 11, 0.35)';
+          ctx.lineWidth = 1;
+          
+          if (xIn >= 0 && xIn <= width) {
+            ctx.beginPath();
+            ctx.moveTo(xIn, 0);
+            ctx.lineTo(xIn, height);
+            ctx.stroke();
+          }
+          if (xOut >= 0 && xOut <= width) {
+            ctx.beginPath();
+            ctx.moveTo(xOut, 0);
+            ctx.lineTo(xOut, height);
+            ctx.stroke();
+          }
+          ctx.restore();
+        }
+      }
+
       // Draw Cue Line & Hot Cues
       const centerX = width / 2;
 
