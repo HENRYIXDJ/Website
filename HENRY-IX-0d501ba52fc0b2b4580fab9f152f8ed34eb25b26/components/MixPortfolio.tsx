@@ -1521,7 +1521,7 @@ function MixArchive({
           className="rounded-xl border border-zinc-900 bg-zinc-950 p-4 font-mono select-none flex flex-col justify-center items-center h-full min-h-[160px] text-center"
           style={{ borderTop: `2px solid ${themeColor}` }}
         >
-          <span className="text-yellow-500 font-bold tracking-widest text-[11px] uppercase glitch" data-text="DECK LOCKED // COMING SOON">
+          <span className="text-yellow-500 font-bold tracking-widest text-[11px] uppercase">
             DECK LOCKED // COMING SOON
           </span>
           <span className="text-zinc-600 text-[8px] mt-2 tracking-wider">
@@ -2167,7 +2167,7 @@ function MixArchive({
         <div className="w-full relative flex justify-center items-center z-30 font-mono select-none px-3 py-2 shrink-0 border-b border-zinc-900 bg-black/60 backdrop-blur rounded-lg mb-1">
           <div className="absolute left-3 flex items-center gap-3">
             <span className="w-2 h-2 rounded-full bg-primary animate-pulse shadow-[0_0_8px_#D8163F]" />
-            <span className="text-primary font-black uppercase tracking-[0.3em] text-[10px] md:text-xs glitch" data-text="HENRY IX // CDJ PORTFOLIO">
+            <span className="text-primary font-black uppercase tracking-[0.3em] text-[10px] md:text-xs">
               HENRY IX // CDJ PORTFOLIO
             </span>
           </div>
