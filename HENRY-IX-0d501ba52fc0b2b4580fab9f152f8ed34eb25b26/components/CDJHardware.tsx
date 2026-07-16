@@ -421,59 +421,57 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
         </button>
       </div>
 
-      {/* 2. Main Hardware Panel */}
-      <div className="w-full flex items-stretch justify-between gap-3 relative">
+      {/* Loop Row (under hot cues, aligned left) */}
+      <div className="w-full flex items-center justify-start gap-3 px-1 border-b border-zinc-800/40 pb-2.5">
+        <span className="text-[5.5px] text-zinc-500 font-mono tracking-widest font-bold uppercase w-10 shrink-0">LOOP</span>
         
-        {/* Left Side: Loop Panel & Main Controls */}
-        <div className="flex flex-col justify-between w-20 shrink-0">
-          
-          {/* Looping Controls */}
-          <div className="flex flex-col gap-1.5 border-b border-zinc-800/50 pb-2">
-            <span className="text-[5.5px] text-zinc-600 font-mono tracking-widest font-bold uppercase w-full">LOOPING</span>
-            
-            {/* IN / -4 BEAT */}
-            <div className="flex flex-col gap-0.5">
-              <button
-                onPointerDown={handleLoopInDown}
-                onPointerUp={handleLoopInUp}
-                className={cn(
-                  "h-7 rounded-md font-mono text-[7px] font-black tracking-widest border transition-all cursor-pointer leading-none uppercase flex flex-col items-center justify-center",
-                  deck?.loopIn !== null && deck?.loopIn !== undefined
-                    ? "bg-amber-500/20 border-amber-500/40 text-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.2)]"
-                    : "bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700"
-                )}
-              >
-                <span>IN</span>
-                <span className="text-[5px] text-zinc-600 font-normal mt-0.5">-4 BEAT</span>
-              </button>
-            </div>
+        {/* IN / -4 BEAT */}
+        <button
+          onPointerDown={handleLoopInDown}
+          onPointerUp={handleLoopInUp}
+          className={cn(
+            "w-9 h-9 rounded-full font-mono text-[7px] font-black tracking-widest border transition-all cursor-pointer leading-none uppercase flex flex-col items-center justify-center relative shadow-lg shrink-0",
+            deck?.loopIn !== null && deck?.loopIn !== undefined
+              ? "bg-amber-500/20 border-amber-500/40 text-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.2)]"
+              : "bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700"
+          )}
+        >
+          <span className="text-[7.5px] leading-none font-bold">IN</span>
+          <span className="text-[4px] text-zinc-600 font-normal mt-0.5 tracking-tighter leading-none">-4 BEAT</span>
+        </button>
 
-            {/* OUT */}
-            <button
-              onPointerDown={handleLoopOutPress}
-              className={cn(
-                "h-7 rounded-md font-mono text-[7px] font-black tracking-widest border transition-all cursor-pointer uppercase flex items-center justify-center",
-                deck?.loopOut !== null && deck?.loopOut !== undefined
-                  ? "bg-amber-500/20 border-amber-500/40 text-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.2)]"
-                  : "bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700"
-              )}
-            >
-              OUT
-            </button>
+        {/* OUT */}
+        <button
+          onPointerDown={handleLoopOutPress}
+          className={cn(
+            "w-9 h-9 rounded-full font-mono text-[7.5px] font-bold tracking-widest border transition-all cursor-pointer uppercase flex items-center justify-center shadow-lg shrink-0",
+            deck?.loopOut !== null && deck?.loopOut !== undefined
+              ? "bg-amber-500/20 border-amber-500/40 text-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.2)]"
+              : "bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700"
+          )}
+        >
+          OUT
+        </button>
 
-            {/* RELOOP / EXIT */}
-            <button
-              onPointerDown={handleReloopExitPress}
-              className={cn(
-                "h-7 rounded-md font-mono text-[7px] font-black tracking-widest border transition-all cursor-pointer uppercase flex items-center justify-center",
-                deck?.isLoopActive
-                  ? "bg-amber-500 border-amber-400 text-black shadow-[0_0_10px_rgba(245,158,11,0.4)]"
-                  : "bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700"
-              )}
-            >
-              RELOOP
-            </button>
-          </div>
+        {/* RELOOP/EXIT */}
+        <button
+          onPointerDown={handleReloopExitPress}
+          className={cn(
+            "w-9 h-9 rounded-full font-mono text-[6.5px] font-bold tracking-widest border transition-all cursor-pointer uppercase flex items-center justify-center text-center shadow-lg shrink-0 leading-[1.1]",
+            deck?.isLoopActive
+              ? "bg-amber-500 border-amber-400 text-black shadow-[0_0_10px_rgba(245,158,11,0.4)]"
+              : "bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700"
+          )}
+        >
+          RELOOP
+        </button>
+      </div>
+
+      {/* 2. Main Hardware Panel */}
+      <div className="w-full flex items-stretch justify-between gap-3 relative flex-grow min-h-0">
+        
+        {/* Left Side: Main Controls */}
+        <div className="flex flex-col justify-end w-20 shrink-0">
 
           {/* Transport Section (Orange CUE and Green PLAY) */}
           <div className="flex flex-col gap-2 mt-auto pt-2">

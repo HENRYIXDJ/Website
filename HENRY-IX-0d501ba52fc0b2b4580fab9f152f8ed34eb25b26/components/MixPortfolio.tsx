@@ -629,7 +629,8 @@ function SingleDeckWaveform({
 
       Object.entries(hotCues).forEach(([pad, time]) => {
         if (time !== null && time !== undefined) {
-          const x = Math.round(centerX + (time - progress) * pixelsPerSecond);
+          const timeVal = time as number;
+          const x = Math.round(centerX + (timeVal - progress) * pixelsPerSecond);
           if (x >= 0 && x <= width) {
             const color = HOT_CUE_COLORS[pad] || '#ffffff';
             
