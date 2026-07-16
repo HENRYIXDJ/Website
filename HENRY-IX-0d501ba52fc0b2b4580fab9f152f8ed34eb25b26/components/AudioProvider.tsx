@@ -92,6 +92,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     highShelf: BiquadFilterNode;
     filterNode: BiquadFilterNode;
     gainNode: GainNode;
+    analyserNode: AnalyserNode;
   }>>({});
 
   const audioElementsRef = useRef<Record<number, HTMLAudioElement | null>>({});
@@ -181,6 +182,9 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     const gainNode = ctx.createGain();
     gainNode.gain.value = 0;
 
+    const analyserNode = ctx.createAnalyser();
+    analyserNode.fftSize = 256;
+
     trimNode.connect(lowShelf);
     lowShelf.connect(midPeak);
     midPeak.connect(highShelf);
@@ -188,7 +192,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     filterNode.connect(gainNode);
     gainNode.connect(masterAnalyserRef.current!);
 
-    deckNodesRef.current[deckId] = { trimNode, lowShelf, midPeak, highShelf, filterNode, gainNode };
+    deckNodesRef.current[deckId] = { trimNode, lowShelf, midPeak, highShelf, filterNode, gainNode, analyserNode };
 
     const audio = new Audio();
     audio.crossOrigin = 'anonymous';
@@ -198,7 +202,8 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     audioElementsRef.current[deckId] = audio;
 
     const source = ctx.createMediaElementSource(audio);
-    source.connect(trimNode);
+    source.connect(analyserNode);
+    analyserNode.connect(trimNode);
     mediaSourcesRef.current[deckId] = source;
 
     // Load metadata when available
@@ -1045,6 +1050,65 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   ), [isMuted, preloaderComplete]);
   // NOTE: deck/crossfader state are now getters that fetch fresh Zustand state.
   // Components needing reactive updates should subscribe via useAudioStore() directly.
+
+  // Real-time audio onset detection system for automatic beatgrid calibration
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    let frameId: number;
+    const bufferLength = 128;
+    const dataArray = new Uint8Array(bufferLength);
+
+    const checkOnset = () => {
+      const state = useAudioStore.getState();
+      [1, 2, 3, 4].forEach(deckId => {
+        const deck = state.decks[deckId];
+        const audio = audioElementsRef.current[deckId];
+        const nodes = deckNodesRef.current[deckId];
+
+        // Only detect onset if deck is playing, not in SoundCloud mode,
+        // and its firstBeatOffset hasn't been set yet (or is exactly 0)
+        if (
+          deck &&
+          deck.isPlaying &&
+          !deck.scMode &&
+          audio &&
+          nodes &&
+          nodes.analyserNode &&
+          (!deck.firstBeatOffset || deck.firstBeatOffset === 0)
+        ) {
+          const analyser = nodes.analyserNode;
+          analyser.getByteTimeDomainData(dataArray);
+
+          // Calculate Root-Mean-Square (RMS) amplitude
+          let sum = 0;
+          for (let i = 0; i < bufferLength; i++) {
+            const val = (dataArray[i] - 128) / 128;
+            sum += val * val;
+          }
+          const rms = Math.sqrt(sum / bufferLength);
+
+          // Threshold: if RMS is > 0.012 (sound has started playing!)
+          // Check currentTime > 0.02 to avoid initial click or pop at 0.00
+          if (rms > 0.012 && audio.currentTime > 0.02) {
+            const detectedOffset = audio.currentTime;
+            console.log(`[ONSET] Dynamic sound onset detected for Deck ${deckId} at ${detectedOffset.toFixed(3)}s`);
+            
+            // Align firstBeatOffset in Zustand store
+            setDeck(deckId, { firstBeatOffset: detectedOffset });
+            
+            // Seek playhead to snap it instantly to the newly aligned starting beat
+            audio.currentTime = detectedOffset;
+            setDeck(deckId, { progress: detectedOffset });
+          }
+        }
+      });
+      frameId = requestAnimationFrame(checkOnset);
+    };
+
+    frameId = requestAnimationFrame(checkOnset);
+    return () => cancelAnimationFrame(frameId);
+  }, [setDeck]);
 
   return (
     <AudioContext.Provider value={contextValue}>

@@ -17,6 +17,7 @@ export interface DeckDSPNodes {
   highShelf: BiquadFilterNode;
   filterNode: BiquadFilterNode;
   gainNode: GainNode;
+  analyserNode?: AnalyserNode;
 }
 
 export class AudioEngine {
