@@ -227,6 +227,42 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
         progress: offset,
         cuePoints: newCuePoints
       });
+      
+      // Auto-detect onset for unknown tracks via a background Range fetch
+      if (!offset && audio.src && audio.src.startsWith('http') && !audio.src.includes('soundcloud')) {
+        const absoluteUrl = new URL(audio.src).href;
+        fetch(absoluteUrl, { headers: { Range: 'bytes=0-1500000' } })
+          .then(res => { if (res.ok || res.status === 206) return res.arrayBuffer(); else throw new Error(); })
+          .then(async buffer => {
+            const actx = new OfflineAudioContext(1, 44100 * 30, 44100);
+            const audioBuffer = await actx.decodeAudioData(buffer).catch(() => null);
+            if (!audioBuffer) return;
+            const data = audioBuffer.getChannelData(0);
+            const wSize = 256;
+            for (let i = 0; i < data.length; i += wSize) {
+              let sum = 0;
+              for (let j = 0; j < wSize && i + j < data.length; j++) sum += data[i+j] * data[i+j];
+              const rms = Math.sqrt(sum / wSize);
+              if (rms > 0.012 && (i / 44100) > 0.02) {
+                const detected = i / 44100;
+                console.log(`[BACKGROUND ONSET] Deck ${deckId} detected at ${detected.toFixed(3)}s`);
+                
+                const current = useAudioStore.getState().decks[deckId];
+                if (current && (!current.firstBeatOffset || current.firstBeatOffset === 0)) {
+                  let updatedCue = current.cuePoints || [];
+                  if (updatedCue.length === 0 || Math.abs(updatedCue[0] - detected) > 0.05) {
+                    updatedCue = [detected, ...updatedCue.filter(c => Math.abs(c - detected) > 0.05)];
+                  }
+                  setDeck(deckId, { firstBeatOffset: detected, cuePoints: updatedCue, progress: current.isPlaying ? current.progress : detected });
+                  if (!current.isPlaying && audio.currentTime === 0) {
+                     audio.currentTime = detected;
+                  }
+                }
+                break;
+              }
+            }
+          }).catch(() => {});
+      }
     });
 
     // Keep Zustand in sync with the native audio element state.
