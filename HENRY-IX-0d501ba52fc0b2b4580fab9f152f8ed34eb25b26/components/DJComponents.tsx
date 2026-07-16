@@ -141,7 +141,7 @@ export function RotaryKnob({ label, value, onChange, disabled = false, colorClas
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={value}
-          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20 touch-none scale-125"
         />
         
         {/* Outer casing */}

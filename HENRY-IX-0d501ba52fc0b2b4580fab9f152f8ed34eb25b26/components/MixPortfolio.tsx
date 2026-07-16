@@ -210,7 +210,7 @@ export function VolumeFader({
           writingMode: 'vertical-lr',
           direction: 'rtl'
         }}
-        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20 touch-none scale-125"
       />
 
       <div 
@@ -338,7 +338,7 @@ export function Crossfader({
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={value}
-        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20 touch-none scale-125"
       />
 
       <div className="w-[95%] h-[1px] bg-zinc-800 absolute" />
@@ -1238,6 +1238,8 @@ function MixArchive({
   const [activeTab, setActiveTab] = useState<'all' | 'knight club' | 'royal court' | 'corner new cross'>('all');
   const [deckCount, setDeckCount] = useState<2 | 4>(4);
   const [isMobile, setIsMobile] = useState(false);
+  const [isPortrait, setIsPortrait] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const activeDeckIds = (deckCount === 2 ? [1, 2] : [3, 1, 2, 4]) as readonly (1 | 2 | 3 | 4)[];
 
   const isStacked = useAudioStore(s => s.isStacked);
@@ -1253,6 +1255,8 @@ function MixArchive({
       if (mobile) {
         setDeckCount(2);
       }
+      
+      setIsPortrait(window.innerHeight > window.innerWidth);
     };
     handleResize();
     window.addEventListener('resize', handleResize);
@@ -2366,74 +2370,156 @@ function MixArchive({
       >
         <AudioVisualizerBackground isDepth={isDepth} mouseX={mouseX} mouseY={mouseY} isPlaying={activeVisualizer.isPlaying} />
 
-        {/* Persistent Retro-Futuristic Header with Toggle Button */}
-        <div className="w-full relative flex justify-center items-center z-30 font-mono select-none px-3 py-2 shrink-0 border-b border-zinc-900 bg-black/60 backdrop-blur rounded-lg mb-1">
-          <div className="absolute left-3 flex items-center gap-3">
-            <span className="w-2 h-2 rounded-full bg-primary animate-pulse shadow-[0_0_8px_#D8163F]" />
-            <span className="text-primary font-black uppercase tracking-[0.3em] text-[10px] md:text-xs">
-              HENRY IX // CDJ PORTFOLIO
-            </span>
-          </div>
-          <div className="relative flex p-1 bg-zinc-950/80 border border-zinc-900/80 rounded-lg backdrop-blur-md">
-            {(['cdj', 'tracklist'] as const).map((view) => (
-              <button
-                key={view}
-                onClick={() => {
-                  if (setActiveView && activeView !== view) {
-                    setActiveView(view);
-                    playClick(800, 'sine', 0.02);
-                  }
-                }}
-                className={cn(
-                  "relative px-4 py-1.5 rounded-md font-mono text-[9px] md:text-[10px] tracking-widest font-black uppercase transition-colors cursor-pointer flex items-center justify-center gap-2 w-32 md:w-36",
-                  activeView === view ? "text-black" : "text-zinc-400 hover:text-zinc-200"
-                )}
-              >
-                {activeView === view && (
-                  <motion.div
-                    layoutId="view-toggle-highlight"
-                    className="absolute inset-0 bg-primary rounded-md shadow-[0_0_10px_rgba(216,22,63,0.4)]"
-                    transition={{ type: "spring", bounce: 0.2, duration: 0.5 }}
-                  />
-                )}
-                <span className="relative z-10">{view === 'cdj' ? 'DECK VIEW' : 'TRACKLIST VIEW'}</span>
-              </button>
-            ))}
-          </div>
-
-          {/* Sub Slider for 2 or 4 decks - only shown in Deck View and when not on mobile */}
-          {activeView === 'cdj' && !isMobile && (
-            <div className="absolute right-3 flex items-center gap-1.5 md:gap-2">
-              <span className="text-[7.5px] md:text-[8px] text-zinc-500 font-bold uppercase tracking-wider select-none">
-                DECKS:
-              </span>
-              <div className="relative flex p-0.5 bg-zinc-950/80 border border-zinc-900 rounded-md backdrop-blur-md">
-                {([2, 4] as const).map((count) => (
-                  <button
-                    key={count}
-                    onClick={() => {
-                      setDeckCount(count);
-                      playClick(800, 'sine', 0.02);
-                    }}
-                    className={cn(
-                      "relative px-2 py-0.5 rounded font-mono text-[8px] font-black uppercase transition-colors cursor-pointer flex items-center justify-center w-8 h-5",
-                      deckCount === count ? "text-zinc-950 font-black" : "text-zinc-500 hover:text-zinc-300"
-                    )}
-                  >
-                    {deckCount === count && (
-                      <motion.div
-                        layoutId="deck-count-highlight"
-                        className="absolute inset-0 bg-primary rounded shadow-[0_0_8px_rgba(216,22,63,0.3)]"
-                        transition={{ type: "spring", bounce: 0.2, duration: 0.4 }}
-                      />
-                    )}
-                    <span className="relative z-10">{count}</span>
-                  </button>
-                ))}
+        {/* Forced Landscape Overlay */}
+        <AnimatePresence>
+          {isMobile && isPortrait && (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100] bg-zinc-950 flex flex-col items-center justify-center p-8 text-center"
+            >
+              <div className="w-16 h-16 rounded-full border border-zinc-800 flex items-center justify-center mb-6 animate-pulse">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
               </div>
-            </div>
+              <h2 className="text-xl font-bold text-zinc-200 mb-2 font-mono uppercase tracking-widest">Rotate to Landscape</h2>
+              <p className="text-sm text-zinc-500 font-mono">The CDJ layout requires a landscape orientation on mobile devices.</p>
+            </motion.div>
           )}
-        </div>
+        </AnimatePresence>
+
+        {/* Mobile Hamburger Menu Toggle */}
+        {isMobile && (
+          <button 
+            onClick={() => setIsMobileMenuOpen(true)}
+            className="absolute top-4 left-4 z-40 p-2 bg-zinc-950/80 border border-zinc-900 rounded-md text-zinc-400 hover:text-white backdrop-blur shadow-xl"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+          </button>
+        )}
+
+        {/* Mobile Slide-out Menu */}
+        <AnimatePresence>
+          {isMobile && isMobileMenuOpen && (
+            <>
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
+              />
+              <motion.div 
+                initial={{ x: '-100%' }}
+                animate={{ x: 0 }}
+                exit={{ x: '-100%' }}
+                transition={{ type: "spring", bounce: 0, duration: 0.4 }}
+                className="fixed top-0 left-0 bottom-0 w-64 bg-zinc-950 border-r border-zinc-900 z-50 p-4 flex flex-col gap-6 shadow-2xl"
+              >
+                <div className="flex justify-between items-center pb-4 border-b border-zinc-900">
+                  <span className="text-primary font-black uppercase tracking-[0.2em] text-[10px]">
+                    HENRY IX // CDJ
+                  </span>
+                  <button onClick={() => setIsMobileMenuOpen(false)} className="text-zinc-500 hover:text-white">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </button>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  {(['cdj', 'tracklist'] as const).map((view) => (
+                    <button
+                      key={view}
+                      onClick={() => {
+                        if (setActiveView && activeView !== view) {
+                          setActiveView(view);
+                          playClick(800, 'sine', 0.02);
+                        }
+                        setIsMobileMenuOpen(false);
+                      }}
+                      className={cn(
+                        "p-3 rounded-md font-mono text-xs tracking-widest font-black uppercase transition-colors text-left relative overflow-hidden",
+                        activeView === view ? "bg-primary text-black" : "bg-zinc-900 text-zinc-400 hover:text-zinc-200"
+                      )}
+                    >
+                      <span className="relative z-10">{view === 'cdj' ? 'DECK VIEW' : 'TRACKLIST VIEW'}</span>
+                    </button>
+                  ))}
+                </div>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
+
+        {/* Persistent Retro-Futuristic Header with Toggle Button (Hidden on Mobile) */}
+        {!isMobile && (
+          <div className="w-full relative flex justify-center items-center z-30 font-mono select-none px-3 py-2 shrink-0 border-b border-zinc-900 bg-black/60 backdrop-blur rounded-lg mb-1">
+            <div className="absolute left-3 flex items-center gap-3">
+              <span className="w-2 h-2 rounded-full bg-primary animate-pulse shadow-[0_0_8px_#D8163F]" />
+              <span className="text-primary font-black uppercase tracking-[0.3em] text-[10px] md:text-xs">
+                HENRY IX // CDJ PORTFOLIO
+              </span>
+            </div>
+            <div className="relative flex p-1 bg-zinc-950/80 border border-zinc-900/80 rounded-lg backdrop-blur-md">
+              {(['cdj', 'tracklist'] as const).map((view) => (
+                <button
+                  key={view}
+                  onClick={() => {
+                    if (setActiveView && activeView !== view) {
+                      setActiveView(view);
+                      playClick(800, 'sine', 0.02);
+                    }
+                  }}
+                  className={cn(
+                    "relative px-4 py-1.5 rounded-md font-mono text-[9px] md:text-[10px] tracking-widest font-black uppercase transition-colors cursor-pointer flex items-center justify-center gap-2 w-32 md:w-36",
+                    activeView === view ? "text-black" : "text-zinc-400 hover:text-zinc-200"
+                  )}
+                >
+                  {activeView === view && (
+                    <motion.div
+                      layoutId="view-toggle-highlight"
+                      className="absolute inset-0 bg-primary rounded-md shadow-[0_0_10px_rgba(216,22,63,0.4)]"
+                      transition={{ type: "spring", bounce: 0.2, duration: 0.5 }}
+                    />
+                  )}
+                  <span className="relative z-10">{view === 'cdj' ? 'DECK VIEW' : 'TRACKLIST VIEW'}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Sub Slider for 2 or 4 decks - only shown in Deck View and when not on mobile */}
+            {activeView === 'cdj' && (
+              <div className="absolute right-3 flex items-center gap-1.5 md:gap-2">
+                <span className="text-[7.5px] md:text-[8px] text-zinc-500 font-bold uppercase tracking-wider select-none">
+                  DECKS:
+                </span>
+                <div className="relative flex p-0.5 bg-zinc-950/80 border border-zinc-900 rounded-md backdrop-blur-md">
+                  {([2, 4] as const).map((count) => (
+                    <button
+                      key={count}
+                      onClick={() => {
+                        setDeckCount(count);
+                        playClick(800, 'sine', 0.02);
+                      }}
+                      className={cn(
+                        "relative px-2 py-0.5 rounded font-mono text-[8px] font-black uppercase transition-colors cursor-pointer flex items-center justify-center w-8 h-5",
+                        deckCount === count ? "text-zinc-950 font-black" : "text-zinc-500 hover:text-zinc-300"
+                      )}
+                    >
+                      {deckCount === count && (
+                        <motion.div
+                          layoutId="deck-count-highlight"
+                          className="absolute inset-0 bg-primary rounded shadow-[0_0_8px_rgba(216,22,63,0.3)]"
+                          transition={{ type: "spring", bounce: 0.2, duration: 0.4 }}
+                        />
+                      )}
+                      <span className="relative z-10">{count}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {activeView === 'cdj' ? (
           <>
@@ -2445,10 +2531,24 @@ function MixArchive({
                 height: 100%;
               }
               
-              /* Performance Mode (Screens < 1536px) */
-              @media (max-width: 1535px) {
+              /* Mobile Mode (Screens < 1024px) */
+              @media (max-width: 1023px) {
                 .dj-grid-container {
-                  grid-template-columns: 1.2fr 2fr 1.2fr;
+                  gap: 4px;
+                  grid-template-columns: 2fr 1.5fr 2fr;
+                  grid-template-rows: auto auto 1fr;
+                  grid-template-areas:
+                    "browserL waveL  browserR"
+                    "browserL waveR  browserR"
+                    "controlL mixer  controlR";
+                }
+              }
+
+              /* Performance Mode (Screens 1024px - 1535px) */
+              @media (min-width: 1024px) and (max-width: 1535px) {
+                .dj-grid-container {
+                  gap: 12px;
+                  grid-template-columns: 2fr 1.8fr 2fr;
                   grid-template-rows: auto auto 1fr;
                   grid-template-areas:
                     "browserL waveL  browserR"
@@ -2461,7 +2561,7 @@ function MixArchive({
               @media (min-width: 1536px) {
                 .dj-grid-container {
                   ${deckCount === 2 ? `
-                    grid-template-columns: minmax(0, 1fr) minmax(280px, 1.2fr) minmax(0, 1fr);
+                    grid-template-columns: minmax(0, 1.8fr) minmax(280px, 1.2fr) minmax(0, 1.8fr);
                     grid-template-rows: 200px auto 1fr;
                     grid-template-areas:
                       "browser1 mixer browser2"
