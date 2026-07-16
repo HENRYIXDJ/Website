@@ -1,7 +1,5 @@
-export const runtime = 'edge';
 import { NextResponse } from 'next/server';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 const accountId = process.env.R2_ACCOUNT_ID;
 const accessKeyId = process.env.R2_ACCESS_KEY_ID;
@@ -62,7 +60,6 @@ async function handleAssetRequest(request: Request) {
     return new NextResponse('R2 Bucket name not configured', { status: 500 });
   }
   
-  // Optional: Validate that the requested domain matches expected domains
   const r2PublicDomain = process.env.NEXT_PUBLIC_R2_PUBLIC_URL;
   const storageBaseUrl = process.env.NEXT_PUBLIC_STORAGE_BASE_URL;
   const allowedHosts = [
@@ -84,15 +81,90 @@ async function handleAssetRequest(request: Request) {
   }
 
   try {
+    const range = request.headers.get('Range');
     const command = new GetObjectCommand({
       Bucket: bucketName,
       Key: pathname,
+      Range: range || undefined,
     });
 
-    const presignedUrl = await getSignedUrl(s3Client, command, { expiresIn: 5 * 60 });
-    return NextResponse.redirect(presignedUrl, { status: 307 });
-  } catch (error) {
-    console.error('Error signing R2 URL:', error);
+    const s3Response = await s3Client.send(command);
+    
+    // Set headers
+    const headers = new Headers();
+    headers.set('Content-Type', s3Response.ContentType || 'application/octet-stream');
+    headers.set('Access-Control-Allow-Origin', '*');
+    headers.set('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+    headers.set('Access-Control-Allow-Headers', '*');
+    
+    if (s3Response.ContentLength !== undefined) {
+      headers.set('Content-Length', s3Response.ContentLength.toString());
+    }
+    if (s3Response.ContentRange) {
+      headers.set('Content-Range', s3Response.ContentRange);
+      headers.set('Accept-Ranges', 'bytes');
+    } else {
+      headers.set('Accept-Ranges', 'bytes');
+    }
+    if (s3Response.ETag) {
+      headers.set('ETag', s3Response.ETag);
+    }
+    if (s3Response.LastModified) {
+      headers.set('Last-Modified', s3Response.LastModified.toUTCString());
+    }
+
+    const statusCode = s3Response.ContentRange ? 206 : 200;
+
+    if (request.method === 'HEAD') {
+      return new NextResponse(null, {
+        status: statusCode,
+        headers,
+      });
+    }
+
+    const readable = s3Response.Body as any;
+    if (!readable) {
+      return new NextResponse(null, { status: statusCode, headers });
+    }
+
+    const stream = new ReadableStream({
+      start(controller) {
+        if (typeof readable.on === 'function') {
+          readable.on('data', (chunk: any) => controller.enqueue(chunk));
+          readable.on('end', () => controller.close());
+          readable.on('error', (err: any) => controller.error(err));
+        } else if (typeof readable[Symbol.asyncIterator] === 'function') {
+          (async () => {
+            try {
+              for await (const chunk of readable) {
+                controller.enqueue(chunk);
+              }
+              controller.close();
+            } catch (err) {
+              controller.error(err);
+            }
+          })();
+        } else {
+          controller.error(new Error('Unknown stream type'));
+        }
+      },
+      cancel() {
+        if (typeof readable.destroy === 'function') {
+          readable.destroy();
+        }
+      }
+    });
+
+    return new NextResponse(stream, {
+      status: statusCode,
+      headers,
+    });
+
+  } catch (error: any) {
+    console.error('Error proxying asset from R2:', error);
+    if (error.name === 'NoSuchKey' || error.$metadata?.httpStatusCode === 404) {
+      return new NextResponse('Asset not found in storage', { status: 404 });
+    }
     return new NextResponse('Error generating signed URL', { status: 500 });
   }
 }
