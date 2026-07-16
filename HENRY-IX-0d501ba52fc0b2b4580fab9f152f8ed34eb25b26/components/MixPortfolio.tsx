@@ -127,18 +127,18 @@ export function VolumeFader({
 
       e.preventDefault();
 
-      const delta = -Math.sign(e.deltaY) * 0.5;
+      const delta = -Math.sign(e.deltaY) * 0.2;
       let newValue = lastUpdateRef.current.value + delta;
 
-      if (newValue < 1.5) {
+      if (newValue < 3.5) {
         if (lastUpdateRef.current.value !== 0) {
           newValue = 0;
-          playClick(880, 'sine', 0.004);
+          playClick(880, 'sine', 0.015);
         }
-      } else if (newValue > 98.5) {
+      } else if (newValue > 96.5) {
         if (lastUpdateRef.current.value !== 100) {
           newValue = 100;
-          playClick(880, 'sine', 0.004);
+          playClick(880, 'sine', 0.015);
         }
       } else {
         const nearestInt = Math.round(newValue);
@@ -179,19 +179,19 @@ export function VolumeFader({
 
             let targetValue = rawValue;
 
-            if (rawValue < 2.0) {
-              if (velocity < 0.15) {
+            if (rawValue < 3.5) {
+              if (velocity < 0.3) {
                 targetValue = 0;
-                if (volume !== 0) playClick(880, 'sine', 0.004);
+                if (volume !== 0) playClick(880, 'sine', 0.015);
               }
-            } else if (rawValue > 98.0) {
-              if (velocity < 0.15) {
+            } else if (rawValue > 96.5) {
+              if (velocity < 0.3) {
                 targetValue = 100;
-                if (volume !== 100) playClick(880, 'sine', 0.004);
+                if (volume !== 100) playClick(880, 'sine', 0.015);
               }
             } else {
               const nearestInt = Math.round(rawValue);
-              if (velocity < 0.08 && Math.abs(rawValue - nearestInt) < 0.25) {
+              if (velocity < 0.15 && Math.abs(rawValue - nearestInt) < 0.4) {
                 targetValue = nearestInt;
               }
             }
@@ -267,16 +267,16 @@ export function Crossfader({
 
       e.preventDefault();
 
-      const delta = -Math.sign(e.deltaY) * 0.5;
+      const delta = -Math.sign(e.deltaY) * 0.2;
       let newValue = lastUpdateRef.current.value + delta;
 
       const center = 50;
-      const snapThreshold = 1.5;
+      const snapThreshold = 3.5;
 
       if (Math.abs(newValue - center) < snapThreshold) {
         if (lastUpdateRef.current.value !== center) {
           newValue = center;
-          playClick(880, 'sine', 0.004);
+          playClick(880, 'sine', 0.015);
         }
       } else {
         const nearestInt = Math.round(newValue);
@@ -316,18 +316,18 @@ export function Crossfader({
 
           let targetValue = rawValue;
           const center = 50;
-          const snapThreshold = 2.0;
+          const snapThreshold = 3.5;
 
           if (Math.abs(rawValue - center) < snapThreshold) {
-            if (velocity < 0.15) {
+            if (velocity < 0.3) {
               targetValue = center;
               if (value !== center) {
-                playClick(880, 'sine', 0.004);
+                playClick(880, 'sine', 0.015);
               }
             }
           } else {
             const nearestInt = Math.round(rawValue);
-            if (velocity < 0.08 && Math.abs(rawValue - nearestInt) < 0.25) {
+            if (velocity < 0.15 && Math.abs(rawValue - nearestInt) < 0.4) {
               targetValue = nearestInt;
             }
           }
