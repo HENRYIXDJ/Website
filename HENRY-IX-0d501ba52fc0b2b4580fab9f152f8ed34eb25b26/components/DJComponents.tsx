@@ -136,6 +136,13 @@ export function RotaryKnob({ label, value, onChange, disabled = false, colorClas
               onChange(Math.max(0, Math.min(100, targetValue)));
             }
           }}
+          onDoubleClick={(e) => {
+            if (!disabled) {
+              e.preventDefault();
+              onChange(50);
+              playClick(850, 'sine', 0.015);
+            }
+          }}
           disabled={disabled}
           aria-label={label}
           aria-valuemin={0}

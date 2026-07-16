@@ -45,6 +45,7 @@ export interface DeckState {
   isCueStuttering: boolean;
   hotCues: Record<string, number | null>;
   slipEnabled: boolean;
+  pitchBend?: number;
 }
 
 export interface AudioStoreState {
@@ -177,7 +178,8 @@ const INITIAL_DECKS: Record<number, DeckState> = {
     mainCue: 0,
     isCueStuttering: false,
     hotCues: { A: null, B: null, C: null, D: null, E: null, F: null, G: null, H: null },
-    slipEnabled: false
+    slipEnabled: false,
+    pitchBend: 0
   },
   2: {
     id: 'kc-2', title: 'Knight Club: Session 2',
@@ -196,7 +198,8 @@ const INITIAL_DECKS: Record<number, DeckState> = {
     mainCue: 0,
     isCueStuttering: false,
     hotCues: { A: null, B: null, C: null, D: null, E: null, F: null, G: null, H: null },
-    slipEnabled: false
+    slipEnabled: false,
+    pitchBend: 0
   },
   3: {
     id: 'kc-3', title: 'Knight Club: Session 3',
@@ -215,7 +218,8 @@ const INITIAL_DECKS: Record<number, DeckState> = {
     mainCue: 0,
     isCueStuttering: false,
     hotCues: { A: null, B: null, C: null, D: null, E: null, F: null, G: null, H: null },
-    slipEnabled: false
+    slipEnabled: false,
+    pitchBend: 0
   },
   4: {
     id: 'kc-4', title: 'Knight Club: Session 4',
@@ -234,7 +238,8 @@ const INITIAL_DECKS: Record<number, DeckState> = {
     mainCue: 0,
     isCueStuttering: false,
     hotCues: { A: null, B: null, C: null, D: null, E: null, F: null, G: null, H: null },
-    slipEnabled: false
+    slipEnabled: false,
+    pitchBend: 0
   },
 };
 

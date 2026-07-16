@@ -513,24 +513,30 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
 
     // 2. Phase alignment (Only if BEAT sync mode is active - phrase quantized to 4 bars/16 beats)
     if (deckB.syncMode !== 'BPM') {
-      const beatIntervalA = 60 / deckA.bpm;
-      const beatIntervalB = 60 / deckB.bpm;
+      const activeBpm = deckA.bpm * (1 + (deckA.pitch || 0) / 100);
+      const activeBeatInterval = 60 / activeBpm;
       const offsetA = deckA.firstBeatOffset || 0;
       const offsetB = deckB.firstBeatOffset || 0;
       
-      const phraseIntervalA = beatIntervalA * 16;
-      const phraseIntervalB = beatIntervalB * 16;
+      const phraseInterval = activeBeatInterval * 16;
 
       // Calculate progress relative to the first beat offset of Deck A
-      const progressRelA = Math.max(0, audioA.currentTime - offsetA);
-      const phaseA = (progressRelA % phraseIntervalA) / phraseIntervalA;
+      const elapsedA = Math.max(0, audioA.currentTime - offsetA);
+      const phaseA = elapsedA % phraseInterval;
       
       const durationB = audioB.duration || deckB.duration || 0;
       
       // Calculate target time for Deck B relative to its own first beat offset
-      const progressRelB = audioB.currentTime - offsetB;
-      let targetTimeB = offsetB + Math.round(progressRelB / phraseIntervalB) * phraseIntervalB + phaseA * phraseIntervalB;
+      const elapsedB = audioB.currentTime - offsetB;
+      let targetTimeB = offsetB + Math.round(elapsedB / phraseInterval) * phraseInterval + phaseA;
       
+      // Fallback to bar alignment (4 beats) if phrase alignment causes out-of-bound errors
+      if (targetTimeB < 0 || (durationB && targetTimeB > durationB)) {
+        const barInterval = activeBeatInterval * 4;
+        const barPhaseA = elapsedA % barInterval;
+        targetTimeB = offsetB + Math.round(elapsedB / barInterval) * barInterval + barPhaseA;
+      }
+
       if (targetTimeB < 0) targetTimeB = 0;
       if (durationB && targetTimeB > durationB) targetTimeB = durationB;
       
@@ -808,15 +814,21 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
         state.decks[2]?.masterTempo,
         state.decks[3]?.masterTempo,
         state.decks[4]?.masterTempo,
+        state.decks[1]?.pitchBend,
+        state.decks[2]?.pitchBend,
+        state.decks[3]?.pitchBend,
+        state.decks[4]?.pitchBend,
       ],
-      ([p1, p2, p3, p4, mt1, mt2, mt3, mt4]) => {
+      ([p1, p2, p3, p4, mt1, mt2, mt3, mt4, pb1, pb2, pb3, pb4]) => {
         const pitches = [p1, p2, p3, p4];
         const mts = [mt1, mt2, mt3, mt4];
+        const pbs = [pb1, pb2, pb3, pb4];
         [1, 2, 3, 4].forEach(deckId => {
           const audio = audioElementsRef.current[deckId];
           if (audio) {
             const pitch = (pitches[deckId - 1] ?? 0) as number;
-            const targetRate = 1 + pitch / 100;
+            const pb = (pbs[deckId - 1] ?? 0) as number;
+            const targetRate = (1 + pitch / 100) * (1 + pb / 100);
             if (audio.playbackRate !== targetRate) {
               audio.playbackRate = targetRate;
             }

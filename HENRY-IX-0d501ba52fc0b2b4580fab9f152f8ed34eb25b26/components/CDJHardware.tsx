@@ -614,14 +614,14 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
             </div>
 
             {/* Right side of Loop Row: 3x2 Grid of Square Mode Buttons */}
-            <div className="grid grid-cols-3 gap-x-2 gap-y-1 pb-0.5 select-none shrink-0 items-end">
+            <div className="grid grid-cols-3 gap-x-2 gap-y-1 pb-0.5 select-none shrink-0 items-end w-20 md:w-24">
               {/* Row 1 */}
-              <div className="flex flex-col items-center gap-0.5">
+              <div className="flex flex-col items-center gap-0.5 w-full">
                 <span className="text-[4.5px] text-zinc-500 font-mono font-bold uppercase leading-none">SYNC</span>
                 <button
                   onPointerDown={handleSyncPress}
                   className={cn(
-                    "w-6 h-6 rounded border transition-colors cursor-pointer flex justify-center items-center font-mono text-[6px] font-black leading-none",
+                    "w-full max-w-[28px] min-w-[20px] aspect-square rounded border transition-colors cursor-pointer flex justify-center items-center font-mono text-[6px] font-black leading-none",
                     deck?.syncEnabled
                       ? "bg-emerald-500 border-emerald-400 text-black shadow-[0_0_8px_rgba(16,185,129,0.3)]"
                       : "bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-300"
@@ -631,12 +631,12 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
                 </button>
               </div>
 
-              <div className="flex flex-col items-center gap-0.5">
+              <div className="flex flex-col items-center gap-0.5 w-full">
                 <span className="text-[4.5px] text-zinc-500 font-mono font-bold uppercase leading-none">MSTR</span>
                 <button
                   onPointerDown={handleMasterPress}
                   className={cn(
-                    "w-6 h-6 rounded border transition-colors cursor-pointer flex justify-center items-center font-mono text-[6px] font-black leading-none",
+                    "w-full max-w-[28px] min-w-[20px] aspect-square rounded border transition-colors cursor-pointer flex justify-center items-center font-mono text-[6px] font-black leading-none",
                     deck?.isMaster
                       ? "bg-yellow-500 border-yellow-400 text-black shadow-[0_0_8px_rgba(234,179,8,0.3)]"
                       : "bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-300"
@@ -646,12 +646,12 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
                 </button>
               </div>
 
-              <div className="flex flex-col items-center gap-0.5">
+              <div className="flex flex-col items-center gap-0.5 w-full">
                 <span className="text-[4.5px] text-zinc-500 font-mono font-bold uppercase leading-none">JOG</span>
                 <button
                   onPointerDown={handleJogModePress}
                   className={cn(
-                    "w-6 h-6 rounded border transition-colors cursor-pointer flex justify-center items-center font-mono text-[6.5px] font-black leading-none",
+                    "w-full max-w-[28px] min-w-[20px] aspect-square rounded border transition-colors cursor-pointer flex justify-center items-center font-mono text-[6.5px] font-black leading-none",
                     deck?.jogMode === 'VINYL'
                       ? "bg-red-500/20 border-red-500/40 text-red-400 shadow-[0_0_8px_rgba(239,68,68,0.2)]"
                       : "bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-300"
@@ -662,12 +662,12 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
               </div>
 
               {/* Row 2 */}
-              <div className="flex flex-col items-center gap-0.5">
+              <div className="flex flex-col items-center gap-0.5 w-full">
                 <span className="text-[4.5px] text-zinc-500 font-mono font-bold uppercase leading-none">MT</span>
                 <button
                   onPointerDown={handleMasterTempoPress}
                   className={cn(
-                    "w-6 h-6 rounded border transition-colors cursor-pointer flex justify-center items-center font-mono text-[6.5px] font-black leading-none",
+                    "w-full max-w-[28px] min-w-[20px] aspect-square rounded border transition-colors cursor-pointer flex justify-center items-center font-mono text-[6.5px] font-black leading-none",
                     deck?.masterTempo
                       ? "bg-cyan-500/20 border-cyan-500/40 text-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.25)]"
                       : "bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-300"
@@ -677,12 +677,12 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
                 </button>
               </div>
 
-              <div className="flex flex-col items-center gap-0.5">
+              <div className="flex flex-col items-center gap-0.5 w-full">
                 <span className="text-[4.5px] text-zinc-500 font-mono font-bold uppercase leading-none">SLIP</span>
                 <button
                   onPointerDown={handleSlipPress}
                   className={cn(
-                    "w-6 h-6 rounded border transition-colors cursor-pointer flex justify-center items-center font-mono text-[6.5px] font-black leading-none",
+                    "w-full max-w-[28px] min-w-[20px] aspect-square rounded border transition-colors cursor-pointer flex justify-center items-center font-mono text-[6.5px] font-black leading-none",
                     deck?.slipEnabled
                       ? "bg-red-500 border-red-400 text-black shadow-[0_0_8px_rgba(239,68,68,0.35)]"
                       : "bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-300"
@@ -692,12 +692,12 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
                 </button>
               </div>
 
-              <div className="flex flex-col items-center gap-0.5">
+              <div className="flex flex-col items-center gap-0.5 w-full">
                 <span className="text-[4.5px] text-zinc-500 font-mono font-bold uppercase leading-none">QNTZ</span>
                 <button
                   onPointerDown={handleQuantizePress}
                   className={cn(
-                    "w-6 h-6 rounded border transition-colors cursor-pointer flex justify-center items-center font-mono text-[6.5px] font-black leading-none",
+                    "w-full max-w-[28px] min-w-[20px] aspect-square rounded border transition-colors cursor-pointer flex justify-center items-center font-mono text-[6.5px] font-black leading-none",
                     deck?.quantizeEnabled
                       ? "bg-primary border-primary text-white shadow-neon-glow"
                       : "bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-300"
@@ -916,6 +916,13 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
 
                   setDeck(deckId, { pitch: finalPitch, syncEnabled: false });
                 }}
+                onDoubleClick={(e) => {
+                  if (!isLocked) {
+                    e.preventDefault();
+                    setDeck(deckId, { pitch: 0, syncEnabled: false });
+                    playClick(850, 'sine', 0.015);
+                  }
+                }}
                 title="Adjust Pitch Slider"
                 style={{
                   writingMode: 'vertical-lr',
@@ -925,6 +932,54 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
                 className="absolute inset-0 opacity-0 cursor-pointer z-20 w-[60px] -left-5 h-full touch-none"
               />
             </div>
+          </div>
+
+          {/* Pitch Bend Buttons */}
+          <div className="flex justify-between items-center gap-1.5 w-full shrink-0 select-none border-t border-zinc-800/40 pt-1.5">
+            <button
+              onPointerDown={(e) => {
+                e.preventDefault();
+                if (isLocked) return;
+                playClick(600, 'sine', 0.015);
+                setDeck(deckId, { pitchBend: -2.0 });
+              }}
+              onPointerUp={(e) => {
+                e.preventDefault();
+                if (isLocked) return;
+                setDeck(deckId, { pitchBend: 0 });
+              }}
+              onPointerLeave={(e) => {
+                e.preventDefault();
+                if (isLocked) return;
+                setDeck(deckId, { pitchBend: 0 });
+              }}
+              className="flex-1 h-5 text-[6.5px] font-mono font-black border border-zinc-800 bg-zinc-950/80 hover:bg-zinc-900 active:bg-zinc-800 rounded text-zinc-500 hover:text-zinc-200 cursor-pointer flex items-center justify-center select-none leading-none"
+              title="Temporary Pitch Bend -"
+            >
+              BEND -
+            </button>
+            <button
+              onPointerDown={(e) => {
+                e.preventDefault();
+                if (isLocked) return;
+                playClick(900, 'sine', 0.015);
+                setDeck(deckId, { pitchBend: 2.0 });
+              }}
+              onPointerUp={(e) => {
+                e.preventDefault();
+                if (isLocked) return;
+                setDeck(deckId, { pitchBend: 0 });
+              }}
+              onPointerLeave={(e) => {
+                e.preventDefault();
+                if (isLocked) return;
+                setDeck(deckId, { pitchBend: 0 });
+              }}
+              className="flex-1 h-5 text-[6.5px] font-mono font-black border border-zinc-800 bg-zinc-950/80 hover:bg-zinc-900 active:bg-zinc-800 rounded text-zinc-500 hover:text-zinc-200 cursor-pointer flex items-center justify-center select-none leading-none"
+              title="Temporary Pitch Bend +"
+            >
+              BEND +
+            </button>
           </div>
         </div>
       </div>

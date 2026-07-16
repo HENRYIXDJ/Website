@@ -613,7 +613,7 @@ function SingleDeckWaveform({
       }
 
       const width = canvas.parentElement?.clientWidth || 300;
-      const height = 64;
+      const height = canvas.parentElement?.clientHeight || 64;
       const dpr = window.devicePixelRatio || 1;
 
       if (canvas.width !== width * dpr || canvas.height !== height * dpr) {
@@ -1139,7 +1139,7 @@ function SingleDeckWaveform({
   };
 
   return (
-    <div className="relative w-full h-[64px] bg-black rounded border border-zinc-900 overflow-hidden shadow-inner flex items-center justify-center mb-1 select-none shrink-0 z-10">
+    <div className="relative w-full h-full min-h-[48px] max-h-[100px] bg-black rounded border border-zinc-900 overflow-hidden shadow-inner flex items-center justify-center mb-1 select-none shrink-0 z-10">
       <canvas 
         ref={canvasRef} 
         className={cn("w-full h-full block touch-none", dragState ? 'cursor-grabbing' : 'cursor-grab')} 
@@ -1470,16 +1470,14 @@ function MixArchive({
         e.preventDefault();
         const deck = state.decks[leftId];
         if (deck && deck.id !== 'locked') {
-          const currentPitch = deck.pitch || 0;
-          useAudioStore.getState().setDeck(leftId, { pitch: Math.max(-8, currentPitch - 0.5), syncEnabled: false });
+          useAudioStore.getState().setDeck(leftId, { pitchBend: -2.5 });
           playClick(600, 'sine', 0.01);
         }
       } else if (key === 'x') {
         e.preventDefault();
         const deck = state.decks[leftId];
         if (deck && deck.id !== 'locked') {
-          const currentPitch = deck.pitch || 0;
-          useAudioStore.getState().setDeck(leftId, { pitch: Math.min(8, currentPitch + 0.5), syncEnabled: false });
+          useAudioStore.getState().setDeck(leftId, { pitchBend: 2.5 });
           playClick(900, 'sine', 0.01);
         }
       }
@@ -1507,16 +1505,14 @@ function MixArchive({
         e.preventDefault();
         const deck = state.decks[rightId];
         if (deck && deck.id !== 'locked') {
-          const currentPitch = deck.pitch || 0;
-          useAudioStore.getState().setDeck(rightId, { pitch: Math.max(-8, currentPitch - 0.5), syncEnabled: false });
+          useAudioStore.getState().setDeck(rightId, { pitchBend: -2.5 });
           playClick(600, 'sine', 0.01);
         }
       } else if (key === 'm') {
         e.preventDefault();
         const deck = state.decks[rightId];
         if (deck && deck.id !== 'locked') {
-          const currentPitch = deck.pitch || 0;
-          useAudioStore.getState().setDeck(rightId, { pitch: Math.min(8, currentPitch + 0.5), syncEnabled: false });
+          useAudioStore.getState().setDeck(rightId, { pitchBend: 2.5 });
           playClick(900, 'sine', 0.01);
         }
       }
@@ -1545,6 +1541,12 @@ function MixArchive({
       } else if (key === 'e') {
         e.preventDefault();
         triggerCueUp(rightId);
+      } else if (key === 'z' || key === 'x') {
+        e.preventDefault();
+        useAudioStore.getState().setDeck(leftId, { pitchBend: 0 });
+      } else if (key === 'n' || key === 'm') {
+        e.preventDefault();
+        useAudioStore.getState().setDeck(rightId, { pitchBend: 0 });
       }
     };
 
@@ -2225,7 +2227,7 @@ function MixArchive({
 
     return (
       <div 
-        className="w-full flex items-stretch bg-zinc-950 border border-zinc-900/60 rounded-xl overflow-hidden shadow-lg h-[64px]"
+        className="w-full flex items-stretch bg-zinc-950 border border-zinc-900/60 rounded-xl overflow-hidden shadow-lg h-full min-h-[48px] max-h-[80px]"
         style={{ borderLeft: `3px solid ${themeColor}` }}
       >
         {/* Left Info Panel */}
@@ -2895,14 +2897,14 @@ function MixArchive({
                 .dj-grid-container {
                   ${deckCount === 2 ? `
                     grid-template-columns: minmax(0, 1.8fr) minmax(280px, 1.2fr) minmax(0, 1.8fr);
-                    grid-template-rows: 200px auto 1fr;
+                    grid-template-rows: minmax(130px, 1.2fr) minmax(50px, auto) minmax(220px, 2fr);
                     grid-template-areas:
                       "browser1 mixer browser2"
                       "wave1    mixer wave2"
                       "control1 mixer control2";
                   ` : `
                     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(280px, 1.2fr) minmax(0, 1fr) minmax(0, 1fr);
-                    grid-template-rows: 200px auto 1fr;
+                    grid-template-rows: minmax(130px, 1.2fr) minmax(50px, auto) minmax(220px, 2fr);
                     grid-template-areas:
                       "browser3 browser1 mixer browser2 browser4"
                       "wave3    wave1    mixer wave2    wave4"
