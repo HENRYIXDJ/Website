@@ -2651,7 +2651,7 @@ export default function MixPortfolio({ isDepth = true, activeView: initialActive
           title,
           slug,
           description,
-          mixes[defined(audioFile)]->{
+          mixes[]->[defined(audioFile)]{
             _id,
             title,
             slug,
