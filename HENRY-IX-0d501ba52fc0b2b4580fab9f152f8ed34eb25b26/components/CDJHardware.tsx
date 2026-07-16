@@ -6,7 +6,7 @@ import { useAudio } from '@/components/AudioProvider';
 import { playClick } from '@/lib/audioUtils';
 import { cn } from '@/lib/utils';
 import { getStorageUrl } from '@/lib/storage';
-import { Play, Pause, RotateCcw, X, Anchor } from 'lucide-react';
+import { Play, Pause } from 'lucide-react';
 
 const proxyUrl = (url: string) => `/api/assets?url=${encodeURIComponent(url)}`;
 
@@ -404,6 +404,38 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
     setDeck(deckId, { quantizeEnabled: !deck.quantizeEnabled });
   };
 
+  // --- Grid Nudge and Align ---
+  const handleGridNudgeLeft = (e: React.PointerEvent) => {
+    e.preventDefault();
+    if (isLocked || !deck) return;
+    playClick(600, 'sine', 0.01);
+    const newOffset = Math.max(0, (deck.firstBeatOffset || 0) - 0.010); // nudge left by 10ms
+    setDeck(deckId, { firstBeatOffset: newOffset });
+  };
+
+  const handleGridNudgeRight = (e: React.PointerEvent) => {
+    e.preventDefault();
+    if (isLocked || !deck) return;
+    playClick(620, 'sine', 0.01);
+    const newOffset = (deck.firstBeatOffset || 0) + 0.010; // nudge right by 10ms
+    setDeck(deckId, { firstBeatOffset: newOffset });
+  };
+
+  const handleGridAlignCurrent = (e: React.PointerEvent) => {
+    e.preventDefault();
+    if (isLocked || !deck) return;
+    playClick(750, 'sine', 0.015);
+    // Align firstBeatOffset to current playhead progress
+    let currentProgress = deck.progress || 0;
+    if (!deck.scMode && audioElementsRef?.current) {
+      const audio = audioElementsRef.current[deckId];
+      if (audio && audio.src) {
+        currentProgress = audio.currentTime;
+      }
+    }
+    setDeck(deckId, { firstBeatOffset: currentProgress });
+  };
+
   // --- Jog Wheel Event Handler Stubs for Scratching / Pitch Bend ---
   const handlePlatterDown = (e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -527,56 +559,153 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
         <div className="flex flex-col justify-between flex-grow min-h-0 gap-3">
           
           {/* Loop Row (under hot cues, aligned left) */}
-          <div className="w-full flex items-end justify-start gap-4 px-1.5 border-b border-zinc-800/40 pb-3 shrink-0">
-            <span className="text-[5.5px] text-zinc-500 font-mono tracking-widest font-bold uppercase mb-3 shrink-0">LOOP</span>
-            
-            {/* IN / -4 BEAT */}
-            <div className="flex flex-col items-center gap-1 shrink-0">
-              <span className="text-[5.5px] sm:text-[6px] text-zinc-500 font-mono font-bold tracking-widest uppercase leading-none h-3.5 flex items-center">IN / -4 BEAT</span>
-              <button
-                onPointerDown={handleLoopInDown}
-                onPointerUp={handleLoopInUp}
-                className={cn(
-                  "w-12 h-12 rounded-full border-2 transition-all cursor-pointer shadow-lg shrink-0 flex items-center justify-center font-mono text-[8.5px] font-black tracking-[0.1em]",
-                  (deck?.loopIn !== null && deck?.loopIn !== undefined)
-                    ? cn("bg-amber-500 border-amber-400 text-black shadow-[0_0_12px_rgba(245,158,11,0.6)]", deck?.isLoopActive && "animate-btn-flash")
-                    : "bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700"
-                )}
-              >
-                IN
-              </button>
+          <div className="w-full flex items-end justify-between px-1.5 border-b border-zinc-800/40 pb-3 shrink-0">
+            <div className="flex items-end justify-start gap-3">
+              <span className="text-[5.5px] text-zinc-500 font-mono tracking-widest font-bold uppercase mb-3 shrink-0">LOOP</span>
+              
+              {/* IN / -4 BEAT */}
+              <div className="flex flex-col items-center gap-1 shrink-0">
+                <span className="text-[5.5px] sm:text-[6px] text-zinc-500 font-mono font-bold tracking-widest uppercase leading-none h-3.5 flex items-center">IN / -4 BEAT</span>
+                <button
+                  onPointerDown={handleLoopInDown}
+                  onPointerUp={handleLoopInUp}
+                  className={cn(
+                    "w-12 h-12 rounded-full border-2 transition-all cursor-pointer shadow-lg shrink-0 flex items-center justify-center font-mono text-[8.5px] font-black tracking-[0.1em]",
+                    (deck?.loopIn !== null && deck?.loopIn !== undefined)
+                      ? cn("bg-amber-500 border-amber-400 text-black shadow-[0_0_12px_rgba(245,158,11,0.6)]", deck?.isLoopActive && "animate-btn-flash")
+                      : "bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700"
+                  )}
+                >
+                  IN
+                </button>
+              </div>
+
+              {/* OUT */}
+              <div className="flex flex-col items-center gap-1 shrink-0">
+                <span className="text-[5.5px] sm:text-[6px] text-zinc-500 font-mono font-bold tracking-widest uppercase leading-none h-3.5 flex items-center">OUT</span>
+                <button
+                  onPointerDown={handleLoopOutPress}
+                  className={cn(
+                    "w-12 h-12 rounded-full border-2 transition-all cursor-pointer shadow-lg shrink-0 flex items-center justify-center font-mono text-[8.5px] font-black tracking-[0.1em]",
+                    (deck?.loopOut !== null && deck?.loopOut !== undefined)
+                      ? cn("bg-amber-500 border-amber-400 text-black shadow-[0_0_12px_rgba(245,158,11,0.6)]", deck?.isLoopActive && "animate-btn-flash")
+                      : "bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700"
+                  )}
+                >
+                  OUT
+                </button>
+              </div>
+
+              {/* RELOOP / EXIT */}
+              <div className="flex flex-col items-center gap-1 shrink-0">
+                <span className="text-[5.5px] sm:text-[6px] text-zinc-500 font-mono font-bold tracking-widest uppercase leading-none h-3.5 flex items-center">RELOOP / EXIT</span>
+                <button
+                  onPointerDown={handleReloopExitPress}
+                  className={cn(
+                    "w-12 h-12 rounded-full border-2 transition-all cursor-pointer shadow-lg shrink-0 flex items-center justify-center font-mono text-[7px] font-black tracking-tighter leading-none text-center",
+                    deck?.isLoopActive
+                      ? "bg-amber-500 border-amber-400 text-black shadow-[0_0_12px_rgba(245,158,11,0.6)]"
+                      : "bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700"
+                  )}
+                >
+                  RELOOP
+                </button>
+              </div>
             </div>
 
-            {/* OUT */}
-            <div className="flex flex-col items-center gap-1 shrink-0">
-              <span className="text-[5.5px] sm:text-[6px] text-zinc-500 font-mono font-bold tracking-widest uppercase leading-none h-3.5 flex items-center">OUT</span>
-              <button
-                onPointerDown={handleLoopOutPress}
-                className={cn(
-                  "w-12 h-12 rounded-full border-2 transition-all cursor-pointer shadow-lg shrink-0 flex items-center justify-center font-mono text-[8.5px] font-black tracking-[0.1em]",
-                  (deck?.loopOut !== null && deck?.loopOut !== undefined)
-                    ? cn("bg-amber-500 border-amber-400 text-black shadow-[0_0_12px_rgba(245,158,11,0.6)]", deck?.isLoopActive && "animate-btn-flash")
-                    : "bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700"
-                )}
-              >
-                OUT
-              </button>
-            </div>
+            {/* Right side of Loop Row: 3x2 Grid of Square Mode Buttons */}
+            <div className="grid grid-cols-3 gap-x-2 gap-y-1 pb-0.5 select-none shrink-0 items-end w-20 md:w-24">
+              {/* Row 1 */}
+              <div className="flex flex-col items-center gap-0.5 w-full">
+                <span className="text-[4.5px] text-zinc-500 font-mono font-bold uppercase leading-none">SYNC</span>
+                <button
+                  onPointerDown={handleSyncPress}
+                  className={cn(
+                    "w-full max-w-[28px] min-w-[20px] aspect-square rounded border transition-colors cursor-pointer flex justify-center items-center font-mono text-[6px] font-black leading-none",
+                    deck?.syncEnabled
+                      ? "bg-emerald-500 border-emerald-400 text-black shadow-[0_0_8px_rgba(16,185,129,0.3)]"
+                      : "bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-300"
+                  )}
+                >
+                  S
+                </button>
+              </div>
 
-            {/* RELOOP / EXIT */}
-            <div className="flex flex-col items-center gap-1 shrink-0">
-              <span className="text-[5.5px] sm:text-[6px] text-zinc-500 font-mono font-bold tracking-widest uppercase leading-none h-3.5 flex items-center">RELOOP / EXIT</span>
-              <button
-                onPointerDown={handleReloopExitPress}
-                className={cn(
-                  "w-12 h-12 rounded-full border-2 transition-all cursor-pointer shadow-lg shrink-0 flex items-center justify-center font-mono text-[7px] font-black tracking-tighter leading-none text-center",
-                  deck?.isLoopActive
-                    ? "bg-amber-500 border-amber-400 text-black shadow-[0_0_12px_rgba(245,158,11,0.6)]"
-                    : "bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700"
-                )}
-              >
-                RELOOP
-              </button>
+              <div className="flex flex-col items-center gap-0.5 w-full">
+                <span className="text-[4.5px] text-zinc-500 font-mono font-bold uppercase leading-none">MSTR</span>
+                <button
+                  onPointerDown={handleMasterPress}
+                  className={cn(
+                    "w-full max-w-[28px] min-w-[20px] aspect-square rounded border transition-colors cursor-pointer flex justify-center items-center font-mono text-[6px] font-black leading-none",
+                    deck?.isMaster
+                      ? "bg-yellow-500 border-yellow-400 text-black shadow-[0_0_8px_rgba(234,179,8,0.3)]"
+                      : "bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-300"
+                  )}
+                >
+                  M
+                </button>
+              </div>
+
+              <div className="flex flex-col items-center gap-0.5 w-full">
+                <span className="text-[4.5px] text-zinc-500 font-mono font-bold uppercase leading-none">JOG</span>
+                <button
+                  onPointerDown={handleJogModePress}
+                  className={cn(
+                    "w-full max-w-[28px] min-w-[20px] aspect-square rounded border transition-colors cursor-pointer flex justify-center items-center font-mono text-[6.5px] font-black leading-none",
+                    deck?.jogMode === 'VINYL'
+                      ? "bg-red-500/20 border-red-500/40 text-red-400 shadow-[0_0_8px_rgba(239,68,68,0.2)]"
+                      : "bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-300"
+                  )}
+                >
+                  {deck?.jogMode === 'VINYL' ? 'VIN' : 'CDJ'}
+                </button>
+              </div>
+
+              {/* Row 2 */}
+              <div className="flex flex-col items-center gap-0.5 w-full">
+                <span className="text-[4.5px] text-zinc-500 font-mono font-bold uppercase leading-none">MT</span>
+                <button
+                  onPointerDown={handleMasterTempoPress}
+                  className={cn(
+                    "w-full max-w-[28px] min-w-[20px] aspect-square rounded border transition-colors cursor-pointer flex justify-center items-center font-mono text-[6.5px] font-black leading-none",
+                    deck?.masterTempo
+                      ? "bg-cyan-500/20 border-cyan-500/40 text-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.25)]"
+                      : "bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-300"
+                  )}
+                >
+                  MT
+                </button>
+              </div>
+
+              <div className="flex flex-col items-center gap-0.5 w-full">
+                <span className="text-[4.5px] text-zinc-500 font-mono font-bold uppercase leading-none">SLIP</span>
+                <button
+                  onPointerDown={handleSlipPress}
+                  className={cn(
+                    "w-full max-w-[28px] min-w-[20px] aspect-square rounded border transition-colors cursor-pointer flex justify-center items-center font-mono text-[6.5px] font-black leading-none",
+                    deck?.slipEnabled
+                      ? "bg-red-500 border-red-400 text-black shadow-[0_0_8px_rgba(239,68,68,0.35)]"
+                      : "bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-300"
+                  )}
+                >
+                  SLP
+                </button>
+              </div>
+
+              <div className="flex flex-col items-center gap-0.5 w-full">
+                <span className="text-[4.5px] text-zinc-500 font-mono font-bold uppercase leading-none">QNTZ</span>
+                <button
+                  onPointerDown={handleQuantizePress}
+                  className={cn(
+                    "w-full max-w-[28px] min-w-[20px] aspect-square rounded border transition-colors cursor-pointer flex justify-center items-center font-mono text-[6.5px] font-black leading-none",
+                    deck?.quantizeEnabled
+                      ? "bg-primary border-primary text-white shadow-neon-glow"
+                      : "bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-300"
+                  )}
+                >
+                  Q
+                </button>
+              </div>
             </div>
           </div>
 
@@ -586,6 +715,34 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
             {/* Left Side: Main Controls */}
             <div className="flex flex-col justify-end w-12 shrink-0">
               
+              {/* Grid Adjust Panel */}
+              <div className="flex flex-col items-center gap-1.5 mb-auto border border-zinc-800/40 rounded-lg p-1 bg-zinc-950/40 select-none">
+                <span className="text-[5px] text-zinc-500 font-mono font-bold uppercase tracking-wider leading-none">GRID</span>
+                <div className="flex flex-col gap-1 w-full">
+                  <button
+                    onPointerDown={handleGridNudgeLeft}
+                    className="h-5 w-10 rounded border border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-zinc-200 hover:border-zinc-700 active:bg-zinc-800 flex items-center justify-center font-mono text-[5.5px] font-bold cursor-pointer uppercase"
+                    title="Nudge Beatgrid Left (-10ms)"
+                  >
+                    -10
+                  </button>
+                  <button
+                    onPointerDown={handleGridNudgeRight}
+                    className="h-5 w-10 rounded border border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-zinc-200 hover:border-zinc-700 active:bg-zinc-800 flex items-center justify-center font-mono text-[5.5px] font-bold cursor-pointer uppercase"
+                    title="Nudge Beatgrid Right (+10ms)"
+                  >
+                    +10
+                  </button>
+                  <button
+                    onPointerDown={handleGridAlignCurrent}
+                    className="h-5 w-10 rounded border border-amber-500/20 bg-amber-950/20 text-amber-500 hover:text-amber-400 hover:border-amber-500/40 active:bg-amber-900/40 flex items-center justify-center font-mono text-[5.5px] font-black cursor-pointer leading-none text-center uppercase"
+                    title="Set Grid Start to Current Playhead"
+                  >
+                    TAP
+                  </button>
+                </div>
+              </div>
+
               {/* Transport Section (Orange CUE and Green PLAY) */}
               <div className="flex flex-col gap-2 mt-auto pt-2">
                 
@@ -682,98 +839,13 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
         {/* Right Side Column: Tall Tempo Slider and Buttons */}
         <div className="flex flex-col justify-between w-20 shrink-0 select-none bg-zinc-950/25 border border-zinc-900/50 rounded-xl p-2 h-full gap-2">
           
-          {/* Top Panel: Rate display and buttons */}
-          <div className="flex flex-col gap-1.5 shrink-0 select-none w-full">
-            
-            {/* Rate display */}
-            <div className="flex flex-col gap-0.5 border-b border-zinc-800/50 pb-1">
-              <div className="flex items-center justify-between text-[5px] font-mono text-zinc-600 font-bold uppercase tracking-wider">
-                <span>RATE</span>
-                <span className="text-zinc-400 font-mono text-[7px]">
-                  {deck?.pitch >= 0 ? `+${(deck?.pitch || 0).toFixed(2)}%` : `${(deck?.pitch || 0).toFixed(2)}%`}
-                </span>
-              </div>
-            </div>
-
-            {/* Sync, Mstr, Vinyl, MT Stack */}
-            <div className="flex flex-col gap-1.5 w-full">
-              {/* SYNC Button */}
-              <button
-                onPointerDown={handleSyncPress}
-                className={cn(
-                  "h-5 rounded text-[7px] font-mono tracking-widest font-black uppercase border transition-colors cursor-pointer flex justify-center items-center leading-none w-full",
-                  deck?.syncEnabled
-                    ? "bg-emerald-500 border-emerald-400 text-black shadow-[0_0_8px_rgba(16,185,129,0.3)]"
-                    : "bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-300"
-                )}
-              >
-                SYNC
-              </button>
-
-              {/* MASTER Button */}
-              <button
-                onPointerDown={handleMasterPress}
-                className={cn(
-                  "h-5 rounded text-[7px] font-mono tracking-widest font-black uppercase border transition-colors cursor-pointer flex justify-center items-center leading-none w-full",
-                  deck?.isMaster
-                    ? "bg-yellow-500 border-yellow-400 text-black shadow-[0_0_8px_rgba(234,179,8,0.3)]"
-                    : "bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-300"
-                )}
-              >
-                MSTR
-              </button>
-
-              {/* VINYL / Jog Mode Button */}
-              <button
-                onPointerDown={handleJogModePress}
-                className={cn(
-                  "h-5 rounded text-[7px] font-mono font-black tracking-widest uppercase border transition-colors cursor-pointer leading-none w-full",
-                  deck?.jogMode === 'VINYL'
-                    ? "bg-red-500/25 border-red-500/40 text-red-400 shadow-[0_0_8px_rgba(239,68,68,0.2)]"
-                    : "bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-300"
-                )}
-              >
-                {deck?.jogMode}
-              </button>
-
-              {/* MT Button */}
-              <button
-                onPointerDown={handleMasterTempoPress}
-                className={cn(
-                  "h-5 rounded text-[7px] font-mono font-black tracking-widest uppercase border transition-colors cursor-pointer leading-none w-full",
-                  deck?.masterTempo
-                    ? "bg-cyan-500/20 border-cyan-500/40 text-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.25)]"
-                    : "bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-300"
-                )}
-              >
-                MT
-              </button>
-
-              {/* SLIP Button */}
-              <button
-                onPointerDown={handleSlipPress}
-                className={cn(
-                  "h-5 rounded text-[7px] font-mono font-black tracking-widest uppercase border transition-colors cursor-pointer leading-none w-full",
-                  deck?.slipEnabled
-                    ? "bg-red-500 border-red-400 text-black shadow-[0_0_8px_rgba(239,68,68,0.35)]"
-                    : "bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-300"
-                )}
-              >
-                SLIP
-              </button>
-
-              {/* QUANTIZE Button */}
-              <button
-                onPointerDown={handleQuantizePress}
-                className={cn(
-                  "h-5 rounded text-[7px] font-mono font-black tracking-widest uppercase border transition-colors cursor-pointer leading-none w-full",
-                  deck?.quantizeEnabled
-                    ? "bg-primary border-primary text-white shadow-neon-glow"
-                    : "bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-300"
-                )}
-              >
-                QNTZ
-              </button>
+          {/* Top Panel: Rate display */}
+          <div className="flex flex-col gap-0.5 border-b border-zinc-800/50 pb-1 select-none w-full shrink-0">
+            <div className="flex items-center justify-between text-[5px] font-mono text-zinc-600 font-bold uppercase tracking-wider">
+              <span>RATE</span>
+              <span className="text-zinc-400 font-mono text-[7px]">
+                {deck?.pitch >= 0 ? `+${(deck?.pitch || 0).toFixed(2)}%` : `${(deck?.pitch || 0).toFixed(2)}%`}
+              </span>
             </div>
           </div>
 
@@ -844,6 +916,13 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
 
                   setDeck(deckId, { pitch: finalPitch, syncEnabled: false });
                 }}
+                onDoubleClick={(e) => {
+                  if (!isLocked) {
+                    e.preventDefault();
+                    setDeck(deckId, { pitch: 0, syncEnabled: false });
+                    playClick(850, 'sine', 0.015);
+                  }
+                }}
                 title="Adjust Pitch Slider"
                 style={{
                   writingMode: 'vertical-lr',
@@ -853,6 +932,54 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
                 className="absolute inset-0 opacity-0 cursor-pointer z-20 w-[60px] -left-5 h-full touch-none"
               />
             </div>
+          </div>
+
+          {/* Pitch Bend Buttons */}
+          <div className="flex justify-between items-center gap-1.5 w-full shrink-0 select-none border-t border-zinc-800/40 pt-1.5">
+            <button
+              onPointerDown={(e) => {
+                e.preventDefault();
+                if (isLocked) return;
+                playClick(600, 'sine', 0.015);
+                setDeck(deckId, { pitchBend: -2.0 });
+              }}
+              onPointerUp={(e) => {
+                e.preventDefault();
+                if (isLocked) return;
+                setDeck(deckId, { pitchBend: 0 });
+              }}
+              onPointerLeave={(e) => {
+                e.preventDefault();
+                if (isLocked) return;
+                setDeck(deckId, { pitchBend: 0 });
+              }}
+              className="flex-1 h-5 text-[6.5px] font-mono font-black border border-zinc-800 bg-zinc-950/80 hover:bg-zinc-900 active:bg-zinc-800 rounded text-zinc-500 hover:text-zinc-200 cursor-pointer flex items-center justify-center select-none leading-none"
+              title="Temporary Pitch Bend -"
+            >
+              BEND -
+            </button>
+            <button
+              onPointerDown={(e) => {
+                e.preventDefault();
+                if (isLocked) return;
+                playClick(900, 'sine', 0.015);
+                setDeck(deckId, { pitchBend: 2.0 });
+              }}
+              onPointerUp={(e) => {
+                e.preventDefault();
+                if (isLocked) return;
+                setDeck(deckId, { pitchBend: 0 });
+              }}
+              onPointerLeave={(e) => {
+                e.preventDefault();
+                if (isLocked) return;
+                setDeck(deckId, { pitchBend: 0 });
+              }}
+              className="flex-1 h-5 text-[6.5px] font-mono font-black border border-zinc-800 bg-zinc-950/80 hover:bg-zinc-900 active:bg-zinc-800 rounded text-zinc-500 hover:text-zinc-200 cursor-pointer flex items-center justify-center select-none leading-none"
+              title="Temporary Pitch Bend +"
+            >
+              BEND +
+            </button>
           </div>
         </div>
       </div>

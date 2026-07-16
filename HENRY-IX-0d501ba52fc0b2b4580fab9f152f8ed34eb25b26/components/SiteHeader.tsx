@@ -46,6 +46,18 @@ export default function SiteHeader() {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  const [shouldAnimate, setShouldAnimate] = useState(false);
+  const prevPathnameRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (prevPathnameRef.current === '/' && pathname !== '/') {
+      setShouldAnimate(true);
+      const timer = setTimeout(() => setShouldAnimate(false), 1200);
+      return () => clearTimeout(timer);
+    }
+    prevPathnameRef.current = pathname;
+  }, [pathname]);
+
   // Close dropdown synchronously during render when pathname changes,
   // avoiding the React strict-mode setState-in-useEffect warning.
   const [prevPathname, setPrevPathname] = useState(pathname);
@@ -95,28 +107,54 @@ export default function SiteHeader() {
       {/* Right: Navigation / Menu */}
       <div className="w-auto md:w-1/4 flex items-center justify-end relative pointer-events-auto -translate-y-1" ref={dropdownRef}>
         {!isHomePage && (
-          <>
+          <motion.div
+            key={shouldAnimate ? "animate-header-nav" : "static-header-nav"}
+            variants={{
+              hidden: { opacity: 0 },
+              show: {
+                opacity: 1,
+                transition: {
+                  staggerChildren: 0.06,
+                  delayChildren: 0.02
+                }
+              }
+            }}
+            initial={shouldAnimate ? "hidden" : "show"}
+            animate="show"
+            className="flex items-center justify-end"
+          >
             {/* Desktop Navigation */}
-            <nav className="hidden md:flex items-center gap-6 shrink-0 leading-none">
+            <motion.nav className="hidden md:flex items-center gap-6 shrink-0 leading-none">
               {navLinks.map((link) => (
-                <Link
+                <motion.div
                   key={link.href}
-                  href={link.href}
-                  onClick={() => playNavSwoosh()}
-                  onMouseEnter={() => playTick()}
-                  className={`font-mono text-[9px] md:text-[10px] tracking-[0.25em] uppercase transition-all duration-300 hover:scale-105 active:scale-95 shrink-0 ${
-                    pathname === link.href
-                      ? 'text-primary'
-                      : 'text-zinc-500 hover:text-primary'
-                  }`}
+                  variants={{
+                    hidden: { opacity: 0, y: -6 },
+                    show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: "easeOut" } }
+                  }}
                 >
-                  {link.name}
-                </Link>
+                  <Link
+                    href={link.href}
+                    onClick={() => playNavSwoosh()}
+                    onMouseEnter={() => playTick()}
+                    className={`font-mono text-[9px] md:text-[10px] tracking-[0.25em] uppercase transition-all duration-300 hover:scale-105 active:scale-95 shrink-0 ${
+                      pathname === link.href
+                        ? 'text-primary'
+                        : 'text-zinc-500 hover:text-primary'
+                    }`}
+                  >
+                    {link.name}
+                  </Link>
+                </motion.div>
               ))}
-            </nav>
+            </motion.nav>
 
             {/* Mobile Menu Button */}
-            <button
+            <motion.button
+              variants={{
+                hidden: { opacity: 0, scale: 0.95 },
+                show: { opacity: 1, scale: 1, transition: { duration: 0.4, ease: "easeOut" } }
+              }}
               onClick={() => {
                 playClick();
                 setIsOpen(!isOpen);
@@ -132,7 +170,7 @@ export default function SiteHeader() {
               >
                 <ChevronDown size={10} className="text-zinc-400" />
               </motion.span>
-            </button>
+            </motion.button>
 
             {/* Mobile Dropdown */}
             <AnimatePresence>
@@ -170,7 +208,7 @@ export default function SiteHeader() {
                 </motion.div>
               )}
             </AnimatePresence>
-          </>
+          </motion.div>
         )}
       </div>
     </header>
