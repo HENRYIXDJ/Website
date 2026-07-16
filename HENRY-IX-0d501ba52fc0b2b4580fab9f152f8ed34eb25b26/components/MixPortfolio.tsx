@@ -613,6 +613,62 @@ function SingleDeckWaveform({
         ctx.fill();
       }
 
+      // Draw Hot Cues
+      const centerX = width / 2;
+      const hotCues = currentDeck.hotCues || {};
+      const HOT_CUE_COLORS: Record<string, string> = {
+        A: '#ef4444', // Red
+        B: '#f97316', // Orange
+        C: '#eab308', // Yellow
+        D: '#22c55e', // Green
+        E: '#06b6d4', // Cyan
+        F: '#3b82f6', // Blue
+        G: '#a855f7', // Purple
+        H: '#ec4899'  // Pink
+      };
+
+      Object.entries(hotCues).forEach(([pad, time]) => {
+        if (time !== null && time !== undefined) {
+          const x = Math.round(centerX + (time - progress) * pixelsPerSecond);
+          if (x >= 0 && x <= width) {
+            const color = HOT_CUE_COLORS[pad] || '#ffffff';
+            
+            // Draw the matching colored bar
+            ctx.save();
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 1.5;
+            
+            ctx.shadowColor = color;
+            ctx.shadowBlur = 3;
+            
+            ctx.beginPath();
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, height);
+            ctx.stroke();
+            ctx.restore();
+            
+            // Draw flag tag at the top
+            ctx.save();
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.moveTo(x - 5, 0);
+            ctx.lineTo(x + 5, 0);
+            ctx.lineTo(x + 5, 8);
+            ctx.lineTo(x, 11);
+            ctx.lineTo(x - 5, 8);
+            ctx.closePath();
+            ctx.fill();
+            
+            ctx.fillStyle = '#000000';
+            ctx.font = 'bold 7px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(pad, x, 4.5);
+            ctx.restore();
+          }
+        }
+      });
+
       // CENTER PLAYHEAD LINE (GLOWING CRIMSON or GREEN SYNC)
       ctx.save();
       const playheadColor = isSyncGlow ? '#10b981' : '#d8163f';

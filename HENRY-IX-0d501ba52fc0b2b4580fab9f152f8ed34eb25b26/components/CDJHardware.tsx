@@ -139,12 +139,21 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
     }
 
     if (savedTime === null || savedTime === undefined) {
-      // Save Hot Cue: record current playhead position
+      // Save Hot Cue: snap to closest beat of the beatgrid
+      const bpm = deck.bpm || 120;
+      const pitch = deck.pitch || 0;
+      const currentBpm = bpm * (1 + pitch / 100);
+      const beatInterval = 60 / currentBpm;
+      const offset = deck.firstBeatOffset || 0;
+      const elapsed = currentProgress - offset;
+      const closestBeatIndex = Math.round(elapsed / beatInterval);
+      const snappedTime = Math.max(0, offset + closestBeatIndex * beatInterval);
+
       playClick(880, 'sine', 0.02); // high beep
       setDeck(deckId, {
         hotCues: {
           ...deck.hotCues,
-          [pad]: currentProgress
+          [pad]: snappedTime
         }
       });
     } else {
