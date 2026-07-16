@@ -45,6 +45,26 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
   // --- Simulated Long Press for 4-Beat Loop ---
   const loopInTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // --- Jog Wheel Dynamic Resizing ---
+  const jogContainerRef = useRef<HTMLDivElement>(null);
+  const [jogSize, setJogSize] = useState(144); // default 144px (w-36)
+  const innerPlatterSize = jogSize * (80 / 144);
+
+  useEffect(() => {
+    if (!jogContainerRef.current) return;
+    const observer = new ResizeObserver((entries) => {
+      for (let entry of entries) {
+        const { width, height } = entry.contentRect;
+        const size = Math.min(width, height);
+        // Use 85% of the smaller dimension, clamped between 144px (w-36) and 210px (w-52)
+        const targetSize = Math.max(144, Math.min(210, size * 0.85));
+        setJogSize(targetSize);
+      }
+    });
+    observer.observe(jogContainerRef.current);
+    return () => observer.disconnect();
+  }, []);
+
   // Clean timers on unmount
   useEffect(() => {
     return () => {
@@ -543,15 +563,17 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
         </div>
 
         {/* Center: Tactile Jog Wheel */}
-        <div className="flex-grow flex items-center justify-center relative select-none">
+        <div ref={jogContainerRef} className="flex-grow flex items-center justify-center relative select-none min-h-0 min-w-0">
           
           {/* SKEUOMORPHIC JOG WHEEL */}
           <div 
             onPointerDown={handleRimDown}
             onPointerMove={handleRimMove}
             onPointerUp={handleRimUp}
-            className="w-36 h-36 rounded-full border-4 border-zinc-950 bg-zinc-950 flex items-center justify-center cursor-pointer relative shadow-[0_8px_24px_rgba(0,0,0,0.9)]"
+            className="rounded-full border-4 border-zinc-950 bg-zinc-950 flex items-center justify-center cursor-pointer relative shadow-[0_8px_24px_rgba(0,0,0,0.9)]"
             style={{
+              width: `${jogSize}px`,
+              height: `${jogSize}px`,
               backgroundImage: 'radial-gradient(circle, #27272a 35%, #18181b 36%, #18181b 50%, #09090b 51%, #09090b 70%, #27272a 71%)'
             }}
           >
@@ -572,10 +594,14 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
               onPointerMove={handlePlatterMove}
               onPointerUp={handlePlatterUp}
               className={cn(
-                "w-20 h-20 rounded-full border border-black overflow-hidden relative shadow-inner bg-cover bg-center select-none pointer-events-none z-10 flex items-center justify-center",
+                "rounded-full border border-black overflow-hidden relative shadow-inner bg-cover bg-center select-none pointer-events-none z-10 flex items-center justify-center",
                 (deck?.isPlaying && !deck?.isCueStuttering) && "animate-[spin_1.8s_linear_infinite]" // 33.3 RPM
               )}
-              style={{ backgroundImage: `url(${sessionImg})` }}
+              style={{ 
+                width: `${innerPlatterSize}px`,
+                height: `${innerPlatterSize}px`,
+                backgroundImage: `url(${sessionImg})` 
+              }}
             >
               {/* Glossy Overlay */}
               <div className="absolute inset-0 bg-gradient-to-tr from-white/10 via-transparent to-black/30" />

@@ -2258,14 +2258,14 @@ function MixArchive({
               @media (min-width: 1536px) {
                 .dj-grid-container {
                   ${deckCount === 2 ? `
-                    grid-template-columns: 1fr minmax(280px, 1.2fr) 1fr;
+                    grid-template-columns: minmax(0, 1fr) minmax(280px, 1.2fr) minmax(0, 1fr);
                     grid-template-rows: 240px auto 1fr;
                     grid-template-areas:
                       "browser1 mixer browser2"
                       "wave1    mixer wave2"
                       "control1 mixer control2";
                   ` : `
-                    grid-template-columns: 1fr 1fr minmax(280px, 1.2fr) 1fr 1fr;
+                    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(280px, 1.2fr) minmax(0, 1fr) minmax(0, 1fr);
                     grid-template-rows: 240px auto 1fr;
                     grid-template-areas:
                       "browser3 browser1 mixer browser2 browser4"
