@@ -94,6 +94,268 @@ const STATIC_MIX_GROUPS = [
 ];
 
 
+
+export function VolumeFader({ 
+  deckId, 
+  volume, 
+  isLocked, 
+  channelColor, 
+  onChange, 
+  onLockout 
+}: { 
+  deckId: number; 
+  volume: number; 
+  isLocked: boolean; 
+  channelColor: string; 
+  onChange: (val: number) => void; 
+  onLockout: () => void; 
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const lastUpdateRef = useRef({ time: 0, value: volume });
+
+  useEffect(() => {
+    lastUpdateRef.current.value = volume;
+  }, [volume]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const onWheel = (e: WheelEvent) => {
+      const input = container.querySelector('input');
+      if (document.activeElement !== input || isLocked) return;
+
+      e.preventDefault();
+
+      const delta = -Math.sign(e.deltaY) * 0.5;
+      let newValue = lastUpdateRef.current.value + delta;
+
+      if (newValue < 1.5) {
+        if (lastUpdateRef.current.value !== 0) {
+          newValue = 0;
+          playClick(880, 'sine', 0.004);
+        }
+      } else if (newValue > 98.5) {
+        if (lastUpdateRef.current.value !== 100) {
+          newValue = 100;
+          playClick(880, 'sine', 0.004);
+        }
+      } else {
+        const nearestInt = Math.round(newValue);
+        if (Math.abs(newValue - nearestInt) < 0.15) {
+          newValue = nearestInt;
+        }
+      }
+
+      newValue = Math.max(0, Math.min(100, newValue));
+      onChange(newValue);
+    };
+
+    container.addEventListener('wheel', onWheel, { passive: false });
+    return () => {
+      container.removeEventListener('wheel', onWheel);
+    };
+  }, [onChange, isLocked]);
+
+  return (
+    <div ref={containerRef} className="relative flex-grow min-h-[50px] max-h-[140px] w-[32cqw] max-w-[28px] min-w-[14px] bg-zinc-950 border border-zinc-900 focus-within:border-zinc-500 focus-within:shadow-[0_0_8px_rgba(255,255,255,0.15)] rounded flex items-center justify-center overflow-hidden shadow-inner">
+      <input 
+        type="range"
+        min="0"
+        max="100"
+        step="0.1"
+        value={volume}
+        title="Volume Fader"
+        placeholder="Volume Fader"
+        onChange={(e) => {
+          if (!isLocked) {
+            const now = performance.now();
+            const rawValue = Number(e.target.value);
+            const dt = now - lastUpdateRef.current.time;
+            const dp = Math.abs(rawValue - lastUpdateRef.current.value);
+            const velocity = dt > 0 ? dp / dt : 0;
+            
+            lastUpdateRef.current = { time: now, value: rawValue };
+
+            let targetValue = rawValue;
+
+            if (rawValue < 2.0) {
+              if (velocity < 0.15) {
+                targetValue = 0;
+                if (volume !== 0) playClick(880, 'sine', 0.004);
+              }
+            } else if (rawValue > 98.0) {
+              if (velocity < 0.15) {
+                targetValue = 100;
+                if (volume !== 100) playClick(880, 'sine', 0.004);
+              }
+            } else {
+              const nearestInt = Math.round(rawValue);
+              if (velocity < 0.08 && Math.abs(rawValue - nearestInt) < 0.25) {
+                targetValue = nearestInt;
+              }
+            }
+
+            onChange(Math.max(0, Math.min(100, targetValue)));
+          } else {
+            onLockout();
+          }
+        }}
+        disabled={isLocked}
+        aria-label={`Volume Fader Deck ${deckId}`}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={volume}
+        style={{
+          writingMode: 'vertical-lr',
+          direction: 'rtl'
+        }}
+        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+      />
+
+      <div 
+        className="absolute bottom-0 w-full"
+        style={{ 
+          height: `${volume}%`,
+          backgroundColor: channelColor,
+          opacity: 0.15
+        }}
+      />
+
+      <div className="absolute inset-y-1 flex flex-col justify-between w-full pointer-events-none opacity-40">
+        {[...Array(11)].map((_, idx) => (
+          <div key={idx} className="h-[1px] bg-zinc-700 w-3 mx-auto" />
+        ))}
+      </div>
+
+      {/* Fader Cap */}
+      <div 
+        className="absolute w-[135%] h-[min(26px,max(18px,28cqw))] bg-gradient-to-b from-zinc-700 to-zinc-900 border border-zinc-600 rounded flex items-center justify-center shadow pointer-events-none"
+        style={{ 
+          bottom: `calc(${volume}% - min(13px,max(9px,14cqw)))`,
+          transform: 'translateY(50%)'
+        }}
+      >
+        <div className="w-full h-[1px] bg-primary shadow-[0_0_2px_#d8163f]" />
+      </div>
+    </div>
+  );
+}
+
+
+export function Crossfader({ 
+  value, 
+  onChange 
+}: { 
+  value: number; 
+  onChange: (val: number) => void; 
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const lastUpdateRef = useRef({ time: 0, value: value });
+
+  useEffect(() => {
+    lastUpdateRef.current.value = value;
+  }, [value]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const onWheel = (e: WheelEvent) => {
+      const input = container.querySelector('input');
+      if (document.activeElement !== input) return;
+
+      e.preventDefault();
+
+      const delta = -Math.sign(e.deltaY) * 0.5;
+      let newValue = lastUpdateRef.current.value + delta;
+
+      const center = 50;
+      const snapThreshold = 1.5;
+
+      if (Math.abs(newValue - center) < snapThreshold) {
+        if (lastUpdateRef.current.value !== center) {
+          newValue = center;
+          playClick(880, 'sine', 0.004);
+        }
+      } else {
+        const nearestInt = Math.round(newValue);
+        if (Math.abs(newValue - nearestInt) < 0.15) {
+          newValue = nearestInt;
+        }
+      }
+
+      newValue = Math.max(0, Math.min(100, newValue));
+      onChange(newValue);
+    };
+
+    container.addEventListener('wheel', onWheel, { passive: false });
+    return () => {
+      container.removeEventListener('wheel', onWheel);
+    };
+  }, [onChange]);
+
+  return (
+    <div ref={containerRef} className="relative w-full h-5 bg-zinc-950 border border-zinc-900 focus-within:border-primary focus-within:shadow-[0_0_8px_rgba(216,22,63,0.5)] rounded flex items-center justify-center px-4 overflow-hidden select-none shadow-inner">
+      <input 
+        type="range"
+        min="0"
+        max="100"
+        step="0.1"
+        value={value}
+        title="Crossfader"
+        placeholder="Crossfader"
+        onChange={(e) => {
+          const now = performance.now();
+          const rawValue = Number(e.target.value);
+          const dt = now - lastUpdateRef.current.time;
+          const dp = Math.abs(rawValue - lastUpdateRef.current.value);
+          const velocity = dt > 0 ? dp / dt : 0;
+          
+          lastUpdateRef.current = { time: now, value: rawValue };
+
+          let targetValue = rawValue;
+          const center = 50;
+          const snapThreshold = 2.0;
+
+          if (Math.abs(rawValue - center) < snapThreshold) {
+            if (velocity < 0.15) {
+              targetValue = center;
+              if (value !== center) {
+                playClick(880, 'sine', 0.004);
+              }
+            }
+          } else {
+            const nearestInt = Math.round(rawValue);
+            if (velocity < 0.08 && Math.abs(rawValue - nearestInt) < 0.25) {
+              targetValue = nearestInt;
+            }
+          }
+
+          onChange(Math.max(0, Math.min(100, targetValue)));
+        }}
+        aria-label="Crossfader"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={value}
+        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+      />
+
+      <div className="w-[95%] h-[1px] bg-zinc-800 absolute" />
+
+      <div 
+        className="absolute h-5 bg-gradient-to-r from-zinc-700 to-zinc-900 border border-zinc-600 rounded flex items-center justify-center shadow pointer-events-none"
+        style={{ 
+          left: `calc(${value}% - 12.5px)`,
+          width: '25px'
+        }}
+      >
+        <div className="h-full w-[1px] bg-primary shadow-[0_0_2px_#d8163f]" />
+      </div>
+    </div>
+  );
+}
+
 const VinylStack = ({ group, onClick, playTick }: { group: any, onClick: () => void, playTick: () => void }) => {
   return (
     <motion.div 
@@ -1902,60 +2164,14 @@ function MixArchive({
                     VOL
                   </span>
                   
-                  <div className="relative flex-grow min-h-[50px] max-h-[140px] w-[32cqw] max-w-[28px] min-w-[14px] bg-zinc-950 border border-zinc-900 focus-within:border-zinc-500 focus-within:shadow-[0_0_8px_rgba(255,255,255,0.15)] rounded flex items-center justify-center overflow-hidden shadow-inner">
-                    <input 
-                      type="range"
-                      min="0"
-                      max="100"
-                      value={deck.volume}
-                      title="Volume Fader"
-                      placeholder="Volume Fader"
-                      onChange={(e) => {
-                        if (!isLocked) {
-                          const val = Number(e.target.value);
-                          handleVolumeChange(id, val);
-                        } else {
-                          playLockoutBlip();
-                        }
-                      }}
-                      disabled={isLocked}
-                      aria-label={`Volume Fader Deck ${id}`}
-                      aria-valuemin={0}
-                      aria-valuemax={100}
-                      aria-valuenow={deck.volume}
-                      style={{
-                        writingMode: 'vertical-lr',
-                        direction: 'rtl'
-                      }}
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
-                    />
-
-                    <div 
-                      className="absolute bottom-0 w-full"
-                      style={{ 
-                        height: `${deck.volume}%`,
-                        backgroundColor: channelColor,
-                        opacity: 0.15
-                      }}
-                    />
-
-                    <div className="absolute inset-y-1 flex flex-col justify-between w-full pointer-events-none opacity-40">
-                      {[...Array(11)].map((_, idx) => (
-                        <div key={idx} className={cn("h-[1px] bg-zinc-700 w-3 mx-auto", idx === 0 && "w-[80%] bg-zinc-500")} />
-                      ))}
-                    </div>
-
-                    {/* Fader Cap */}
-                    <div 
-                      className="absolute w-[135%] h-[min(26px,max(18px,28cqw))] bg-gradient-to-b from-zinc-700 to-zinc-900 border border-zinc-600 rounded flex items-center justify-center shadow pointer-events-none"
-                      style={{ 
-                        bottom: `calc(${deck.volume}% - min(13px,max(9px,14cqw)))`,
-                        transform: 'translateY(50%)'
-                      }}
-                    >
-                      <div className="w-full h-[1px] bg-primary shadow-[0_0_2px_#d8163f]" />
-                    </div>
-                  </div>
+                  <VolumeFader
+                    deckId={id}
+                    volume={deck.volume}
+                    isLocked={isLocked}
+                    channelColor={channelColor}
+                    onChange={(val) => handleVolumeChange(id, val)}
+                    onLockout={playLockoutBlip}
+                  />
                 </div>
 
                 {/* headphones cue fader assign */}
@@ -2005,40 +2221,10 @@ function MixArchive({
             <span>C/D DECK</span>
           </div>
 
-          <div className="relative w-full h-5 bg-zinc-950 border border-zinc-900 focus-within:border-primary focus-within:shadow-[0_0_8px_rgba(216,22,63,0.5)] rounded flex items-center justify-center px-4 overflow-hidden select-none shadow-inner">
-            <input 
-              type="range"
-              min="0"
-              max="100"
-              value={crossfader}
-              title="Crossfader"
-              placeholder="Crossfader"
-              onChange={(e) => {
-                const val = Number(e.target.value);
-                handleCrossfaderChange(val);
-                if (Math.abs(val - 50) < 3) {
-                  playClick(880, 'sine', 0.004);
-                }
-              }}
-              aria-label="Crossfader"
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-valuenow={crossfader}
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
-            />
-
-            <div className="w-[95%] h-[1px] bg-zinc-800 absolute" />
-
-            <div 
-              className="absolute h-5 bg-gradient-to-r from-zinc-700 to-zinc-900 border border-zinc-600 rounded flex items-center justify-center shadow pointer-events-none"
-              style={{ 
-                left: `calc(${crossfader}% - 12.5px)`,
-                width: '25px'
-              }}
-            >
-              <div className="h-full w-[1px] bg-primary shadow-[0_0_2px_#d8163f]" />
-            </div>
-          </div>
+          <Crossfader
+            value={crossfader}
+            onChange={handleCrossfaderChange}
+          />
         </div>
       </div>
     );

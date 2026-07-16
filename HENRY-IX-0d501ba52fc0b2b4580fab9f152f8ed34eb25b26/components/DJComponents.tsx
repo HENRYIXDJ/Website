@@ -24,8 +24,59 @@ export function RotaryKnob({ label, value, onChange, disabled = false, colorClas
   const isLg = size === "lg";
   const isFlex = size === "flex";
   
+  const containerRef = useRef<HTMLDivElement>(null);
+  const lastUpdateRef = useRef({ time: 0, value: value });
+  
+  // Track value changes in ref
+  useEffect(() => {
+    lastUpdateRef.current.value = value;
+  }, [value]);
+
+  // Handle high-precision wheel scroll adjustment when input is focused/clicked
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const onWheel = (e: WheelEvent) => {
+      const input = container.querySelector('input');
+      // Only adjust value if user has clicked/focused the input element
+      if (document.activeElement !== input || disabled) return;
+
+      e.preventDefault();
+
+      // Slow/precise wheel adjustments by 0.5 per notch
+      const delta = -Math.sign(e.deltaY) * 0.5;
+      let newValue = lastUpdateRef.current.value + delta;
+
+      const center = 50;
+      const snapThreshold = 1.5;
+
+      // Apply magnetic snap lock to 50 (noon)
+      if (Math.abs(newValue - center) < snapThreshold) {
+        if (lastUpdateRef.current.value !== center) {
+          newValue = center;
+          playClick(880, 'sine', 0.004);
+        }
+      } else {
+        // Snap to nearest integer if change is very precise
+        const nearestInt = Math.round(newValue);
+        if (Math.abs(newValue - nearestInt) < 0.15) {
+          newValue = nearestInt;
+        }
+      }
+
+      newValue = Math.max(0, Math.min(100, newValue));
+      onChange(newValue);
+    };
+
+    container.addEventListener('wheel', onWheel, { passive: false });
+    return () => {
+      container.removeEventListener('wheel', onWheel);
+    };
+  }, [onChange, disabled]);
+
   return (
-    <div className="flex flex-col items-center select-none cursor-pointer relative group">
+    <div ref={containerRef} className="flex flex-col items-center select-none cursor-pointer relative group">
       <span className={cn(
         "text-zinc-500 font-mono tracking-widest uppercase font-bold", 
         isFlex ? "text-[min(8.5px,max(6px,8.5cqw))] mb-[4cqw]" : (isSm ? "text-[5.5px] mb-0.5" : isLg ? "text-[6px] sm:text-[6.5px] md:text-[7px] xl:text-[8px] mb-1 xl:mb-1.5" : "text-[6.5px] mb-1")
@@ -48,13 +99,41 @@ export function RotaryKnob({ label, value, onChange, disabled = false, colorClas
           type="range"
           min="0"
           max="100"
+          step="0.1"
           value={value}
           onChange={(e) => {
             if (!disabled) {
-              onChange(Number(e.target.value));
-              if (Math.abs(Number(e.target.value) - 50) < 3) {
-                playClick(880, 'sine', 0.004); // Noon snap tactile blip
+              const now = performance.now();
+              const rawValue = Number(e.target.value);
+              
+              const dt = now - lastUpdateRef.current.time;
+              const dp = Math.abs(rawValue - lastUpdateRef.current.value);
+              const velocity = dt > 0 ? dp / dt : 0;
+              
+              lastUpdateRef.current = { time: now, value: rawValue };
+
+              let targetValue = rawValue;
+              const center = 50;
+              const snapThreshold = 2.0;
+
+              // High-precision magnetic locking to Noon center
+              if (Math.abs(rawValue - center) < snapThreshold) {
+                // Snap if velocity is low (precise movement)
+                if (velocity < 0.15) {
+                  targetValue = center;
+                  if (value !== center) {
+                    playClick(880, 'sine', 0.004);
+                  }
+                }
+              } else {
+                // Snap to nearest integer if velocity is low
+                const nearestInt = Math.round(rawValue);
+                if (velocity < 0.08 && Math.abs(rawValue - nearestInt) < 0.25) {
+                  targetValue = nearestInt;
+                }
               }
+
+              onChange(Math.max(0, Math.min(100, targetValue)));
             }
           }}
           disabled={disabled}

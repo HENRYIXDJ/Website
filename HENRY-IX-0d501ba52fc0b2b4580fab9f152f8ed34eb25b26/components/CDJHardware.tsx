@@ -39,6 +39,52 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
 
   const audio = audioElementsRef?.current?.[deckId];
 
+  const faderContainerRef = useRef<HTMLDivElement>(null);
+  const lastUpdateRef = useRef({ time: 0, value: deck?.pitch || 0 });
+
+  useEffect(() => {
+    lastUpdateRef.current.value = deck?.pitch || 0;
+  }, [deck?.pitch]);
+
+  useEffect(() => {
+    const container = faderContainerRef.current;
+    if (!container) return;
+
+    const onWheel = (e: WheelEvent) => {
+      const input = container.querySelector('input');
+      if (document.activeElement !== input || isLocked) return;
+
+      e.preventDefault();
+
+      // Pitch fader scroll sensitivity: 0.02% per step
+      const delta = Math.sign(e.deltaY) * 0.02;
+      let newValue = lastUpdateRef.current.value + delta;
+
+      const center = 0.0;
+      const snapThreshold = 0.1;
+
+      if (Math.abs(newValue - center) < snapThreshold) {
+        if (lastUpdateRef.current.value !== center) {
+          newValue = center;
+          playClick(880, 'sine', 0.004);
+        }
+      } else {
+        const nearestInt = Math.round(newValue);
+        if (Math.abs(newValue - nearestInt) < 0.03) {
+          newValue = nearestInt;
+        }
+      }
+
+      newValue = Math.max(-8.0, Math.min(8.0, newValue));
+      setDeck(deckId, { pitch: newValue, syncEnabled: false });
+    };
+
+    container.addEventListener('wheel', onWheel, { passive: false });
+    return () => {
+      container.removeEventListener('wheel', onWheel);
+    };
+  }, [deckId, isLocked, setDeck]);
+
   // --- Hot Cue Delete Mode State ---
   const [deleteMode, setDeleteMode] = useState(false);
 
@@ -695,7 +741,7 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
 
           {/* Bottom Panel: The Tall Tempo Slider */}
           <div className="flex-grow flex flex-col justify-center items-center min-h-0 w-full relative pt-1">
-            <div className="relative w-4 h-[90%] bg-zinc-950 border border-zinc-900 rounded-full flex items-center justify-center shadow-inner border-b-2" style={{ borderBottomColor: themeColor }}>
+            <div ref={faderContainerRef} className="relative w-4 h-[90%] bg-zinc-950 border border-zinc-900 rounded-full flex items-center justify-center shadow-inner border-b-2" style={{ borderBottomColor: themeColor }}>
               
               {/* Pitch detent center tick LED */}
               <div 
@@ -724,16 +770,41 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
                 type="range"
                 min="-8"
                 max="8"
-                step="0.02"
+                step="0.002"
                 value={-(deck?.pitch || 0)} // Invert UI logic for HTML element
                 onChange={(e) => {
                   if (isLocked) return;
+                  const now = performance.now();
                   const rawVal = parseFloat(e.target.value);
                   const targetPitch = -rawVal; // Re-invert to get actual percent value
-                  setDeck(deckId, { pitch: targetPitch, syncEnabled: false });
-                  if (Math.abs(targetPitch) < 0.1) {
-                    playClick(880, 'sine', 0.004);
+                  
+                  const dt = now - lastUpdateRef.current.time;
+                  const dp = Math.abs(targetPitch - lastUpdateRef.current.value);
+                  const velocity = dt > 0 ? dp / dt : 0;
+                  
+                  lastUpdateRef.current = { time: now, value: targetPitch };
+
+                  let finalPitch = targetPitch;
+                  const center = 0.0;
+                  const snapThreshold = 0.15;
+
+                  // High-precision magnetic locking to center
+                  if (Math.abs(targetPitch - center) < snapThreshold) {
+                    if (velocity < 0.015) {
+                      finalPitch = center;
+                      if (deck?.pitch !== center) {
+                        playClick(880, 'sine', 0.004);
+                      }
+                    }
+                  } else {
+                    // Snap to nearest whole integer if dragging slow
+                    const nearestInt = Math.round(targetPitch);
+                    if (velocity < 0.008 && Math.abs(targetPitch - nearestInt) < 0.05) {
+                      finalPitch = nearestInt;
+                    }
                   }
+
+                  setDeck(deckId, { pitch: finalPitch, syncEnabled: false });
                 }}
                 title="Adjust Pitch Slider"
                 style={{
