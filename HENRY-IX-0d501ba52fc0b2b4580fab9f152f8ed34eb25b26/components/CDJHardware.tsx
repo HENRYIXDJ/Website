@@ -712,7 +712,7 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
               <div 
                 className="absolute w-5 h-7 bg-gradient-to-b from-zinc-700 to-zinc-900 border border-zinc-600 rounded shadow flex items-center justify-center cursor-ns-resize pointer-events-none z-10"
                 style={{
-                  top: `calc(${(1 - ((deck?.pitch || 0) + 8) / 16) * 90}% + 5%)`,
+                  top: `calc(${(((deck?.pitch || 0) + 8) / 16) * 90}% + 5%)`,
                   transform: 'translateY(-50%)'
                 }}
               >
@@ -736,7 +736,11 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
                   }
                 }}
                 title="Adjust Pitch Slider"
-                className="absolute inset-0 opacity-0 cursor-ns-resize z-20 w-[60px] -left-5 h-full [writing-mode:bt-lr] direction-rtl"
+                style={{
+                  writingMode: 'vertical-lr',
+                  direction: 'rtl'
+                }}
+                className="absolute inset-0 opacity-0 cursor-pointer z-20 w-[60px] -left-5 h-full"
               />
             </div>
           </div>
