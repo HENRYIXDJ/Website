@@ -179,6 +179,7 @@ const NavigationNode = React.memo(function NavigationNode() {
         {[
           { label: 'MIXES', href: '/mixes', desc: 'Enter the CDJ Portfolio' },
           { label: 'GALLERY', href: '/gallery', desc: 'Visual Archives' },
+          { label: 'LIVE', href: '/live', desc: 'Watch Broadcast Transmissions' },
           { label: 'EVENTS', href: '/events', desc: 'Upcoming Shows' },
           { label: 'CONTACT', href: '/contact', desc: 'Bookings & Info' },
         ].map(({ label, href, desc }) => (

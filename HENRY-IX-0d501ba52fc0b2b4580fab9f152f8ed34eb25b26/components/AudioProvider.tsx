@@ -3,7 +3,6 @@
 import React, { useRef, useEffect, createContext, useContext, useMemo, useCallback } from 'react';
 import { usePathname } from 'next/navigation';
 import { playClick, playLockoutBlip, setMutedGlobal } from '@/lib/audioUtils';
-import { trackWaveforms } from '@/app/trackWaveforms';
 import { useAudioStore, generateStaticPeaks } from '@/store/audioStore';
 import { audioEngine, type DeckDSPNodes } from '@/lib/AudioEngine';
 import { getStorageUrl } from '@/lib/storage';
@@ -69,6 +68,30 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   const setLeftActiveDeck = useAudioStore(s => s.setLeftActiveDeck);
   const setRightActiveDeck = useAudioStore(s => s.setRightActiveDeck);
 
+  const dynamicWaveformsRef = useRef<Record<string, number[]>>({});
+
+  // ── Lazy-Load Track Waveform peaks dynamically ───────────────────────────
+  useEffect(() => {
+    import('@/app/trackWaveforms')
+      .then(({ trackWaveforms }) => {
+        dynamicWaveformsRef.current = trackWaveforms;
+        const decks = useAudioStore.getState().decks;
+        for (const deckIdStr of ['1', '2', '3', '4']) {
+          const deckId = Number(deckIdStr);
+          const deck = decks[deckId];
+          if (deck && deck.id) {
+            const peaks = trackWaveforms[deck.id];
+            if (peaks) {
+              setDeck(deckId, { waveformPeaks: peaks });
+            }
+          }
+        }
+      })
+      .catch(err => {
+        console.error('Failed to dynamic import trackWaveforms:', err);
+      });
+  }, [setDeck]);
+
   // ── Body scroll lock while preloader active ─────────────────────────────
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -80,6 +103,45 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       window.scrollTo({ top: 0, behavior: 'instant' });
     }
   }, [preloaderComplete]);
+
+  // ── Load saved state from LocalStorage on client mount ───────────────────
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const saved = localStorage.getItem('henryix_audio_settings');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.crossfader !== undefined) useAudioStore.getState().setCrossfader(parsed.crossfader);
+        if (parsed.leftActiveDeck !== undefined) useAudioStore.getState().setLeftActiveDeck(parsed.leftActiveDeck);
+        if (parsed.rightActiveDeck !== undefined) useAudioStore.getState().setRightActiveDeck(parsed.rightActiveDeck);
+        if (parsed.isMuted !== undefined) useAudioStore.getState().setIsMuted(parsed.isMuted);
+        if (parsed.isStacked !== undefined) useAudioStore.getState().setStacked(parsed.isStacked);
+      }
+    } catch (e) {
+      console.warn('Failed to load settings from localStorage:', e);
+    }
+  }, []);
+
+  // ── Subscribe to save state to LocalStorage on change ─────────────────────
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const unsubscribe = useAudioStore.subscribe(
+      state => ({
+        crossfader: state.crossfader,
+        leftActiveDeck: state.leftActiveDeck,
+        rightActiveDeck: state.rightActiveDeck,
+        isMuted: state.isMuted,
+        isStacked: state.isStacked,
+      }),
+      (slice) => {
+        try {
+          localStorage.setItem('henryix_audio_settings', JSON.stringify(slice));
+        } catch (e) {}
+      },
+      { fireImmediately: false }
+    );
+    return unsubscribe;
+  }, []);
 
 
   // ── Web Audio persistent DSP routing nodes ──────────────────────────────
@@ -125,7 +187,10 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
 
     try {
       const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-      const ctx = new AudioContextClass();
+      const ctx = new AudioContextClass({
+        latencyHint: 'playback',
+        sampleRate: 44100
+      });
       audioContextRef.current = ctx;
       setAudioDSPInitialized(true);
       if (ctx.state === 'suspended') ctx.resume().catch(() => {});
@@ -212,7 +277,57 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       const deck = state.decks[deckId];
       const pitch = deck?.pitch ?? 0;
       audio.playbackRate = 1 + pitch / 100;
-      setDeck(deckId, { duration: audio.duration, isReady: true });
+      
+      const offset = deck?.firstBeatOffset || 0;
+      audio.currentTime = offset;
+      
+      let newCuePoints = deck?.cuePoints || [];
+      if (newCuePoints.length === 0 || Math.abs(newCuePoints[0] - offset) > 0.05) {
+        newCuePoints = [offset, ...newCuePoints.filter((c: number) => Math.abs(c - offset) > 0.05)];
+      }
+
+      setDeck(deckId, { 
+        duration: audio.duration, 
+        isReady: true,
+        progress: offset,
+        cuePoints: newCuePoints
+      });
+      
+      // Auto-detect onset for unknown tracks via a background Range fetch
+      if (!offset && audio.src && audio.src.startsWith('http') && !audio.src.includes('soundcloud')) {
+        const absoluteUrl = new URL(audio.src).href;
+        fetch(absoluteUrl, { headers: { Range: 'bytes=0-1500000' } })
+          .then(res => { if (res.ok || res.status === 206) return res.arrayBuffer(); else throw new Error(); })
+          .then(async buffer => {
+            const actx = new OfflineAudioContext(1, 44100 * 30, 44100);
+            const audioBuffer = await actx.decodeAudioData(buffer).catch(() => null);
+            if (!audioBuffer) return;
+            const data = audioBuffer.getChannelData(0);
+            const wSize = 256;
+            for (let i = 0; i < data.length; i += wSize) {
+              let sum = 0;
+              for (let j = 0; j < wSize && i + j < data.length; j++) sum += data[i+j] * data[i+j];
+              const rms = Math.sqrt(sum / wSize);
+              if (rms > 0.012 && (i / 44100) > 0.02) {
+                const detected = i / 44100;
+                console.log(`[BACKGROUND ONSET] Deck ${deckId} detected at ${detected.toFixed(3)}s`);
+                
+                const current = useAudioStore.getState().decks[deckId];
+                if (current && (!current.firstBeatOffset || current.firstBeatOffset === 0)) {
+                  let updatedCue = current.cuePoints || [];
+                  if (updatedCue.length === 0 || Math.abs(updatedCue[0] - detected) > 0.05) {
+                    updatedCue = [detected, ...updatedCue.filter(c => Math.abs(c - detected) > 0.05)];
+                  }
+                  setDeck(deckId, { firstBeatOffset: detected, cuePoints: updatedCue, progress: current.isPlaying ? current.progress : detected });
+                  if (!current.isPlaying && audio.currentTime === 0) {
+                     audio.currentTime = detected;
+                  }
+                }
+                break;
+              }
+            }
+          }).catch(() => {});
+      }
     });
 
     // Keep Zustand in sync with the native audio element state.
@@ -300,10 +415,24 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     document.addEventListener('click', unlockAudio, { capture: true });
     document.addEventListener('touchstart', unlockAudio, { capture: true });
 
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        if (audioContextRef.current && audioContextRef.current.state === 'running') {
+          audioContextRef.current.suspend().catch(() => {});
+        }
+      } else {
+        if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+          audioContextRef.current.resume().catch(() => {});
+        }
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     return () => {
       clearTimeout(initTimer);
       document.removeEventListener('click', unlockAudio, { capture: true });
       document.removeEventListener('touchstart', unlockAudio, { capture: true });
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -382,22 +511,25 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     setDeck(targetDeckId, { pitch: clampedPitchB });
     audioB.playbackRate = 1 + clampedPitchB / 100;
 
-    // 2. Phase alignment (Only if BEAT sync mode is active)
+    // 2. Phase alignment (Only if BEAT sync mode is active - phrase quantized to 4 bars/16 beats)
     if (deckB.syncMode !== 'BPM') {
       const beatIntervalA = 60 / deckA.bpm;
       const beatIntervalB = 60 / deckB.bpm;
       const offsetA = deckA.firstBeatOffset || 0;
       const offsetB = deckB.firstBeatOffset || 0;
       
+      const phraseIntervalA = beatIntervalA * 16;
+      const phraseIntervalB = beatIntervalB * 16;
+
       // Calculate progress relative to the first beat offset of Deck A
       const progressRelA = Math.max(0, audioA.currentTime - offsetA);
-      const phaseA = (progressRelA % beatIntervalA) / beatIntervalA;
+      const phaseA = (progressRelA % phraseIntervalA) / phraseIntervalA;
       
       const durationB = audioB.duration || deckB.duration || 0;
       
       // Calculate target time for Deck B relative to its own first beat offset
       const progressRelB = audioB.currentTime - offsetB;
-      let targetTimeB = offsetB + Math.round(progressRelB / beatIntervalB) * beatIntervalB + phaseA * beatIntervalB;
+      let targetTimeB = offsetB + Math.round(progressRelB / phraseIntervalB) * phraseIntervalB + phaseA * phraseIntervalB;
       
       if (targetTimeB < 0) targetTimeB = 0;
       if (durationB && targetTimeB > durationB) targetTimeB = durationB;
@@ -916,7 +1048,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       setDeck(deckId, {
         id: track.id, title: track.title, url: track.url, link: track.link,
         bpm: track.bpm, isPlaying: false, progress: audio ? audio.currentTime : 0, scMode: false, isReady: false,
-        waveformPeaks: trackWaveforms[track.id] || generateStaticPeaks(500),
+        waveformPeaks: dynamicWaveformsRef.current[track.id] || generateStaticPeaks(500),
         cuePoints: track.cuePoints,
         firstBeatOffset: firstBeatOffset,
       });
@@ -930,7 +1062,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       setDeck(deckId, {
         id: track.id, title: track.title, url: track.url, link: track.link,
         bpm: track.bpm, isPlaying: false, progress: 0, scMode: true, isReady: false,
-        waveformPeaks: trackWaveforms[track.id] || generateStaticPeaks(500),
+        waveformPeaks: dynamicWaveformsRef.current[track.id] || generateStaticPeaks(500),
         cuePoints: track.cuePoints,
         firstBeatOffset: firstBeatOffset,
       });
@@ -1094,12 +1226,21 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
             const detectedOffset = audio.currentTime;
             console.log(`[ONSET] Dynamic sound onset detected for Deck ${deckId} at ${detectedOffset.toFixed(3)}s`);
             
+            const currentCuePoints = deck.cuePoints || [];
+            let newCuePoints = currentCuePoints;
+            if (currentCuePoints.length === 0 || Math.abs(currentCuePoints[0] - detectedOffset) > 0.05) {
+              newCuePoints = [detectedOffset, ...currentCuePoints.filter((c: number) => Math.abs(c - detectedOffset) > 0.05)];
+            }
+            
             // Align firstBeatOffset in Zustand store
-            setDeck(deckId, { firstBeatOffset: detectedOffset });
+            setDeck(deckId, { 
+              firstBeatOffset: detectedOffset,
+              cuePoints: newCuePoints,
+              progress: detectedOffset
+            });
             
             // Seek playhead to snap it instantly to the newly aligned starting beat
             audio.currentTime = detectedOffset;
-            setDeck(deckId, { progress: detectedOffset });
           }
         }
       });

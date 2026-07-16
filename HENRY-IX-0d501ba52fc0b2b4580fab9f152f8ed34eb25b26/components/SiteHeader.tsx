@@ -11,6 +11,7 @@ import { playClick, playTick, playNavSwoosh } from '@/lib/audioUtils';
 const navLinks = [
   { name: 'MIXES', href: '/mixes' },
   { name: 'GALLERY', href: '/gallery' },
+  { name: 'LIVE', href: '/live' },
   { name: 'EVENTS', href: '/events' },
   { name: 'CONTACT', href: '/contact' },
 ];
@@ -18,8 +19,9 @@ const navLinks = [
 const pageTitles: Record<string, string> = {
   '/mixes': '01 / MIXES',
   '/gallery': '02 / GALLERY',
-  '/events': '03 / EVENTS',
-  '/contact': '04 / CONTACT',
+  '/live': '03 / LIVE',
+  '/events': '04 / EVENTS',
+  '/contact': '05 / CONTACT',
 };
 
 const SocialLink = ({ href, icon, className }: { href: string; icon: React.ReactNode; className?: string }) => (

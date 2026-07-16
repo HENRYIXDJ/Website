@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { motion, useMotionValue } from 'framer-motion';
+import { motion, useMotionValue, AnimatePresence } from 'framer-motion';
 import { Play, Pause, CircleDot, Music2, Disc, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -127,18 +127,18 @@ export function VolumeFader({
 
       e.preventDefault();
 
-      const delta = -Math.sign(e.deltaY) * 0.5;
+      const delta = -Math.sign(e.deltaY) * 0.2;
       let newValue = lastUpdateRef.current.value + delta;
 
-      if (newValue < 1.5) {
+      if (newValue < 3.5) {
         if (lastUpdateRef.current.value !== 0) {
           newValue = 0;
-          playClick(880, 'sine', 0.004);
+          playClick(880, 'sine', 0.015);
         }
-      } else if (newValue > 98.5) {
+      } else if (newValue > 96.5) {
         if (lastUpdateRef.current.value !== 100) {
           newValue = 100;
-          playClick(880, 'sine', 0.004);
+          playClick(880, 'sine', 0.015);
         }
       } else {
         const nearestInt = Math.round(newValue);
@@ -179,19 +179,19 @@ export function VolumeFader({
 
             let targetValue = rawValue;
 
-            if (rawValue < 2.0) {
-              if (velocity < 0.15) {
+            if (rawValue < 3.5) {
+              if (velocity < 0.3) {
                 targetValue = 0;
-                if (volume !== 0) playClick(880, 'sine', 0.004);
+                if (volume !== 0) playClick(880, 'sine', 0.015);
               }
-            } else if (rawValue > 98.0) {
-              if (velocity < 0.15) {
+            } else if (rawValue > 96.5) {
+              if (velocity < 0.3) {
                 targetValue = 100;
-                if (volume !== 100) playClick(880, 'sine', 0.004);
+                if (volume !== 100) playClick(880, 'sine', 0.015);
               }
             } else {
               const nearestInt = Math.round(rawValue);
-              if (velocity < 0.08 && Math.abs(rawValue - nearestInt) < 0.25) {
+              if (velocity < 0.15 && Math.abs(rawValue - nearestInt) < 0.4) {
                 targetValue = nearestInt;
               }
             }
@@ -210,7 +210,7 @@ export function VolumeFader({
           writingMode: 'vertical-lr',
           direction: 'rtl'
         }}
-        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20 touch-none scale-125"
       />
 
       <div 
@@ -267,16 +267,16 @@ export function Crossfader({
 
       e.preventDefault();
 
-      const delta = -Math.sign(e.deltaY) * 0.5;
+      const delta = -Math.sign(e.deltaY) * 0.2;
       let newValue = lastUpdateRef.current.value + delta;
 
       const center = 50;
-      const snapThreshold = 1.5;
+      const snapThreshold = 3.5;
 
       if (Math.abs(newValue - center) < snapThreshold) {
         if (lastUpdateRef.current.value !== center) {
           newValue = center;
-          playClick(880, 'sine', 0.004);
+          playClick(880, 'sine', 0.015);
         }
       } else {
         const nearestInt = Math.round(newValue);
@@ -316,18 +316,18 @@ export function Crossfader({
 
           let targetValue = rawValue;
           const center = 50;
-          const snapThreshold = 2.0;
+          const snapThreshold = 3.5;
 
           if (Math.abs(rawValue - center) < snapThreshold) {
-            if (velocity < 0.15) {
+            if (velocity < 0.3) {
               targetValue = center;
               if (value !== center) {
-                playClick(880, 'sine', 0.004);
+                playClick(880, 'sine', 0.015);
               }
             }
           } else {
             const nearestInt = Math.round(rawValue);
-            if (velocity < 0.08 && Math.abs(rawValue - nearestInt) < 0.25) {
+            if (velocity < 0.15 && Math.abs(rawValue - nearestInt) < 0.4) {
               targetValue = nearestInt;
             }
           }
@@ -338,7 +338,7 @@ export function Crossfader({
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={value}
-        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20 touch-none scale-125"
       />
 
       <div className="w-[95%] h-[1px] bg-zinc-800 absolute" />
@@ -1238,6 +1238,8 @@ function MixArchive({
   const [activeTab, setActiveTab] = useState<'all' | 'knight club' | 'royal court' | 'corner new cross'>('all');
   const [deckCount, setDeckCount] = useState<2 | 4>(4);
   const [isMobile, setIsMobile] = useState(false);
+  const [isPortrait, setIsPortrait] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const activeDeckIds = (deckCount === 2 ? [1, 2] : [3, 1, 2, 4]) as readonly (1 | 2 | 3 | 4)[];
 
   const isStacked = useAudioStore(s => s.isStacked);
@@ -1253,6 +1255,8 @@ function MixArchive({
       if (mobile) {
         setDeckCount(2);
       }
+      
+      setIsPortrait(window.innerHeight > window.innerWidth);
     };
     handleResize();
     window.addEventListener('resize', handleResize);
@@ -1289,13 +1293,286 @@ function MixArchive({
     return `control${id}`;
   };
 
-  // --- Slip Mode and Loop Roll states ---
-  const [slipMode, setSlipMode] = useState<Record<number, boolean>>({
-    1: false, 2: false, 3: false, 4: false
+  // --- Visualizer and Keyboard Modal states ---
+  const [visualizerMode, setVisualizerMode] = useState<'ambient' | 'circular' | 'grid'>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('henryix_visualizer_mode') as 'ambient' | 'circular' | 'grid';
+      if (saved && ['ambient', 'circular', 'grid'].includes(saved)) {
+        return saved;
+      }
+    }
+    return 'ambient';
   });
-  const slipModeRef = useRef(slipMode);
-  useEffect(() => { slipModeRef.current = slipMode; }, [slipMode]);
+  const [isShortcutsModalOpen, setIsShortcutsModalOpen] = useState(false);
 
+  // --- Virtual USB Drag and Drop states ---
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
+  const [dragTargetDeck, setDragTargetDeck] = useState<number | null>(null);
+
+  useEffect(() => {
+    const handleDragOver = (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.dataTransfer && e.dataTransfer.types.includes('Files')) {
+        setIsDraggingFile(true);
+      }
+    };
+
+    const handleDragLeave = (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.clientX <= 0 || e.clientY <= 0 || e.clientX >= window.innerWidth || e.clientY >= window.innerHeight) {
+        setIsDraggingFile(false);
+      }
+    };
+
+    const handleDrop = (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDraggingFile(false);
+    };
+
+    window.addEventListener('dragover', handleDragOver);
+    window.addEventListener('dragleave', handleDragLeave);
+    window.addEventListener('drop', handleDrop);
+
+    return () => {
+      window.removeEventListener('dragover', handleDragOver);
+      window.removeEventListener('dragleave', handleDragLeave);
+      window.removeEventListener('drop', handleDrop);
+    };
+  }, []);
+
+  // --- Keyboard Shortcuts System ---
+  const triggerCueDown = (deckId: number) => {
+    const deck = useAudioStore.getState().decks[deckId];
+    if (!deck || deck.id === 'locked') return;
+
+    playClick(720, 'sine', 0.015);
+    const audioEl = audioElementsRef?.current?.[deckId];
+    if (!audioEl) return;
+
+    const mainCueTime = deck.mainCue || 0;
+    const currentProgress = deck.progress || 0;
+
+    if (deck.isPlaying) {
+      audioEl.pause();
+      if (seekLocalBuffer) seekLocalBuffer(deckId, mainCueTime);
+      useAudioStore.getState().setDeck(deckId, { isPlaying: false, isCueStuttering: false });
+    } else {
+      if (Math.abs(currentProgress - mainCueTime) > 0.08) {
+        const bpm = deck.bpm || 120;
+        const pitch = deck.pitch || 0;
+        const currentBpm = bpm * (1 + pitch / 100);
+        const beatInterval = 60 / currentBpm;
+        const offset = deck.firstBeatOffset || 0;
+        const elapsed = currentProgress - offset;
+        const closestBeatIndex = Math.round(elapsed / beatInterval);
+        const snappedTime = Math.max(0, offset + closestBeatIndex * beatInterval);
+
+        useAudioStore.getState().setDeck(deckId, { mainCue: snappedTime });
+      } else {
+        useAudioStore.getState().setDeck(deckId, { isPlaying: true, isCueStuttering: true });
+        audioEl.play().catch((err: any) => {
+          if (err.name !== 'AbortError') {
+            useAudioStore.getState().setDeck(deckId, { isPlaying: false, isCueStuttering: false });
+          }
+        });
+      }
+    }
+  };
+
+  const triggerCueUp = (deckId: number) => {
+    const deck = useAudioStore.getState().decks[deckId];
+    if (!deck || deck.id === 'locked') return;
+
+    if (deck.isCueStuttering) {
+      const audioEl = audioElementsRef?.current?.[deckId];
+      if (audioEl) {
+        audioEl.pause();
+      }
+      if (seekLocalBuffer) seekLocalBuffer(deckId, deck.mainCue || 0);
+      useAudioStore.getState().setDeck(deckId, { isPlaying: false, isCueStuttering: false });
+    }
+  };
+
+  const triggerPadHotCue = (deckId: number, pad: string) => {
+    const deck = useAudioStore.getState().decks[deckId];
+    if (!deck || deck.id === 'locked') return;
+
+    const currentProgress = deck.progress || 0;
+    const savedTime = deck.hotCues?.[pad];
+
+    if (savedTime === null || savedTime === undefined) {
+      const bpm = deck.bpm || 120;
+      const pitch = deck.pitch || 0;
+      const currentBpm = bpm * (1 + pitch / 100);
+      const beatInterval = 60 / currentBpm;
+      const offset = deck.firstBeatOffset || 0;
+      const elapsed = currentProgress - offset;
+      const closestBeatIndex = Math.round(elapsed / beatInterval);
+      const snappedTime = Math.max(0, offset + closestBeatIndex * beatInterval);
+
+      playClick(880, 'sine', 0.02);
+      useAudioStore.getState().setDeck(deckId, {
+        hotCues: {
+          ...deck.hotCues,
+          [pad]: snappedTime
+        }
+      });
+    } else {
+      playClick(960, 'sine', 0.015);
+      if (seekLocalBuffer) seekLocalBuffer(deckId, savedTime);
+
+      const audioEl = audioElementsRef?.current?.[deckId];
+      if (audioEl) {
+        if (!deck.isPlaying) {
+          useAudioStore.getState().setDeck(deckId, { isPlaying: true });
+          if (deck.syncEnabled && alignSyncPlayback) {
+            alignSyncPlayback(deckId);
+          }
+          audioEl.play().catch((err: any) => {
+            if (err.name !== 'AbortError') {
+              useAudioStore.getState().setDeck(deckId, { isPlaying: false });
+            }
+          });
+        }
+      }
+    }
+  };
+
+  const pressedKeysRef = useRef<Record<string, boolean>>({});
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.isContentEditable
+      ) {
+        return;
+      }
+
+      const key = e.key.toLowerCase();
+      if (pressedKeysRef.current[key]) return;
+      pressedKeysRef.current[key] = true;
+
+      const state = useAudioStore.getState();
+      const leftId = state.leftActiveDeck;
+      const rightId = state.rightActiveDeck;
+
+      // --- Left Deck Controls ---
+      if (key === ' ' || key === 'a') {
+        e.preventDefault();
+        if (togglePlayGlobal) togglePlayGlobal(leftId);
+      } else if (key === 'q') {
+        e.preventDefault();
+        triggerCueDown(leftId);
+      } else if (key === '1') {
+        e.preventDefault();
+        triggerPadHotCue(leftId, 'A');
+      } else if (key === '2') {
+        e.preventDefault();
+        triggerPadHotCue(leftId, 'B');
+      } else if (key === '3') {
+        e.preventDefault();
+        triggerPadHotCue(leftId, 'C');
+      } else if (key === '4') {
+        e.preventDefault();
+        triggerPadHotCue(leftId, 'D');
+      } else if (key === 'z') {
+        e.preventDefault();
+        const deck = state.decks[leftId];
+        if (deck && deck.id !== 'locked') {
+          const currentPitch = deck.pitch || 0;
+          useAudioStore.getState().setDeck(leftId, { pitch: Math.max(-8, currentPitch - 0.5), syncEnabled: false });
+          playClick(600, 'sine', 0.01);
+        }
+      } else if (key === 'x') {
+        e.preventDefault();
+        const deck = state.decks[leftId];
+        if (deck && deck.id !== 'locked') {
+          const currentPitch = deck.pitch || 0;
+          useAudioStore.getState().setDeck(leftId, { pitch: Math.min(8, currentPitch + 0.5), syncEnabled: false });
+          playClick(900, 'sine', 0.01);
+        }
+      }
+
+      // --- Right Deck Controls ---
+      else if (key === 'enter' || key === 's') {
+        e.preventDefault();
+        if (togglePlayGlobal) togglePlayGlobal(rightId);
+      } else if (key === 'e') {
+        e.preventDefault();
+        triggerCueDown(rightId);
+      } else if (key === '7') {
+        e.preventDefault();
+        triggerPadHotCue(rightId, 'A');
+      } else if (key === '8') {
+        e.preventDefault();
+        triggerPadHotCue(rightId, 'B');
+      } else if (key === '9') {
+        e.preventDefault();
+        triggerPadHotCue(rightId, 'C');
+      } else if (key === '0') {
+        e.preventDefault();
+        triggerPadHotCue(rightId, 'D');
+      } else if (key === 'n') {
+        e.preventDefault();
+        const deck = state.decks[rightId];
+        if (deck && deck.id !== 'locked') {
+          const currentPitch = deck.pitch || 0;
+          useAudioStore.getState().setDeck(rightId, { pitch: Math.max(-8, currentPitch - 0.5), syncEnabled: false });
+          playClick(600, 'sine', 0.01);
+        }
+      } else if (key === 'm') {
+        e.preventDefault();
+        const deck = state.decks[rightId];
+        if (deck && deck.id !== 'locked') {
+          const currentPitch = deck.pitch || 0;
+          useAudioStore.getState().setDeck(rightId, { pitch: Math.min(8, currentPitch + 0.5), syncEnabled: false });
+          playClick(900, 'sine', 0.01);
+        }
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.isContentEditable
+      ) {
+        return;
+      }
+
+      const key = e.key.toLowerCase();
+      pressedKeysRef.current[key] = false;
+
+      const state = useAudioStore.getState();
+      const leftId = state.leftActiveDeck;
+      const rightId = state.rightActiveDeck;
+
+      if (key === 'q') {
+        e.preventDefault();
+        triggerCueUp(leftId);
+      } else if (key === 'e') {
+        e.preventDefault();
+        triggerCueUp(rightId);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [togglePlayGlobal, seekLocalBuffer, alignSyncPlayback]);
+
+  // --- Active Loop Roll states ---
   const [activeRoll, setActiveRoll] = useState<Record<number, { division: number; startTime: number; virtualTime: number } | null>>({
     1: null, 2: null, 3: null, 4: null
   });
@@ -1493,7 +1770,6 @@ function MixArchive({
     const audio = audioElementsRef?.current?.[deckId];
     const deck = decks[deckId];
     if (deck?.loopIn !== undefined && deck?.loopIn !== null && audio) {
-      // eslint-disable-next-line react-hooks/immutability
       audio.currentTime = deck.loopIn;
       useAudioStore.getState().setDeck(deckId, { isLoopActive: true });
       playClick(900, 'sine', 0.02);
@@ -1528,7 +1804,8 @@ function MixArchive({
       playClick(900, 'sine', 0.02);
       const audio = audioElementsRef?.current?.[deckId];
       if (audio && isFinite(audio.duration)) {
-        if (slipMode[deckId]) {
+        const deck = decksRef.current[deckId];
+        if (deck?.slipEnabled) {
           let targetTime = roll.virtualTime;
           if (targetTime > audio.duration) targetTime = audio.duration;
           if (isFinite(targetTime) && !isNaN(targetTime)) {
@@ -2364,76 +2641,204 @@ function MixArchive({
           isDepth ? "border-zinc-800 bg-zinc-950/40" : "border-black/20"
         )}
       >
-        <AudioVisualizerBackground isDepth={isDepth} mouseX={mouseX} mouseY={mouseY} isPlaying={activeVisualizer.isPlaying} />
+        <AudioVisualizerBackground isDepth={isDepth} mouseX={mouseX} mouseY={mouseY} isPlaying={activeVisualizer.isPlaying} mode={visualizerMode} />
 
-        {/* Persistent Retro-Futuristic Header with Toggle Button */}
-        <div className="w-full relative flex justify-center items-center z-30 font-mono select-none px-3 py-2 shrink-0 border-b border-zinc-900 bg-black/60 backdrop-blur rounded-lg mb-1">
-          <div className="absolute left-3 flex items-center gap-3">
-            <span className="w-2 h-2 rounded-full bg-primary animate-pulse shadow-[0_0_8px_#D8163F]" />
-            <span className="text-primary font-black uppercase tracking-[0.3em] text-[10px] md:text-xs">
-              HENRY IX // CDJ PORTFOLIO
-            </span>
-          </div>
-          <div className="relative flex p-1 bg-zinc-950/80 border border-zinc-900/80 rounded-lg backdrop-blur-md">
-            {(['cdj', 'tracklist'] as const).map((view) => (
-              <button
-                key={view}
-                onClick={() => {
-                  if (setActiveView && activeView !== view) {
-                    setActiveView(view);
-                    playClick(800, 'sine', 0.02);
-                  }
-                }}
-                className={cn(
-                  "relative px-4 py-1.5 rounded-md font-mono text-[9px] md:text-[10px] tracking-widest font-black uppercase transition-colors cursor-pointer flex items-center justify-center gap-2 w-32 md:w-36",
-                  activeView === view ? "text-black" : "text-zinc-400 hover:text-zinc-200"
-                )}
+        {/* Forced Landscape Overlay */}
+        <AnimatePresence>
+          {isMobile && isPortrait && (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100] bg-zinc-950 flex flex-col items-center justify-center p-8 text-center"
+            >
+              <div className="w-16 h-16 rounded-full border border-zinc-800 flex items-center justify-center mb-6 animate-pulse">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+              </div>
+              <h2 className="text-xl font-bold text-zinc-200 mb-2 font-mono uppercase tracking-widest">Rotate to Landscape</h2>
+              <p className="text-sm text-zinc-500 font-mono">The CDJ layout requires a landscape orientation on mobile devices.</p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Mobile Hamburger Menu Toggle */}
+        {isMobile && (
+          <button 
+            onClick={() => setIsMobileMenuOpen(true)}
+            className="absolute top-4 left-4 z-40 p-2 bg-zinc-950/80 border border-zinc-900 rounded-md text-zinc-400 hover:text-white backdrop-blur shadow-xl"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+          </button>
+        )}
+
+        {/* Mobile Slide-out Menu */}
+        <AnimatePresence>
+          {isMobile && isMobileMenuOpen && (
+            <>
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
+              />
+              <motion.div 
+                initial={{ x: '-100%' }}
+                animate={{ x: 0 }}
+                exit={{ x: '-100%' }}
+                transition={{ type: "spring", bounce: 0, duration: 0.4 }}
+                className="fixed top-0 left-0 bottom-0 w-64 bg-zinc-950 border-r border-zinc-900 z-50 p-4 flex flex-col gap-6 shadow-2xl"
               >
-                {activeView === view && (
-                  <motion.div
-                    layoutId="view-toggle-highlight"
-                    className="absolute inset-0 bg-primary rounded-md shadow-[0_0_10px_rgba(216,22,63,0.4)]"
-                    transition={{ type: "spring", bounce: 0.2, duration: 0.5 }}
-                  />
-                )}
-                <span className="relative z-10">{view === 'cdj' ? 'DECK VIEW' : 'TRACKLIST VIEW'}</span>
-              </button>
-            ))}
-          </div>
+                <div className="flex justify-between items-center pb-4 border-b border-zinc-900">
+                  <span className="text-primary font-black uppercase tracking-[0.2em] text-[10px]">
+                    HENRY IX // CDJ
+                  </span>
+                  <button onClick={() => setIsMobileMenuOpen(false)} className="text-zinc-500 hover:text-white">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </button>
+                </div>
 
-          {/* Sub Slider for 2 or 4 decks - only shown in Deck View and when not on mobile */}
-          {activeView === 'cdj' && !isMobile && (
+                <div className="flex flex-col gap-2">
+                  {(['cdj', 'tracklist'] as const).map((view) => (
+                    <button
+                      key={view}
+                      onClick={() => {
+                        if (setActiveView && activeView !== view) {
+                          setActiveView(view);
+                          playClick(800, 'sine', 0.02);
+                        }
+                        setIsMobileMenuOpen(false);
+                      }}
+                      className={cn(
+                        "p-3 rounded-md font-mono text-xs tracking-widest font-black uppercase transition-colors text-left relative overflow-hidden",
+                        activeView === view ? "bg-primary text-black" : "bg-zinc-900 text-zinc-400 hover:text-zinc-200"
+                      )}
+                    >
+                      <span className="relative z-10">{view === 'cdj' ? 'DECK VIEW' : 'TRACKLIST VIEW'}</span>
+                    </button>
+                  ))}
+                </div>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
+
+        {/* Persistent Retro-Futuristic Header with Toggle Button (Hidden on Mobile) */}
+        {!isMobile && (
+          <div className="w-full relative flex justify-center items-center z-30 font-mono select-none px-3 py-2 shrink-0 border-b border-zinc-900 bg-black/60 backdrop-blur rounded-lg mb-1">
+            <div className="absolute left-3 flex items-center gap-3">
+              <span className="w-2 h-2 rounded-full bg-primary animate-pulse shadow-[0_0_8px_#D8163F]" />
+              <span className="text-primary font-black uppercase tracking-[0.3em] text-[10px] md:text-xs">
+                HENRY IX // CDJ PORTFOLIO
+              </span>
+            </div>
+            <div className="relative flex p-1 bg-zinc-950/80 border border-zinc-900/80 rounded-lg backdrop-blur-md">
+              {(['cdj', 'tracklist'] as const).map((view) => (
+                <button
+                  key={view}
+                  onClick={() => {
+                    if (setActiveView && activeView !== view) {
+                      setActiveView(view);
+                      playClick(800, 'sine', 0.02);
+                    }
+                  }}
+                  className={cn(
+                    "relative px-4 py-1.5 rounded-md font-mono text-[9px] md:text-[10px] tracking-widest font-black uppercase transition-colors cursor-pointer flex items-center justify-center gap-2 w-32 md:w-36",
+                    activeView === view ? "text-black" : "text-zinc-400 hover:text-zinc-200"
+                  )}
+                >
+                  {activeView === view && (
+                    <motion.div
+                      layoutId="view-toggle-highlight"
+                      className="absolute inset-0 bg-primary rounded-md shadow-[0_0_10px_rgba(216,22,63,0.4)]"
+                      transition={{ type: "spring", bounce: 0.2, duration: 0.5 }}
+                    />
+                  )}
+                  <span className="relative z-10">{view === 'cdj' ? 'DECK VIEW' : 'TRACKLIST VIEW'}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Control Panel in Header */}
             <div className="absolute right-3 flex items-center gap-1.5 md:gap-2">
-              <span className="text-[7.5px] md:text-[8px] text-zinc-500 font-bold uppercase tracking-wider select-none">
-                DECKS:
+              {/* Decks selection */}
+              {activeView === 'cdj' && (
+                <>
+                  <span className="text-[7px] md:text-[8px] text-zinc-500 font-bold uppercase tracking-wider select-none">
+                    DECKS:
+                  </span>
+                  <div className="relative flex p-0.5 bg-zinc-950/80 border border-zinc-900 rounded-md backdrop-blur-md">
+                    {([2, 4] as const).map((count) => (
+                      <button
+                        key={count}
+                        onClick={() => {
+                          setDeckCount(count);
+                          playClick(800, 'sine', 0.02);
+                        }}
+                        className={cn(
+                          "relative px-2 py-0.5 rounded font-mono text-[7.5px] md:text-[8px] font-black uppercase transition-colors cursor-pointer flex items-center justify-center w-6 md:w-8 h-5",
+                          deckCount === count ? "text-zinc-950 font-black" : "text-zinc-500 hover:text-zinc-300"
+                        )}
+                      >
+                        {deckCount === count && (
+                          <motion.div
+                            layoutId="deck-count-highlight"
+                            className="absolute inset-0 bg-primary rounded shadow-[0_0_8px_rgba(216,22,63,0.3)]"
+                            transition={{ type: "spring", bounce: 0.2, duration: 0.4 }}
+                          />
+                        )}
+                        <span className="relative z-10">{count}</span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {/* Visualizer Mode Selection */}
+              <span className="text-[7px] md:text-[8px] text-zinc-500 font-bold uppercase tracking-wider select-none ml-1 md:ml-2">
+                VISUALIZER:
               </span>
               <div className="relative flex p-0.5 bg-zinc-950/80 border border-zinc-900 rounded-md backdrop-blur-md">
-                {([2, 4] as const).map((count) => (
+                {(['ambient', 'circular', 'grid'] as const).map((mode) => (
                   <button
-                    key={count}
+                    key={mode}
                     onClick={() => {
-                      setDeckCount(count);
+                      setVisualizerMode(mode);
+                      localStorage.setItem('henryix_visualizer_mode', mode);
                       playClick(800, 'sine', 0.02);
                     }}
                     className={cn(
-                      "relative px-2 py-0.5 rounded font-mono text-[8px] font-black uppercase transition-colors cursor-pointer flex items-center justify-center w-8 h-5",
-                      deckCount === count ? "text-zinc-950 font-black" : "text-zinc-500 hover:text-zinc-300"
+                      "relative px-2 py-0.5 rounded font-mono text-[7.5px] md:text-[8px] font-black uppercase transition-colors cursor-pointer flex items-center justify-center w-11 md:w-14 h-5",
+                      visualizerMode === mode ? "text-zinc-950 font-black" : "text-zinc-500 hover:text-zinc-300"
                     )}
                   >
-                    {deckCount === count && (
+                    {visualizerMode === mode && (
                       <motion.div
-                        layoutId="deck-count-highlight"
+                        layoutId="visualizer-mode-highlight"
                         className="absolute inset-0 bg-primary rounded shadow-[0_0_8px_rgba(216,22,63,0.3)]"
-                        transition={{ type: "spring", bounce: 0.2, duration: 0.4 }}
+                        transition={{ type: "spring", bounce: 0.1, duration: 0.4 }}
                       />
                     )}
-                    <span className="relative z-10">{count}</span>
+                    <span className="relative z-10">{mode}</span>
                   </button>
                 ))}
               </div>
+
+              {/* Keyboard Shortcuts Trigger */}
+              {activeView === 'cdj' && (
+                <button
+                  onClick={() => {
+                    setIsShortcutsModalOpen(true);
+                    playClick(900, 'sine', 0.02);
+                  }}
+                  className="px-2 py-1 bg-zinc-900/60 hover:bg-zinc-900 border border-zinc-900 hover:border-zinc-800 rounded-md text-zinc-400 hover:text-zinc-200 transition-all cursor-pointer flex items-center gap-1 active:scale-95 text-[7.5px] md:text-[8px] font-bold"
+                >
+                  <span>⌨️</span> KEYBOARD
+                </button>
+              )}
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {activeView === 'cdj' ? (
           <>
@@ -2445,10 +2850,24 @@ function MixArchive({
                 height: 100%;
               }
               
-              /* Performance Mode (Screens < 1536px) */
-              @media (max-width: 1535px) {
+              /* Mobile Mode (Screens < 1024px) */
+              @media (max-width: 1023px) {
                 .dj-grid-container {
-                  grid-template-columns: 1.2fr 2fr 1.2fr;
+                  gap: 4px;
+                  grid-template-columns: 2fr 1.5fr 2fr;
+                  grid-template-rows: auto auto 1fr;
+                  grid-template-areas:
+                    "browserL waveL  browserR"
+                    "browserL waveR  browserR"
+                    "controlL mixer  controlR";
+                }
+              }
+
+              /* Performance Mode (Screens 1024px - 1535px) */
+              @media (min-width: 1024px) and (max-width: 1535px) {
+                .dj-grid-container {
+                  gap: 12px;
+                  grid-template-columns: 2fr 1.8fr 2fr;
                   grid-template-rows: auto auto 1fr;
                   grid-template-areas:
                     "browserL waveL  browserR"
@@ -2461,7 +2880,7 @@ function MixArchive({
               @media (min-width: 1536px) {
                 .dj-grid-container {
                   ${deckCount === 2 ? `
-                    grid-template-columns: minmax(0, 1fr) minmax(280px, 1.2fr) minmax(0, 1fr);
+                    grid-template-columns: minmax(0, 1.8fr) minmax(280px, 1.2fr) minmax(0, 1.8fr);
                     grid-template-rows: 200px auto 1fr;
                     grid-template-areas:
                       "browser1 mixer browser2"
@@ -2622,6 +3041,170 @@ function MixArchive({
           renderTracklist()
         )}
       </div>
+
+      {/* Keyboard Shortcuts Modal */}
+      <AnimatePresence>
+        {isShortcutsModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsShortcutsModalOpen(false)}
+              className="fixed inset-0 bg-black/85 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              transition={{ type: "spring", duration: 0.4 }}
+              className="relative w-full max-w-lg border border-zinc-900 bg-zinc-950/95 rounded-2xl p-6 shadow-2xl font-mono text-zinc-300 z-10 select-none"
+            >
+              <button
+                onClick={() => setIsShortcutsModalOpen(false)}
+                className="absolute top-4 right-4 text-zinc-500 hover:text-white transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <h3 className="text-primary text-[10px] md:text-[11px] font-black tracking-[0.25em] uppercase border-b border-zinc-900 pb-3 mb-5 flex items-center gap-2">
+                <span>⌨️</span> KEYBOARD SHORTCUTS INTERFACE
+              </h3>
+
+              <div className="grid grid-cols-2 gap-6 text-[10px] tracking-wide mb-4">
+                <div className="flex flex-col gap-4 border-r border-zinc-900/60 pr-4">
+                  <span className="text-zinc-500 font-bold tracking-widest text-[8px] uppercase">Left Active Deck</span>
+                  <div className="flex flex-col gap-3">
+                    <div className="flex justify-between items-center"><span className="text-zinc-400">Play / Pause</span><kbd className="px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-primary font-bold">Space / A</kbd></div>
+                    <div className="flex justify-between items-center"><span className="text-zinc-400">Cue Stutter</span><kbd className="px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-primary font-bold">Q (Hold)</kbd></div>
+                    <div className="flex justify-between items-center"><span className="text-zinc-400">Hot Cues A-D</span><kbd className="px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-primary font-bold">1 - 4</kbd></div>
+                    <div className="flex justify-between items-center"><span className="text-zinc-400">Pitch Bend - / +</span><kbd className="px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-primary font-bold">Z / X</kbd></div>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-4 pl-2">
+                  <span className="text-zinc-500 font-bold tracking-widest text-[8px] uppercase">Right Active Deck</span>
+                  <div className="flex flex-col gap-3">
+                    <div className="flex justify-between items-center"><span className="text-zinc-400">Play / Pause</span><kbd className="px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-cyan-400 font-bold">Enter / S</kbd></div>
+                    <div className="flex justify-between items-center"><span className="text-zinc-400">Cue Stutter</span><kbd className="px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-cyan-400 font-bold">E (Hold)</kbd></div>
+                    <div className="flex justify-between items-center"><span className="text-zinc-400">Hot Cues A-D</span><kbd className="px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-cyan-400 font-bold">7 - 0</kbd></div>
+                    <div className="flex justify-between items-center"><span className="text-zinc-400">Pitch Bend - / +</span><kbd className="px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-cyan-400 font-bold">N / M</kbd></div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-6 border-t border-zinc-900 pt-4 text-center text-[7px] text-zinc-500 uppercase tracking-widest leading-relaxed">
+                SHORTCUTS ARE SCALED AND ENABLED GLOBALLY. CLICK OR DRAG DECKS TO MIX SIMULTANEOUSLY.
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Skeuomorphic Virtual USB Drag-and-Drop Overlay */}
+      <AnimatePresence>
+        {isDraggingFile && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[200] bg-black/85 backdrop-blur-xl flex flex-col items-center justify-center font-mono p-6"
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setIsDraggingFile(false);
+              
+              const files = e.dataTransfer?.files;
+              if (files && files.length > 0) {
+                const file = files[0];
+                if (file.type.startsWith('audio/') || /\.(mp3|wav|m4a|aac|flac)$/i.test(file.name)) {
+                  const leftId = useAudioStore.getState().leftActiveDeck;
+                  if (loadLocalFile) loadLocalFile(leftId, file);
+                } else {
+                  playLockoutBlip && playLockoutBlip();
+                }
+              }
+            }}
+          >
+            {/* USB Enclosure Card */}
+            <div className="w-full max-w-xl bg-zinc-950 border-2 border-dashed border-zinc-900 rounded-3xl p-8 shadow-2xl flex flex-col items-center gap-6 relative overflow-hidden">
+              
+              {/* Spinning Pioneer Record visual indicator */}
+              <div className="w-20 h-20 rounded-full border-2 border-zinc-800 flex items-center justify-center relative animate-[spin_6s_linear_infinite]">
+                <div className="w-10 h-10 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center">
+                  <div className="w-2.5 h-2.5 rounded-full bg-primary" />
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2 text-center">
+                <span className="text-primary font-black text-lg md:text-xl tracking-[0.25em] uppercase animate-pulse">
+                  INSERT VIRTUAL USB
+                </span>
+                <span className="text-zinc-500 text-[10px] tracking-widest uppercase">
+                  DROP AUDIO FILE (.mp3, .wav, .m4a) ONTO A DECK DROPZONE
+                </span>
+              </div>
+
+              {/* Target Dropzones Grid */}
+              <div className="grid grid-cols-2 gap-4 w-full mt-4">
+                {[
+                  { label: 'LOAD TO DECK LEFT', id: leftActiveDeck, name: 'LEFT' },
+                  { label: 'LOAD TO DECK RIGHT', id: rightActiveDeck, name: 'RIGHT' }
+                ].map(target => (
+                  <div
+                    key={target.name}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setDragTargetDeck(target.id);
+                    }}
+                    onDragLeave={() => setDragTargetDeck(null)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setIsDraggingFile(false);
+                      setDragTargetDeck(null);
+                      
+                      const files = e.dataTransfer?.files;
+                      if (files && files.length > 0) {
+                        const file = files[0];
+                        if (file.type.startsWith('audio/') || /\.(mp3|wav|m4a|aac|flac)$/i.test(file.name)) {
+                          if (loadLocalFile) loadLocalFile(target.id, file);
+                        } else {
+                          playLockoutBlip && playLockoutBlip();
+                        }
+                      }
+                    }}
+                    className={cn(
+                      "border-2 border-dashed rounded-2xl p-6 flex flex-col items-center justify-center gap-2.5 transition-all duration-200 cursor-pointer h-36 text-center select-none",
+                      dragTargetDeck === target.id
+                        ? "bg-primary/10 border-primary text-primary shadow-[0_0_15px_rgba(216,22,63,0.25)] scale-[1.02]"
+                        : "bg-black/40 border-zinc-900 text-zinc-400 hover:border-zinc-800 hover:text-zinc-300"
+                    )}
+                  >
+                    <span className="text-[9px] font-black tracking-widest uppercase">
+                      {target.label}
+                    </span>
+                    <span className="text-[12px] font-bold text-white uppercase truncate max-w-[150px]">
+                      {target.name === 'LEFT' ? `DECK ${leftActiveDeck}` : `DECK ${rightActiveDeck}`}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Bezel footer details */}
+              <span className="text-[7.5px] text-zinc-600 font-bold uppercase tracking-widest border-t border-zinc-900/60 w-full pt-4 text-center mt-2 leading-none">
+                PIONEER VIRTUAL LINK // FILE_LOADER_PORT
+              </span>
+
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </section>
   );
 }
@@ -2651,7 +3234,7 @@ export default function MixPortfolio({ isDepth = true, activeView: initialActive
           title,
           slug,
           description,
-          mixes[defined(audioFile)]->{
+          mixes[]->[defined(audioFile)]{
             _id,
             title,
             slug,

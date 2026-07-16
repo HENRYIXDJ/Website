@@ -44,18 +44,18 @@ export function RotaryKnob({ label, value, onChange, disabled = false, colorClas
 
       e.preventDefault();
 
-      // Slow/precise wheel adjustments by 0.5 per notch
-      const delta = -Math.sign(e.deltaY) * 0.5;
+      // Slow/precise wheel adjustments
+      const delta = -Math.sign(e.deltaY) * 0.2;
       let newValue = lastUpdateRef.current.value + delta;
 
       const center = 50;
-      const snapThreshold = 1.5;
+      const snapThreshold = 3.5;
 
       // Apply magnetic snap lock to 50 (noon)
       if (Math.abs(newValue - center) < snapThreshold) {
         if (lastUpdateRef.current.value !== center) {
           newValue = center;
-          playClick(880, 'sine', 0.004);
+          playClick(880, 'sine', 0.015);
         }
       } else {
         // Snap to nearest integer if change is very precise
@@ -114,21 +114,21 @@ export function RotaryKnob({ label, value, onChange, disabled = false, colorClas
 
               let targetValue = rawValue;
               const center = 50;
-              const snapThreshold = 2.0;
+              const snapThreshold = 3.5;
 
               // High-precision magnetic locking to Noon center
               if (Math.abs(rawValue - center) < snapThreshold) {
                 // Snap if velocity is low (precise movement)
-                if (velocity < 0.15) {
+                if (velocity < 0.3) {
                   targetValue = center;
                   if (value !== center) {
-                    playClick(880, 'sine', 0.004);
+                    playClick(880, 'sine', 0.015);
                   }
                 }
               } else {
                 // Snap to nearest integer if velocity is low
                 const nearestInt = Math.round(rawValue);
-                if (velocity < 0.08 && Math.abs(rawValue - nearestInt) < 0.25) {
+                if (velocity < 0.15 && Math.abs(rawValue - nearestInt) < 0.4) {
                   targetValue = nearestInt;
                 }
               }
@@ -141,7 +141,7 @@ export function RotaryKnob({ label, value, onChange, disabled = false, colorClas
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={value}
-          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20 touch-none scale-125"
         />
         
         {/* Outer casing */}

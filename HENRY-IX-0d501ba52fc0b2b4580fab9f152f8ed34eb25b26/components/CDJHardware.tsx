@@ -37,8 +37,6 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
     deckId === 3 ? 'rgba(16,185,129,1)' : // D3: Emerald/Green
     'rgba(234,179,8,1)';                  // D4: Gold/Yellow
 
-  const audio = audioElementsRef?.current?.[deckId];
-
   const faderContainerRef = useRef<HTMLDivElement>(null);
   const lastUpdateRef = useRef({ time: 0, value: deck?.pitch || 0 });
 
@@ -56,21 +54,21 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
 
       e.preventDefault();
 
-      // Pitch fader scroll sensitivity: 0.02% per step
-      const delta = Math.sign(e.deltaY) * 0.02;
+      // Pitch fader scroll sensitivity: 0.005% per step
+      const delta = Math.sign(e.deltaY) * 0.005;
       let newValue = lastUpdateRef.current.value + delta;
 
       const center = 0.0;
-      const snapThreshold = 0.1;
+      const snapThreshold = 0.35;
 
       if (Math.abs(newValue - center) < snapThreshold) {
         if (lastUpdateRef.current.value !== center) {
           newValue = center;
-          playClick(880, 'sine', 0.004);
+          playClick(880, 'sine', 0.015);
         }
       } else {
         const nearestInt = Math.round(newValue);
-        if (Math.abs(newValue - nearestInt) < 0.03) {
+        if (Math.abs(newValue - nearestInt) < 0.1) {
           newValue = nearestInt;
         }
       }
@@ -102,8 +100,8 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
       for (let entry of entries) {
         const { width, height } = entry.contentRect;
         const size = Math.min(width, height);
-        // Use 85% of the smaller dimension, clamped between 144px (w-36) and 210px (w-52)
-        const targetSize = Math.max(144, Math.min(210, size * 0.85));
+        // Use 85% of the smaller dimension, clamped between 144px (w-36) and 400px
+        const targetSize = Math.max(144, Math.min(400, size * 0.85));
         setJogSize(targetSize);
       }
     });
@@ -392,6 +390,20 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
     setDeck(deckId, { masterTempo: !deck.masterTempo });
   };
 
+  const handleSlipPress = (e: React.PointerEvent) => {
+    e.preventDefault();
+    if (isLocked) return;
+    playClick(850, 'sine', 0.015);
+    setDeck(deckId, { slipEnabled: !deck.slipEnabled });
+  };
+
+  const handleQuantizePress = (e: React.PointerEvent) => {
+    e.preventDefault();
+    if (isLocked) return;
+    playClick(920, 'sine', 0.015);
+    setDeck(deckId, { quantizeEnabled: !deck.quantizeEnabled });
+  };
+
   // --- Jog Wheel Event Handler Stubs for Scratching / Pitch Bend ---
   const handlePlatterDown = (e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -527,7 +539,7 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
                 className={cn(
                   "w-12 h-12 rounded-full border-2 transition-all cursor-pointer shadow-lg shrink-0 flex items-center justify-center font-mono text-[8.5px] font-black tracking-[0.1em]",
                   (deck?.loopIn !== null && deck?.loopIn !== undefined)
-                    ? "bg-amber-500 border-amber-400 text-black shadow-[0_0_12px_rgba(245,158,11,0.6)]"
+                    ? cn("bg-amber-500 border-amber-400 text-black shadow-[0_0_12px_rgba(245,158,11,0.6)]", deck?.isLoopActive && "animate-btn-flash")
                     : "bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700"
                 )}
               >
@@ -543,7 +555,7 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
                 className={cn(
                   "w-12 h-12 rounded-full border-2 transition-all cursor-pointer shadow-lg shrink-0 flex items-center justify-center font-mono text-[8.5px] font-black tracking-[0.1em]",
                   (deck?.loopOut !== null && deck?.loopOut !== undefined)
-                    ? "bg-amber-500 border-amber-400 text-black shadow-[0_0_12px_rgba(245,158,11,0.6)]"
+                    ? cn("bg-amber-500 border-amber-400 text-black shadow-[0_0_12px_rgba(245,158,11,0.6)]", deck?.isLoopActive && "animate-btn-flash")
                     : "bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700"
                 )}
               >
@@ -736,6 +748,32 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
               >
                 MT
               </button>
+
+              {/* SLIP Button */}
+              <button
+                onPointerDown={handleSlipPress}
+                className={cn(
+                  "h-5 rounded text-[7px] font-mono font-black tracking-widest uppercase border transition-colors cursor-pointer leading-none w-full",
+                  deck?.slipEnabled
+                    ? "bg-red-500 border-red-400 text-black shadow-[0_0_8px_rgba(239,68,68,0.35)]"
+                    : "bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-300"
+                )}
+              >
+                SLIP
+              </button>
+
+              {/* QUANTIZE Button */}
+              <button
+                onPointerDown={handleQuantizePress}
+                className={cn(
+                  "h-5 rounded text-[7px] font-mono font-black tracking-widest uppercase border transition-colors cursor-pointer leading-none w-full",
+                  deck?.quantizeEnabled
+                    ? "bg-primary border-primary text-white shadow-neon-glow"
+                    : "bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-300"
+                )}
+              >
+                QNTZ
+              </button>
             </div>
           </div>
 
@@ -786,20 +824,20 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
 
                   let finalPitch = targetPitch;
                   const center = 0.0;
-                  const snapThreshold = 0.15;
+                  const snapThreshold = 0.35;
 
                   // High-precision magnetic locking to center
                   if (Math.abs(targetPitch - center) < snapThreshold) {
-                    if (velocity < 0.015) {
+                    if (velocity < 0.035) {
                       finalPitch = center;
                       if (deck?.pitch !== center) {
-                        playClick(880, 'sine', 0.004);
+                        playClick(880, 'sine', 0.015);
                       }
                     }
                   } else {
                     // Snap to nearest whole integer if dragging slow
                     const nearestInt = Math.round(targetPitch);
-                    if (velocity < 0.008 && Math.abs(targetPitch - nearestInt) < 0.05) {
+                    if (velocity < 0.015 && Math.abs(targetPitch - nearestInt) < 0.1) {
                       finalPitch = nearestInt;
                     }
                   }
@@ -811,7 +849,8 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
                   writingMode: 'vertical-lr',
                   direction: 'rtl'
                 }}
-                className="absolute inset-0 opacity-0 cursor-pointer z-20 w-[60px] -left-5 h-full"
+                disabled={isLocked}
+                className="absolute inset-0 opacity-0 cursor-pointer z-20 w-[60px] -left-5 h-full touch-none"
               />
             </div>
           </div>
@@ -820,3 +859,4 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
     </div>
   );
 }
+
