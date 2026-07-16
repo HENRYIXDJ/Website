@@ -613,8 +613,48 @@ function SingleDeckWaveform({
         ctx.fill();
       }
 
-      // Draw Hot Cues
+      // Draw Cue Line & Hot Cues
       const centerX = width / 2;
+
+      // Draw Cue Line (linked to deck.mainCue)
+      if (currentDeck.mainCue !== undefined && currentDeck.mainCue !== null) {
+        const timeVal = currentDeck.mainCue;
+        const x = Math.round(centerX + (timeVal - progress) * pixelsPerSecond);
+        if (x >= 0 && x <= width) {
+          const color = '#f97316'; // Orange cue line
+          
+          // Draw the orange cue line
+          ctx.save();
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.moveTo(x, 0);
+          ctx.lineTo(x, height);
+          ctx.stroke();
+          ctx.restore();
+          
+          // Draw flag tag at the top
+          ctx.save();
+          ctx.fillStyle = color;
+          ctx.beginPath();
+          ctx.moveTo(x - 5, 0);
+          ctx.lineTo(x + 5, 0);
+          ctx.lineTo(x + 5, 8);
+          ctx.lineTo(x, 11);
+          ctx.lineTo(x - 5, 8);
+          ctx.closePath();
+          ctx.fill();
+          
+          ctx.fillStyle = '#000000';
+          ctx.font = 'bold 7px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('CUE', x, 4.5);
+          ctx.restore();
+        }
+      }
+
+      // Draw Hot Cues
       const hotCues = currentDeck.hotCues || {};
       const HOT_CUE_COLORS: Record<string, string> = {
         A: '#ef4444', // Red

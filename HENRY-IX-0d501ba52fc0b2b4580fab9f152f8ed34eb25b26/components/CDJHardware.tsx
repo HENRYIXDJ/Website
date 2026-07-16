@@ -85,8 +85,17 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
     } else {
       // 2. If paused:
       if (Math.abs(currentProgress - mainCueTime) > 0.08) {
-        // Paused at a non-cue point: set new cue point
-        setDeck(deckId, { mainCue: currentProgress });
+        // Paused at a non-cue point: set new cue point snapped to closest beat
+        const bpm = deck.bpm || 120;
+        const pitch = deck.pitch || 0;
+        const currentBpm = bpm * (1 + pitch / 100);
+        const beatInterval = 60 / currentBpm;
+        const offset = deck.firstBeatOffset || 0;
+        const elapsed = currentProgress - offset;
+        const closestBeatIndex = Math.round(elapsed / beatInterval);
+        const snappedTime = Math.max(0, offset + closestBeatIndex * beatInterval);
+
+        setDeck(deckId, { mainCue: snappedTime });
       } else {
         // Paused exactly at cue point: start cue stutter (play while held)
         setDeck(deckId, { isPlaying: true, isCueStuttering: true });
@@ -191,22 +200,34 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
     const currentProgress = deck.progress || 0;
     playClick(900, 'sine', 0.015);
 
+    const bpm = deck.bpm || 120;
+    const pitch = deck.pitch || 0;
+    const currentBpm = bpm * (1 + pitch / 100);
+    const beatInterval = 60 / currentBpm;
+    const offset = deck.firstBeatOffset || 0;
+    const elapsed = currentProgress - offset;
+    const closestBeatIndex = Math.round(elapsed / beatInterval);
+    const snappedTime = Math.max(0, offset + closestBeatIndex * beatInterval);
+
     // Setup 4-beat simulated long press: 500ms
     loopInTimerRef.current = setTimeout(() => {
       // LONG PRESS: Auto-calculate 4 beats loop based on BPM
       playClick(1050, 'sine', 0.04);
-      const beatDuration = 60 / (deck.bpm || 120);
-      const loopOutTime = currentProgress + (beatDuration * 4);
+      const loopOutTime = snappedTime + (beatInterval * 4);
       setDeck(deckId, { 
-        loopIn: currentProgress, 
+        loopIn: snappedTime, 
         loopOut: loopOutTime, 
-        isLoopActive: true 
+        isLoopActive: true,
+        mainCue: snappedTime
       });
       loopInTimerRef.current = null;
     }, 500);
 
-    // SHORT PRESS DEFAULT (until/unless timer fires): Set loopIn
-    setDeck(deckId, { loopIn: currentProgress });
+    // SHORT PRESS DEFAULT (until/unless timer fires): Set loopIn and mainCue
+    setDeck(deckId, { 
+      loopIn: snappedTime,
+      mainCue: snappedTime
+    });
   };
 
   const handleLoopInUp = (e: React.PointerEvent) => {
@@ -422,49 +443,57 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
       </div>
 
       {/* Loop Row (under hot cues, aligned left) */}
-      <div className="w-full flex items-center justify-start gap-3 px-1 border-b border-zinc-800/40 pb-2.5">
-        <span className="text-[5.5px] text-zinc-500 font-mono tracking-widest font-bold uppercase w-10 shrink-0">LOOP</span>
+      <div className="w-full flex items-end justify-start gap-4 px-1.5 border-b border-zinc-800/40 pb-3">
+        <span className="text-[5.5px] text-zinc-500 font-mono tracking-widest font-bold uppercase mb-3 shrink-0">LOOP</span>
         
         {/* IN / -4 BEAT */}
-        <button
-          onPointerDown={handleLoopInDown}
-          onPointerUp={handleLoopInUp}
-          className={cn(
-            "w-9 h-9 rounded-full font-mono text-[7px] font-black tracking-widest border transition-all cursor-pointer leading-none uppercase flex flex-col items-center justify-center relative shadow-lg shrink-0",
-            deck?.loopIn !== null && deck?.loopIn !== undefined
-              ? "bg-amber-500/20 border-amber-500/40 text-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.2)]"
-              : "bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700"
-          )}
-        >
-          <span className="text-[7.5px] leading-none font-bold">IN</span>
-          <span className="text-[4px] text-zinc-600 font-normal mt-0.5 tracking-tighter leading-none">-4 BEAT</span>
-        </button>
+        <div className="flex flex-col items-center gap-1 shrink-0">
+          <span className="text-[5.5px] sm:text-[6px] text-zinc-500 font-mono font-bold tracking-widest uppercase leading-none h-3.5 flex items-center">IN / -4 BEAT</span>
+          <button
+            onPointerDown={handleLoopInDown}
+            onPointerUp={handleLoopInUp}
+            className={cn(
+              "w-12 h-12 rounded-full border-2 transition-all cursor-pointer shadow-lg shrink-0 flex items-center justify-center font-mono text-[8.5px] font-black tracking-[0.1em]",
+              (deck?.loopIn !== null && deck?.loopIn !== undefined)
+                ? "bg-amber-500 border-amber-400 text-black shadow-[0_0_12px_rgba(245,158,11,0.6)]"
+                : "bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700"
+            )}
+          >
+            IN
+          </button>
+        </div>
 
         {/* OUT */}
-        <button
-          onPointerDown={handleLoopOutPress}
-          className={cn(
-            "w-9 h-9 rounded-full font-mono text-[7.5px] font-bold tracking-widest border transition-all cursor-pointer uppercase flex items-center justify-center shadow-lg shrink-0",
-            deck?.loopOut !== null && deck?.loopOut !== undefined
-              ? "bg-amber-500/20 border-amber-500/40 text-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.2)]"
-              : "bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700"
-          )}
-        >
-          OUT
-        </button>
+        <div className="flex flex-col items-center gap-1 shrink-0">
+          <span className="text-[5.5px] sm:text-[6px] text-zinc-500 font-mono font-bold tracking-widest uppercase leading-none h-3.5 flex items-center">OUT</span>
+          <button
+            onPointerDown={handleLoopOutPress}
+            className={cn(
+              "w-12 h-12 rounded-full border-2 transition-all cursor-pointer shadow-lg shrink-0 flex items-center justify-center font-mono text-[8.5px] font-black tracking-[0.1em]",
+              (deck?.loopOut !== null && deck?.loopOut !== undefined)
+                ? "bg-amber-500 border-amber-400 text-black shadow-[0_0_12px_rgba(245,158,11,0.6)]"
+                : "bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700"
+            )}
+          >
+            OUT
+          </button>
+        </div>
 
-        {/* RELOOP/EXIT */}
-        <button
-          onPointerDown={handleReloopExitPress}
-          className={cn(
-            "w-9 h-9 rounded-full font-mono text-[6.5px] font-bold tracking-widest border transition-all cursor-pointer uppercase flex items-center justify-center text-center shadow-lg shrink-0 leading-[1.1]",
-            deck?.isLoopActive
-              ? "bg-amber-500 border-amber-400 text-black shadow-[0_0_10px_rgba(245,158,11,0.4)]"
-              : "bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700"
-          )}
-        >
-          RELOOP
-        </button>
+        {/* RELOOP / EXIT */}
+        <div className="flex flex-col items-center gap-1 shrink-0">
+          <span className="text-[5.5px] sm:text-[6px] text-zinc-500 font-mono font-bold tracking-widest uppercase leading-none h-3.5 flex items-center">RELOOP / EXIT</span>
+          <button
+            onPointerDown={handleReloopExitPress}
+            className={cn(
+              "w-12 h-12 rounded-full border-2 transition-all cursor-pointer shadow-lg shrink-0 flex items-center justify-center font-mono text-[7px] font-black tracking-tighter leading-none text-center",
+              deck?.isLoopActive
+                ? "bg-amber-500 border-amber-400 text-black shadow-[0_0_12px_rgba(245,158,11,0.6)]"
+                : "bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700"
+            )}
+          >
+            RELOOP
+          </button>
+        </div>
       </div>
 
       {/* 2. Main Hardware Panel */}
