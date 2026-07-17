@@ -44,7 +44,6 @@
     "sanity-plugin-mux-input": "^5.0.3",
     "styled-components": "^6.4.3",
     "tailwind-merge": "^3.3.1",
-    "workflow": "^4.6.0",
     "zustand": "^5.0.13"
   },
   "devDependencies": {

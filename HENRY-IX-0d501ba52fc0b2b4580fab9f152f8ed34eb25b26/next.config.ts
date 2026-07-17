@@ -56,19 +56,6 @@ const nextConfig: NextConfig = {
       );
     }
 
-    if (nextRuntime === 'edge') {
-      config.resolve.alias = {
-        ...config.resolve.alias,
-        '@workflow/world-local': false,
-        '@workflow/world-vercel': false,
-      };
-      config.plugins.push(
-        new webpack.NormalModuleReplacementPlugin(
-          /^node:/,
-          path.resolve(__dirname, 'lib/empty.js')
-        )
-      );
-    }
     // HMR is disabled in AI Studio via DISABLE_HMR env var.
     // Do not modify—file watching is disabled to prevent flickering during agent edits.
     if (dev && process.env.DISABLE_HMR === 'true') {
@@ -83,6 +70,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-import { withWorkflow } from "workflow/next";
-
-export default withWorkflow(withBotId(nextConfig));
+export default withBotId(nextConfig);
