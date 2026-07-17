@@ -29,9 +29,7 @@ Follow the core retro-futuristic dark mode theme:
 * **Secondary Font:** `JetBrains Mono` (`var(--font-mono)`). Use for all terminal HUDs, speed dials, state logs, readouts, code snippets, forms, and technical listings.
 
 ### C. Visual Effects & Overlays
-* **CRT / VHS Scanlines:** Embed `.crt-scanlines`, `.crt-vignette`, and `.crt-roll` for skeuomorphic console aesthetics.
 * **Vivid Glows:** Use shadow utilities like `shadow-neon-glow` (`0 0 10px var(--color-primary-glow)`) and `shadow-neon-strong` (`0 0 20px rgba(216, 22, 63, 0.65)`) for hover states on knobs, faders, and active buttons.
-* **Glitch Text:** Apply `.glitch` and `.glitch-active` text elements for high-impact title animations.
 
 ### D. Scrollbar Theme
 * **Global Scrollbars:** Globally hidden on `html` and `body` contexts to preserve fullscreen skeuomorphic views.
@@ -62,4 +60,4 @@ Follow the core retro-futuristic dark mode theme:
 
 * **Live Streaming:** Incorporate low-latency Mux audio/video playback elements, combining Web Audio DSP equalizers for dynamic client-side visualizers.
 * **Event & Ticket Booking:** Design skeuomorphic tickets (incorporating VHS barcode graphics, flashing status lights, and retro ticket slips).
-* **Personal & Email Marketing:** Build fully animated console-like email subscription forms utilizing `.vhs-glitch-bar` accents and monospaced feedback panels.
+* **Personal & Email Marketing:** Build fully animated console-like email subscription forms utilizing monospaced feedback panels.
