@@ -4,19 +4,18 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useAudioStore } from '@/store/audioStore';
 import { cn } from '@/lib/utils';
 import { getWaveformHeight } from '@/lib/mixes';
+import { audioEngine } from '@/lib/AudioEngine';
 
 interface SingleDeckWaveformProps {
   deckId: 1 | 2 | 3 | 4;
   deck: any;
   isDepth: boolean;
-  audioElementsRef?: React.RefObject<Record<number, HTMLAudioElement | null>>;
 }
 
 export function SingleDeckWaveform({
   deckId,
   deck,
-  isDepth,
-  audioElementsRef
+  isDepth
 }: SingleDeckWaveformProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const deckRef = useRef(deck);
@@ -85,8 +84,8 @@ export function SingleDeckWaveform({
       let targetProgress = currentDeck.progress || 0;
       let isCurrentlyPlaying = currentDeck.isPlaying;
 
-      if (!currentDeck.scMode && audioElementsRef?.current) {
-        const audio = audioElementsRef.current[deckId];
+      if (!currentDeck.scMode) {
+        const audio = audioEngine.audioElements[deckId];
         if (audio && audio.src) {
           targetProgress = audio.currentTime;
           isCurrentlyPlaying = !audio.paused;
@@ -183,8 +182,8 @@ export function SingleDeckWaveform({
 
         // Get actual progress of other deck (considering raw elements if loaded locally)
         let progressOther = otherDeck.progress || 0;
-        if (!otherDeck.scMode && audioElementsRef?.current) {
-          const audioOther = audioElementsRef.current[otherActiveDeckId];
+        if (!otherDeck.scMode) {
+          const audioOther = audioEngine.audioElements[otherActiveDeckId];
           if (audioOther && audioOther.src) {
             progressOther = audioOther.currentTime;
           }
@@ -193,7 +192,7 @@ export function SingleDeckWaveform({
         const phaseCurrent = ((rawProgress - (currentDeck.firstBeatOffset || 0)) % beatIntervalCurrent) / beatIntervalCurrent;
         const phaseOther = ((progressOther - (otherDeck.firstBeatOffset || 0)) % beatIntervalOther) / beatIntervalOther;
 
-        const isBothPlaying = isCurrentlyPlaying && (otherDeck.isPlaying || (audioElementsRef?.current?.[otherActiveDeckId] && !audioElementsRef.current[otherActiveDeckId]?.paused));
+        const isBothPlaying = isCurrentlyPlaying && (otherDeck.isPlaying || (audioEngine.audioElements[otherActiveDeckId] && !audioEngine.audioElements[otherActiveDeckId]?.paused));
 
         if (isBothPlaying) {
           const diff = Math.abs(phaseCurrent - phaseOther);
@@ -573,13 +572,13 @@ export function SingleDeckWaveform({
 
     frameId = requestAnimationFrame(render);
     return () => cancelAnimationFrame(frameId);
-  }, [audioElementsRef, deckId]);
+  }, [deckId]);
 
   const handleStart = (clientX: number, isShift: boolean) => {
     const currentDeck = deckRef.current;
     if (!currentDeck || currentDeck.id === 'locked') return;
 
-    const audio = audioElementsRef?.current?.[deckId];
+    const audio = audioEngine.audioElements[deckId];
     const startTime = audio ? audio.currentTime : (currentDeck.progress || 0);
     const duration = audio ? audio.duration : (currentDeck.duration || 300);
     const startOffset = currentDeck.firstBeatOffset || 0;
@@ -603,7 +602,7 @@ export function SingleDeckWaveform({
       const newOffset = drag.startOffset + deltaSec;
       useAudioStore.getState().setDeck(deckId, { firstBeatOffset: newOffset });
     } else {
-      const audio = audioElementsRef?.current?.[deckId];
+      const audio = audioEngine.audioElements[deckId];
       const dur = isFinite(drag.duration) && !isNaN(drag.duration) ? drag.duration : 300;
       const newTime = Math.max(0, Math.min(dur, drag.startTime - deltaSec));
       if (audio && isFinite(newTime) && !isNaN(newTime)) {

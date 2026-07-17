@@ -53,7 +53,7 @@ async function handleAssetRequest(request: Request) {
   const allowedHosts = [
     'tegbbmt42xpyzcnx.private.blob.vercel-storage.com',
     'vercel-storage.com',
-    'pub-c7c5ff43a8ae174ad91e2668de0ad7f0.r2.dev',
+    'pub-930b5248e181432aa6e2f5a31832fd8d.r2.dev',
     'r2.dev'
   ];
   if (r2PublicDomain) {

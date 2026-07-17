@@ -7,7 +7,7 @@ import { useAudioStore } from '@/store/audioStore';
 import { cn } from '@/lib/utils';
 import { LEDEqualizer, RotaryKnob } from '@/components/DJComponents';
 import { audioEngine } from '@/lib/AudioEngine';
-import { playClick, playTick } from '@/lib/audioUtils';
+import { playClick, playTick, playLockoutBlip } from '@/lib/audioUtils';
 import { 
   formatTime, 
   formatPlayheadTime, 
@@ -28,26 +28,7 @@ interface MixArchiveProps {
   isDepth: boolean;
   activeView: 'cdj' | 'tracklist';
   setActiveView: React.Dispatch<React.SetStateAction<'cdj' | 'tracklist'>>;
-  decks: any;
-  setDecks: React.Dispatch<React.SetStateAction<any>>;
   mixGroups: any[];
-  crossfader: number;
-  setCrossfader: (val: number) => void;
-  leftActiveDeck: 1 | 2;
-  setLeftActiveDeck: (val: 1 | 2) => void;
-  rightActiveDeck: 3 | 4;
-  setRightActiveDeck: (val: 3 | 4) => void;
-  playTrack: (track: any, targetDeckId?: number) => void; 
-  playLockoutBlip: () => void;
-  togglePlayGlobal: (deckId: number) => void;
-  widgetRefs: React.MutableRefObject<Record<number, any>>;
-  initAudioDSP: () => AudioContext | null;
-  loadLocalFile?: (deckId: number, file: File) => void;
-  seekLocalBuffer?: (deckId: number, seekTime: number) => void;
-  audioElementsRef?: React.RefObject<Record<number, HTMLAudioElement | null>>;
-  playPendingRef?: React.MutableRefObject<Record<number, boolean>>;
-  scratchingRef?: React.MutableRefObject<Record<number, boolean>>;
-  alignSyncPlayback?: (deckId: number) => void;
   seekDeckToTime: (deckId: number, seekPosSec: number) => void;
 }
 
@@ -55,28 +36,29 @@ export default function MixArchive({
   isDepth, 
   activeView,
   setActiveView,
-  decks,
-  setDecks,
   mixGroups,
-  crossfader,
-  setCrossfader,
-  leftActiveDeck,
-  setLeftActiveDeck,
-  rightActiveDeck,
-  setRightActiveDeck,
-  playTrack,
-  playLockoutBlip,
-  togglePlayGlobal,
-  widgetRefs,
-  initAudioDSP,
-  loadLocalFile,
-  seekLocalBuffer,
-  audioElementsRef,
-  playPendingRef,
-  scratchingRef,
-  alignSyncPlayback,
   seekDeckToTime
 }: MixArchiveProps) {
+  // Read state directly from Zustand to avoid parent-driven renders
+  const decks = useAudioStore(s => s.decks);
+  const setDecks = useAudioStore(s => s.setDecks);
+  const crossfader = useAudioStore(s => s.crossfader);
+  const setCrossfader = useAudioStore(s => s.setCrossfader);
+  const leftActiveDeck = useAudioStore(s => s.leftActiveDeck);
+  const rightActiveDeck = useAudioStore(s => s.rightActiveDeck);
+
+  // Map local references and bindings directly to global audioEngine singleton
+  const playTrack = audioEngine.playTrack.bind(audioEngine);
+  const togglePlayGlobal = audioEngine.togglePlayGlobal.bind(audioEngine);
+  const initAudioDSP = audioEngine.initAudioDSP.bind(audioEngine);
+  const loadLocalFile = audioEngine.loadLocalFile.bind(audioEngine);
+  const seekLocalBuffer = audioEngine.seekLocalBuffer.bind(audioEngine);
+  const alignSyncPlayback = audioEngine.alignSyncPlayback.bind(audioEngine);
+  const getQuantizedDelay = audioEngine.getQuantizedDelay.bind(audioEngine);
+
+  const audioElementsRef = { current: audioEngine.audioElements };
+  const widgetRefs = { current: audioEngine.widgetRefs };
+
   const decksRef = useRef(decks);
   useEffect(() => { decksRef.current = decks; }, [decks]);
 
@@ -517,26 +499,6 @@ export default function MixArchive({
 
   // --- Global Deck Controls for hotkeys and platters ---
 
-  const getQuantizedDelay = React.useCallback((targetDeckId: number): number => {
-    const deckB = decks[targetDeckId];
-    if (!deckB || !deckB.quantizeEnabled) return 0;
-
-    // Find active master deck
-    const otherDeckId = (targetDeckId === 1 || targetDeckId === 2) ? rightActiveDeck : leftActiveDeck;
-    const deckA = decks[otherDeckId];
-    const audioA = audioElementsRef?.current?.[otherDeckId];
-    if (!deckA || !deckA.isPlaying || !audioA || audioA.paused) return 0;
-
-    const beatIntervalA = 60 / deckA.bpm;
-    const quantizeInterval = beatIntervalA / 4; // 1/4 beat division snap
-
-    const timeA = audioA.currentTime;
-    const currentOffset = timeA % quantizeInterval;
-    const timeToNext = quantizeInterval - currentOffset;
-
-    const realTimeToNext = timeToNext / (1 + (deckA.pitch || 0) / 100);
-    return realTimeToNext * 1000; // in milliseconds
-  }, [decks, rightActiveDeck, leftActiveDeck, audioElementsRef]);
 
   const triggerHotCue = React.useCallback((deckId: number, percentage: number, cueIndex?: number) => {
     const deck = decks[deckId];
@@ -1038,7 +1000,6 @@ export default function MixArchive({
               deckId={deckId}
               deck={deck}
               isDepth={isDepth}
-              audioElementsRef={audioElementsRef}
             />
           </div>
         </div>
@@ -1839,7 +1800,6 @@ export default function MixArchive({
                             deckId={id} 
                             deck={deck} 
                             isDepth={isDepth} 
-                            audioElementsRef={audioElementsRef} 
                           />
                         </div>
                       </div>

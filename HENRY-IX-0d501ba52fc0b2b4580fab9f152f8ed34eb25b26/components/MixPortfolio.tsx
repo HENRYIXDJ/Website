@@ -2,10 +2,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAudioStore } from '@/store/audioStore';
-import { useAudio } from './AudioProvider';
 import { client } from '@/sanity/lib/client';
 import { STATIC_MIX_GROUPS, proxyUrl } from '@/lib/mixes';
 import { getStorageUrl } from '@/lib/storage';
+import { audioEngine } from '@/lib/AudioEngine';
 import MixArchive from './MixArchive';
 
 export default function MixPortfolio({ 
@@ -20,17 +20,14 @@ export default function MixPortfolio({
 
   // Reactive deck state from Zustand — granular subscriptions, no cascade
   const decks = useAudioStore(s => s.decks);
-  const crossfader = useAudioStore(s => s.crossfader);
   const leftActiveDeck = useAudioStore(s => s.leftActiveDeck);
-  const rightActiveDeck = useAudioStore(s => s.rightActiveDeck);
-  const { setDecks, setCrossfader, setLeftActiveDeck, setRightActiveDeck } = useAudioStore();
+  const { setDecks } = useAudioStore();
 
-  // Non-reactive engine refs + imperative functions from context
-  const {
-    playTrack, playLockoutBlip, togglePlayGlobal,
-    widgetRefs, initAudioDSP, loadLocalFile, seekLocalBuffer,
-    audioElementsRef, playPendingRef, scratchingRef, alignSyncPlayback
-  } = useAudio();
+  // Reference directly from the audioEngine singleton
+  const togglePlayGlobal = audioEngine.togglePlayGlobal.bind(audioEngine);
+  const seekLocalBuffer = audioEngine.seekLocalBuffer.bind(audioEngine);
+
+  const widgetRefs = { current: audioEngine.widgetRefs };
 
   const seekDeckToTime = React.useCallback((deckId: number, seekPosSec: number) => {
     const deck = decks[deckId];
@@ -211,26 +208,7 @@ export default function MixPortfolio({
       isDepth={isDepth} 
       activeView={activeView} 
       setActiveView={setActiveView}
-      decks={decks}
-      setDecks={setDecks}
       mixGroups={mixGroups}
-      crossfader={crossfader}
-      setCrossfader={setCrossfader}
-      leftActiveDeck={leftActiveDeck}
-      setLeftActiveDeck={setLeftActiveDeck}
-      rightActiveDeck={rightActiveDeck}
-      setRightActiveDeck={setRightActiveDeck}
-      playTrack={playTrack}
-      playLockoutBlip={playLockoutBlip}
-      togglePlayGlobal={togglePlayGlobal}
-      widgetRefs={widgetRefs}
-      initAudioDSP={initAudioDSP}
-      loadLocalFile={loadLocalFile}
-      seekLocalBuffer={seekLocalBuffer}
-      audioElementsRef={audioElementsRef}
-      playPendingRef={playPendingRef}
-      scratchingRef={scratchingRef}
-      alignSyncPlayback={alignSyncPlayback}
       seekDeckToTime={seekDeckToTime}
     />
   );
