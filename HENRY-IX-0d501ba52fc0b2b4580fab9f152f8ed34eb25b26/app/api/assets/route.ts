@@ -63,16 +63,7 @@ async function handleAssetRequest(request: Request) {
   if (storageBaseUrl) {
     try { allowedHosts.push(new URL(storageBaseUrl).host.toLowerCase()); } catch(_) {}
   }
-  const requestHost = request.headers.get('host');
-  if (requestHost) {
-    allowedHosts.push(requestHost.toLowerCase());
-  }
-  const referer = request.headers.get('referer');
-  if (referer) {
-    try {
-      allowedHosts.push(new URL(referer).host.toLowerCase());
-    } catch (_) {}
-  }
+
 
   const parsedHost = parsedUrl.host.toLowerCase();
   const isAllowedHost = allowedHosts.some(allowed => parsedHost === allowed || parsedHost.endsWith('.' + allowed));

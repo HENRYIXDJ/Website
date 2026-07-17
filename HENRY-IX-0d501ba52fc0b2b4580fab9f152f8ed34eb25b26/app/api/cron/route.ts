@@ -36,14 +36,21 @@ function cleanMixTitle(fileName: string, mixType: string): string {
 
   return `${mixType}: ${nameWithoutExt}`;
 }
-
 export async function GET(request: NextRequest) {
-  // Authorize request via CRON_SECRET or Bearer token
   const authHeader = request.headers.get('authorization');
   const cronSecret = process.env.CRON_SECRET;
+  const isProduction = process.env.NODE_ENV === 'production';
   
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: 'Unauthorized key transmission' }, { status: 401 });
+  if (isProduction || cronSecret) {
+    if (!cronSecret) {
+      console.error('CRON_SECRET is missing in production environment');
+      return NextResponse.json({ error: 'Cron secret not configured' }, { status: 500 });
+    }
+    if (authHeader !== `Bearer ${cronSecret}`) {
+      return NextResponse.json({ error: 'Unauthorized key transmission' }, { status: 401 });
+    }
+  } else {
+    console.warn('Bypassing cron authorization check (development mode)');
   }
 
   // Parse Google credentials
