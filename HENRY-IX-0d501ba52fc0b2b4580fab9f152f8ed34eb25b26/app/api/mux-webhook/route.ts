@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from 'next-sanity';
 
-export const runtime = 'edge';
 
 async function verifyMuxSignature(
   rawBody: string,

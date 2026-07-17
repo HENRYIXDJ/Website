@@ -79,14 +79,6 @@ const nextConfig: NextConfig = {
     config.plugins.push(new webpack.DefinePlugin({
       'require.main.filename': JSON.stringify('/tmp/dummy.js'),
     }));
-    config.module.rules.push({
-      test: /[\\/]\.well-known[\\/]workflow[\\/].+\.(?:js|ts)x?$/,
-      use: [
-        {
-          loader: path.resolve(__dirname, 'lib/edge-runtime-loader.js'),
-        }
-      ]
-    });
     return config;
   },
 };
