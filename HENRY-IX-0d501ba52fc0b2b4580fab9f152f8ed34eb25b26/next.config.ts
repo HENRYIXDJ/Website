@@ -31,12 +31,25 @@ const nextConfig: NextConfig = {
 
   transpilePackages: ['motion'],
   webpack: (config, {dev, webpack, nextRuntime}) => {
-    // Alias @workflow/world-local to false for Edge runtime to avoid node.js module imports
+    config.plugins.push(
+      new webpack.NormalModuleReplacementPlugin(
+        /^react$/,
+        path.resolve(__dirname, 'lib/react-shim.js')
+      )
+    );
+
     if (nextRuntime === 'edge') {
       config.resolve.alias = {
         ...config.resolve.alias,
         '@workflow/world-local': false,
+        '@workflow/world-vercel': false,
       };
+      config.plugins.push(
+        new webpack.NormalModuleReplacementPlugin(
+          /^node:/,
+          path.resolve(__dirname, 'lib/empty.js')
+        )
+      );
     }
     // HMR is disabled in AI Studio via DISABLE_HMR env var.
     // Do not modify—file watching is disabled to prevent flickering during agent edits.

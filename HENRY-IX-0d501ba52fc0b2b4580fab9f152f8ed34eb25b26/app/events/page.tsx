@@ -31,7 +31,77 @@ export const metadata: Metadata = {
   },
 };
 
-export default function Page() {
+async function fetchCalendarEvents() {
+  const calendarId = process.env.GOOGLE_CALENDAR_ID;
+  const apiKey = process.env.GOOGLE_CALENDAR_API_KEY;
+
+  if (!calendarId || !apiKey) {
+    return null;
+  }
+
+  try {
+    const now = new Date().toISOString();
+    const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(
+      calendarId
+    )}/events?key=${apiKey}&timeMin=${now}&singleEvents=true&orderBy=startTime&maxResults=10`;
+
+    const res = await fetch(url, {
+      next: { revalidate: 3600 },
+    });
+
+    if (!res.ok) {
+      throw new Error(`Calendar API status: ${res.status}`);
+    }
+
+    const data = await res.json();
+    const items = data.items || [];
+    
+    const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+    
+    return items.map((event: any) => {
+      const startDateStr = event.start?.dateTime || event.start?.date || '';
+      const startDate = startDateStr ? new Date(startDateStr) : new Date();
+      const location = event.location || 'TBA';
+      const parts = location.split(',');
+      const venue = parts[0]?.trim() || 'TBA';
+      const city = parts.slice(1).join(',')?.trim() || 'London, UK';
+
+      const desc = event.description || '';
+      let link = 'https://ra.co';
+      let status = 'TICKETS';
+
+      if (desc.includes('http')) {
+        const match = desc.match(/https?:\/\/[^\s]+/);
+        if (match) {
+          link = match[0];
+        }
+      }
+      if (desc.toLowerCase().includes('sold out')) {
+        status = 'SOLD OUT';
+      } else if (desc.toLowerCase().includes('free')) {
+        status = 'FREE';
+      }
+
+      return {
+        id: event.id,
+        date: startDate.getDate().toString().padStart(2, '0'),
+        month: MONTHS[startDate.getMonth()],
+        year: startDate.getFullYear().toString(),
+        city,
+        venue,
+        status,
+        link,
+      };
+    });
+  } catch (error) {
+    console.error('Error fetching calendar events:', error);
+    return null;
+  }
+}
+
+export default async function Page() {
+  const events = await fetchCalendarEvents();
+
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "MusicGroup",
@@ -43,7 +113,25 @@ export default function Page() {
     "sameAs": [
       "https://soundcloud.com/henryix"
     ],
-    "event": [
+    "event": events ? events.map((e: any) => ({
+      "@type": "MusicEvent",
+      "name": `HENRY IX Live at ${e.venue}`,
+      "startDate": `${e.year}-${e.month}-${e.date}`,
+      "location": {
+        "@type": "Place",
+        "name": e.venue,
+        "address": {
+          "@type": "PostalAddress",
+          "addressLocality": e.city,
+          "addressCountry": "GB"
+        }
+      },
+      "performer": {
+        "@type": "MusicGroup",
+        "name": "HENRY IX",
+        "url": "https://henryix.com"
+      }
+    })) : [
       {
         "@type": "MusicEvent",
         "name": "Knight Club: Session 5 - Live Headliner",
@@ -87,7 +175,7 @@ export default function Page() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <EventsClient />
+      <EventsClient initialEvents={events} />
     </>
   );
 }

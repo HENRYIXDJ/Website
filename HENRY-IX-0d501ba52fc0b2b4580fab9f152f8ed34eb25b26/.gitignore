@@ -1,1 +1,4 @@
 /.swc
+/.agents/
+/node_modules/
+/.next/

@@ -46,6 +46,7 @@ export interface DeckState {
   hotCues: Record<string, number | null>;
   slipEnabled: boolean;
   pitchBend?: number;
+  artworkUrl?: string;
 }
 
 export interface AudioStoreState {

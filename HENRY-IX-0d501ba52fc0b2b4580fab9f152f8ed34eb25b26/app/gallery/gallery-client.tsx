@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import PageShell from '@/components/PageShell';
 import { getStorageUrl } from '@/lib/storage';
 import { client } from '@/sanity/lib/client';
-import { playClick, playTick, playLockoutBlip } from '@/lib/audioUtils';
+import { playClick, playTick } from '@/lib/audioUtils';
 import { cn } from '@/lib/utils';
 
 interface GalleryItem {
@@ -342,7 +342,7 @@ export default function GalleryClient() {
 
   return (
     <PageShell>
-      <main className="min-h-screen text-zinc-100 selection:bg-primary/30 selection:text-primary pt-24 pb-20 px-4 md:px-8 w-full relative overflow-y-auto custom-scrollbar">
+      <main className="min-h-[100dvh] text-zinc-100 selection:bg-primary/30 selection:text-primary pt-24 pb-20 px-4 md:px-8 w-full relative overflow-y-auto custom-scrollbar">
         {/* Section Header */}
         <div className="relative z-10 mb-10 flex flex-col items-center text-center">
           <motion.div

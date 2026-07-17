@@ -49,7 +49,6 @@ export default function ClientLayoutWrappers() {
   }, [pathname, preloaderComplete, setPreloaderComplete]);
 
   const showPreloader = pathname === '/' && !preloaderComplete;
-  const isHomePage = pathname === '/';
 
   return (
     <>

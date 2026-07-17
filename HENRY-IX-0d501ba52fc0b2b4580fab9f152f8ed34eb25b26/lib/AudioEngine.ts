@@ -91,11 +91,7 @@ export class AudioEngine {
     }
   }
 
-  /**
-   * Set deck volume (fader + crossfader).
-   * Call this whenever volume, crossfader, or mute state changes.
-   */
-  setGain(deckId: number, faderVolume: number, crossfaderMultiplier: number, isMuted: boolean) {
+  setGain(deckId: number, faderVolume: number, crossfaderMultiplier: number, isMuted: boolean, fadeDuration = 0.015) {
     if (!this.audioCtx || !this.deckNodes[deckId]) return;
 
     const nodes = this.deckNodes[deckId];
@@ -103,7 +99,8 @@ export class AudioEngine {
 
     const faderPct = Math.max(0, Math.min(100, faderVolume)) / 100;
     const targetGain = isMuted ? 0 : faderPct * crossfaderMultiplier;
-    nodes.gainNode.gain.setTargetAtTime(targetGain, this.audioCtx.currentTime, 0.015);
+    nodes.gainNode.gain.cancelScheduledValues(this.audioCtx.currentTime);
+    nodes.gainNode.gain.setTargetAtTime(targetGain, this.audioCtx.currentTime, fadeDuration);
   }
 
   /**
