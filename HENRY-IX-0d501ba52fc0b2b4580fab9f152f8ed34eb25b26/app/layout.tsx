@@ -6,7 +6,6 @@ import { BotIdClient } from 'botid/client';
 import { AudioProvider } from '@/components/AudioProvider';
 import ClientLayoutWrappers from '@/components/ClientLayoutWrappers';
 
-export const runtime = 'edge';
 
 const avathe = localFont({
   src: './fonts/avathe.otf',
