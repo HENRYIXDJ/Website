@@ -16,8 +16,9 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
 
   // ── Preload track waveforms dynamically on client mount ───────────
   useEffect(() => {
-    import('@/app/trackWaveforms')
-      .then(({ trackWaveforms }) => {
+    import('@/app/trackWaveforms.json')
+      .then((m) => {
+        const trackWaveforms = m.default as Record<string, number[]>;
         audioEngine.setDynamicWaveforms(trackWaveforms);
         const decks = useAudioStore.getState().decks;
         for (const deckIdStr of ['1', '2', '3', '4']) {
