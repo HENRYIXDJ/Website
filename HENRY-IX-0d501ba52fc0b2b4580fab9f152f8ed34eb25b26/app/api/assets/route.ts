@@ -71,6 +71,57 @@ async function handleAssetRequest(request: Request) {
      return new NextResponse('Invalid source domain', { status: 400 });
   }
 
+  // Use native Cloudflare R2 binding if running inside Worker context
+  const binding = (process.env.R2_BUCKET as any) || (globalThis as any).R2_BUCKET;
+  if (binding && typeof binding.get === 'function') {
+    try {
+      const rangeHeader = request.headers.get('Range');
+      let range: { offset: number; length?: number } | undefined;
+      
+      if (rangeHeader) {
+        const parts = rangeHeader.replace(/bytes=/, "").split("-");
+        const start = parseInt(parts[0], 10);
+        const end = parts[1] ? parseInt(parts[1], 10) : undefined;
+        range = {
+          offset: start,
+          length: end !== undefined ? (end - start + 1) : undefined
+        };
+      }
+
+      const object = await binding.get(pathname, range ? { range } : undefined);
+      if (object) {
+        const headers = new Headers();
+        headers.set('Content-Type', object.httpMetadata?.contentType || 'application/octet-stream');
+        headers.set('Access-Control-Allow-Origin', '*');
+        headers.set('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+        headers.set('Access-Control-Allow-Headers', '*');
+        headers.set('Accept-Ranges', 'bytes');
+        
+        if (object.httpMetadata?.etag) {
+          headers.set('ETag', object.httpMetadata.etag);
+        }
+        
+        let statusCode = 200;
+        if (rangeHeader && object.size) {
+          statusCode = 206;
+          const start = range.offset;
+          const end = range.length ? (start + range.length - 1) : (object.size - 1);
+          headers.set('Content-Range', `bytes ${start}-${end}/${object.size}`);
+          headers.set('Content-Length', (end - start + 1).toString());
+        } else if (object.size) {
+          headers.set('Content-Length', object.size.toString());
+        }
+
+        return new NextResponse(object.body, {
+          status: statusCode,
+          headers
+        });
+      }
+    } catch (err) {
+      console.error('Error reading from R2 binding:', err);
+    }
+  }
+
   if (!isR2 || !s3Client) {
     // If Cloudflare R2 is not configured (e.g. in local development), fallback to fetching the source URL directly
     const targetUrl = r2PublicDomain
