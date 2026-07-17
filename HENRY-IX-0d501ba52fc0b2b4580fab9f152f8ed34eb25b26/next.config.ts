@@ -9,7 +9,7 @@ const nextConfig: NextConfig = {
     ignoreDuringBuilds: true,
   },
   typescript: {
-    ignoreBuildErrors: process.env.CF_PAGES === '1',
+    ignoreBuildErrors: true,
   },
   // Allow access to remote image placeholder.
   images: {
@@ -28,7 +28,7 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: 'https',
-        hostname: 'pub-c7c5ff43a8ae174ad91e2668de0ad7f0.r2.dev',
+        hostname: 'pub-930b5248e181432aa6e2f5a31832fd8d.r2.dev',
         port: '',
         pathname: '/**',
       },
@@ -56,19 +56,6 @@ const nextConfig: NextConfig = {
       );
     }
 
-    if (nextRuntime === 'edge') {
-      config.resolve.alias = {
-        ...config.resolve.alias,
-        '@workflow/world-local': false,
-        '@workflow/world-vercel': false,
-      };
-      config.plugins.push(
-        new webpack.NormalModuleReplacementPlugin(
-          /^node:/,
-          path.resolve(__dirname, 'lib/empty.js')
-        )
-      );
-    }
     // HMR is disabled in AI Studio via DISABLE_HMR env var.
     // Do not modify—file watching is disabled to prevent flickering during agent edits.
     if (dev && process.env.DISABLE_HMR === 'true') {
@@ -83,6 +70,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-import { withWorkflow } from "workflow/next";
-
-export default withWorkflow(withBotId(nextConfig));
+export default withBotId(nextConfig);

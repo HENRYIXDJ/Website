@@ -2,7 +2,15 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import MuxPlayer from '@mux/mux-player-react';
+import dynamic from 'next/dynamic';
+const MuxPlayer = dynamic(() => import('@mux/mux-player-react'), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full aspect-video bg-[#09090b] flex items-center justify-center border border-zinc-800 text-zinc-500 font-mono text-xs">
+      INITIALIZING MUX DECODERS...
+    </div>
+  )
+});
 import PageShell from '@/components/PageShell';
 import { playClick, playTick } from '@/lib/audioUtils';
 import { cn } from '@/lib/utils';

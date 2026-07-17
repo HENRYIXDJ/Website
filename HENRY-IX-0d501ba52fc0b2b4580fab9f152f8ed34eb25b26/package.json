@@ -7,7 +7,8 @@
   },
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "opennextjs-cloudflare build",
+    "build:next": "next build",
     "start": "next start",
     "lint": "eslint .",
     "clean": "next clean",
@@ -22,7 +23,6 @@
     "@google/genai": "^1.17.0",
     "@hookform/resolvers": "^5.2.1",
     "@mux/mux-player-react": "^3.13.0",
-    "@opennextjs/cloudflare": "^1.20.1",
     "@react-email/render": "^2.1.0",
     "@sanity/vision": "^6.4.0",
     "autoprefixer": "^10.4.21",
@@ -44,11 +44,10 @@
     "sanity-plugin-mux-input": "^5.0.3",
     "styled-components": "^6.4.3",
     "tailwind-merge": "^3.3.1",
-    "workflow": "^4.6.0",
     "zustand": "^5.0.13"
   },
   "devDependencies": {
-    "@cloudflare/next-on-pages": "^1.13.16",
+    "@opennextjs/cloudflare": "^1.20.1",
     "@tailwindcss/postcss": "4.1.11",
     "@tailwindcss/typography": "^0.5.19",
     "@types/node": "^20",

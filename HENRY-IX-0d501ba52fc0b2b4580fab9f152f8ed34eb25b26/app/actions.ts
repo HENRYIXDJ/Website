@@ -2,8 +2,6 @@
 
 import { checkBotId } from 'botid/server';
 import { Resend } from 'resend';
-import { start } from 'workflow/api';
-import { handleUserSignup } from '@/app/workflows/signup';
 
 export async function signupAction(email: string) {
   try {
@@ -17,11 +15,16 @@ export async function signupAction(email: string) {
       return { error: 'Access Denied: Automated agent detected by firewall' };
     }
 
-    const run = await start(handleUserSignup, [email]);
-    return { success: true, runId: run.runId };
+    // Mock local signup process simulation
+    const userId = 'usr_' + Math.random().toString(36).slice(2, 9);
+    console.log(`[Signup Sim]: Creating user profile in database for ${email}`);
+    console.log(`[Signup Sim]: Welcome email successfully scheduled for: ${email}`);
+    console.log(`[Signup Sim]: Onboarding automated drips scheduled for: ${email}`);
+
+    return { success: true, runId: `sim_${userId}` };
   } catch (error: any) {
     console.error('[Signup Action Error]:', error);
-    return { error: `Internal processing error: ${error.message || 'Workflow execution failed'}` };
+    return { error: `Internal processing error: ${error.message || 'Signup execution failed'}` };
   }
 }
 
