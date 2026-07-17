@@ -11,7 +11,6 @@ import { audioEngine } from '@/lib/AudioEngine';
 import { playClick, playTabClick, playTick } from '@/lib/audioUtils';
 import { useAudioStore } from '@/store/audioStore';
 import { useAudio } from './AudioProvider';
-import AudioVisualizerBackground from './AudioVisualizerBackground';
 import { client } from '@/sanity/lib/client';
 import CDJHardware from './CDJHardware';
 
@@ -557,6 +556,8 @@ function SingleDeckWaveform({
   const anchorAudioTimeRef = useRef<number>(0);
   const anchorSystemTimeRef = useRef<number>(0);
   const lastFrameTimeRef = useRef<number>(0);
+  const lastDrawnProgressRef = useRef<number>(-1);
+  const lastDrawnDeckStateRef = useRef<string>('');
 
   // Subscribe to Zustand state for real-time phase sync calculations
   const allDecks = useAudioStore(s => s.decks);
@@ -612,6 +613,26 @@ function SingleDeckWaveform({
         return;
       }
 
+      let targetProgress = currentDeck.progress || 0;
+      let isCurrentlyPlaying = currentDeck.isPlaying;
+
+      if (!currentDeck.scMode && audioElementsRef?.current) {
+        const audio = audioElementsRef.current[deckId];
+        if (audio && audio.src) {
+          targetProgress = audio.currentTime;
+          isCurrentlyPlaying = !audio.paused;
+        }
+      }
+
+      const drag = dragStateRef.current;
+
+      // Optimize CPU usage: if not playing, not dragging, and state hasn't changed, skip redrawing
+      const stateKey = `${currentDeck.eqLow}_${currentDeck.eqMid}_${currentDeck.eqHi}_${currentDeck.volume}_${currentDeck.isLoopActive}_${currentDeck.mainCue}_${currentDeck.bpm}_${currentDeck.pitch}`;
+      if (!isCurrentlyPlaying && !drag && lastDrawnProgressRef.current === targetProgress && lastDrawnDeckStateRef.current === stateKey) {
+        frameId = requestAnimationFrame(render);
+        return;
+      }
+
       const width = canvas.parentElement?.clientWidth || 300;
       const height = canvas.parentElement?.clientHeight || 64;
       const dpr = window.devicePixelRatio || 1;
@@ -645,17 +666,7 @@ function SingleDeckWaveform({
 
       const sysTime = performance.now();
 
-      // Calculate smooth progress
-      let targetProgress = currentDeck.progress || 0;
-      let isCurrentlyPlaying = currentDeck.isPlaying;
-
-      if (!currentDeck.scMode && audioElementsRef?.current) {
-        const audio = audioElementsRef.current[deckId];
-        if (audio && audio.src) {
-          targetProgress = audio.currentTime;
-          isCurrentlyPlaying = !audio.paused;
-        }
-      }
+      // Re-use calculated progress and play state from top of scope
 
       const pitchModifier = 1 + (currentDeck.pitch || 0) / 100;
 
@@ -1049,7 +1060,6 @@ function SingleDeckWaveform({
       ctx.restore();
 
       // Drag overlay HUD (milliseconds precision)
-      const drag = dragStateRef.current;
       if (drag) {
         ctx.save();
         ctx.fillStyle = 'rgba(10, 10, 12, 0.9)';
@@ -1087,6 +1097,9 @@ function SingleDeckWaveform({
       }
 
       ctx.restore(); // Restore DPR scaling matrix
+
+      lastDrawnProgressRef.current = targetProgress;
+      lastDrawnDeckStateRef.current = stateKey;
 
       frameId = requestAnimationFrame(render);
     };
@@ -1220,6 +1233,7 @@ function MixArchive({
   const [embedSCPlayerId, setEmbedSCPlayerId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'all' | 'knight club' | 'royal court' | 'corner new cross'>('all');
   const [deckCount, setDeckCount] = useState<2 | 4>(4);
+  const [isBrowserCollapsed, setIsBrowserCollapsed] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [isPortrait, setIsPortrait] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -2632,7 +2646,6 @@ function MixArchive({
           isDepth ? "border-zinc-800 bg-zinc-950/40" : "border-black/20"
         )}
       >
-        <AudioVisualizerBackground isDepth={isDepth} mouseX={mouseX} mouseY={mouseY} isPlaying={activeVisualizer.isPlaying} mode={visualizerMode} />
 
         {/* Forced Landscape Overlay */}
         <AnimatePresence>
@@ -2785,35 +2798,7 @@ function MixArchive({
                 </>
               )}
 
-              {/* Visualizer Mode Selection */}
-              <span className="text-[7px] md:text-[8px] text-zinc-500 font-bold uppercase tracking-wider select-none ml-1 md:ml-2">
-                VISUALIZER:
-              </span>
-              <div className="relative flex p-0.5 bg-zinc-950/80 border border-zinc-900 rounded-md backdrop-blur-md">
-                {(['ambient', 'circular', 'grid'] as const).map((mode) => (
-                  <button
-                    key={mode}
-                    onClick={() => {
-                      setVisualizerMode(mode);
-                      localStorage.setItem('henryix_visualizer_mode', mode);
-                      playClick(800, 'sine', 0.02);
-                    }}
-                    className={cn(
-                      "relative px-2 py-0.5 rounded font-mono text-[7.5px] md:text-[8px] font-black uppercase transition-colors cursor-pointer flex items-center justify-center w-11 md:w-14 h-5",
-                      visualizerMode === mode ? "text-zinc-950 font-black" : "text-zinc-500 hover:text-zinc-300"
-                    )}
-                  >
-                    {visualizerMode === mode && (
-                      <motion.div
-                        layoutId="visualizer-mode-highlight"
-                        className="absolute inset-0 bg-primary rounded shadow-[0_0_8px_rgba(216,22,63,0.3)]"
-                        transition={{ type: "spring", bounce: 0.1, duration: 0.4 }}
-                      />
-                    )}
-                    <span className="relative z-10">{mode}</span>
-                  </button>
-                ))}
-              </div>
+
 
               {/* Visual Latency Calibration */}
               {activeView === 'cdj' && (
@@ -2842,15 +2827,32 @@ function MixArchive({
 
               {/* Keyboard Shortcuts Trigger */}
               {activeView === 'cdj' && (
-                <button
-                  onClick={() => {
-                    setIsShortcutsModalOpen(true);
-                    playClick(900, 'sine', 0.02);
-                  }}
-                  className="px-2 py-1 bg-zinc-900/60 hover:bg-zinc-900 border border-zinc-900 hover:border-zinc-800 rounded-md text-zinc-400 hover:text-zinc-200 transition-all cursor-pointer flex items-center gap-1 active:scale-95 text-[7.5px] md:text-[8px] font-bold"
-                >
-                  <span>⌨️</span> KEYBOARD
-                </button>
+                <div className="flex items-center gap-1.5 select-none">
+                  <button
+                    onClick={() => {
+                      setIsShortcutsModalOpen(true);
+                      playClick(900, 'sine', 0.02);
+                    }}
+                    className="px-2 py-1 bg-zinc-900/60 hover:bg-zinc-900 border border-zinc-900 hover:border-zinc-800 rounded-md text-zinc-400 hover:text-zinc-200 transition-all cursor-pointer flex items-center gap-1 active:scale-95 text-[7.5px] md:text-[8px] font-bold"
+                  >
+                    <span>⌨️</span> KEYBOARD
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setIsBrowserCollapsed(!isBrowserCollapsed);
+                      playClick(700, 'sine', 0.03);
+                    }}
+                    className={cn(
+                      "px-2 py-1 border rounded-md transition-all cursor-pointer flex items-center gap-1 active:scale-95 text-[7.5px] md:text-[8px] font-bold select-none",
+                      isBrowserCollapsed 
+                        ? "bg-primary/20 border-primary text-primary hover:bg-primary/30" 
+                        : "bg-zinc-900/60 hover:bg-zinc-900 border-zinc-900 hover:border-zinc-800 text-zinc-400 hover:text-zinc-200"
+                    )}
+                  >
+                    <span>📁</span> {isBrowserCollapsed ? "EXPAND BROWSER" : "COLLAPSE BROWSER"}
+                  </button>
+                </div>
               )}
             </div>
           </div>
@@ -2870,12 +2872,16 @@ function MixArchive({
               @media (max-width: 1023px) {
                 .dj-grid-container {
                   gap: 4px;
-                  grid-template-columns: 2fr 1.5fr 2fr;
-                  grid-template-rows: auto auto 1fr;
-                  grid-template-areas:
+                  grid-template-columns: ${isBrowserCollapsed ? '1fr 60px 1fr' : '2fr 1.5fr 2fr'};
+                  grid-template-rows: ${isBrowserCollapsed ? '1fr 2fr' : 'auto auto 1fr'};
+                  grid-template-areas: ${isBrowserCollapsed ? `
+                    "waveL     mixer waveR"
+                    "controlL   mixer controlR"
+                  ` : `
                     "browserL waveL  browserR"
                     "browserL waveR  browserR"
-                    "controlL mixer  controlR";
+                    "controlL mixer  controlR"
+                  `};
                 }
               }
 
@@ -2883,12 +2889,16 @@ function MixArchive({
               @media (min-width: 1024px) and (max-width: 1535px) {
                 .dj-grid-container {
                   gap: 12px;
-                  grid-template-columns: 2fr 1.8fr 2fr;
-                  grid-template-rows: auto auto 1fr;
-                  grid-template-areas:
+                  grid-template-columns: ${isBrowserCollapsed ? '1fr 1.2fr 1fr' : '2fr 1.8fr 2fr'};
+                  grid-template-rows: ${isBrowserCollapsed ? '1.5fr 2.5fr' : 'auto auto 1fr'};
+                  grid-template-areas: ${isBrowserCollapsed ? `
+                    "waveL     mixer waveR"
+                    "controlL   mixer controlR"
+                  ` : `
                     "browserL waveL  browserR"
                     "browserL waveR  browserR"
-                    "controlL mixer  controlR";
+                    "controlL mixer  controlR"
+                  `};
                 }
               }
               
@@ -2896,19 +2906,27 @@ function MixArchive({
               @media (min-width: 1536px) {
                 .dj-grid-container {
                   ${deckCount === 2 ? `
-                    grid-template-columns: minmax(0, 1.8fr) minmax(280px, 1.2fr) minmax(0, 1.8fr);
-                    grid-template-rows: minmax(130px, 1.2fr) minmax(50px, auto) minmax(220px, 2fr);
-                    grid-template-areas:
+                    grid-template-columns: ${isBrowserCollapsed ? '1.8fr minmax(280px, 1.2fr) 1.8fr' : 'minmax(0, 1.8fr) minmax(280px, 1.2fr) minmax(0, 1.8fr)'};
+                    grid-template-rows: ${isBrowserCollapsed ? '50px 220px' : 'minmax(130px, 1.2fr) minmax(50px, auto) minmax(220px, 2fr)'};
+                    grid-template-areas: ${isBrowserCollapsed ? `
+                      "wave1    mixer wave2"
+                      "control1 mixer control2"
+                    ` : `
                       "browser1 mixer browser2"
                       "wave1    mixer wave2"
-                      "control1 mixer control2";
+                      "control1 mixer control2"
+                    `};
                   ` : `
-                    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(280px, 1.2fr) minmax(0, 1fr) minmax(0, 1fr);
-                    grid-template-rows: minmax(130px, 1.2fr) minmax(50px, auto) minmax(220px, 2fr);
-                    grid-template-areas:
+                    grid-template-columns: ${isBrowserCollapsed ? '1fr 1fr minmax(280px, 1.2fr) 1fr 1fr' : 'minmax(0, 1fr) minmax(0, 1fr) minmax(280px, 1.2fr) minmax(0, 1fr) minmax(0, 1fr)'};
+                    grid-template-rows: ${isBrowserCollapsed ? '50px 220px' : 'minmax(130px, 1.2fr) minmax(50px, auto) minmax(220px, 2fr)'};
+                    grid-template-areas: ${isBrowserCollapsed ? `
+                      "wave3    wave1    mixer wave2    wave4"
+                      "control3 control1 mixer control2 control4"
+                    ` : `
                       "browser3 browser1 mixer browser2 browser4"
                       "wave3    wave1    mixer wave2    wave4"
-                      "control3 control1 mixer control2 control4";
+                      "control3 control1 mixer control2 control4"
+                    `};
                   `}
                 }
               }
@@ -2926,7 +2944,7 @@ function MixArchive({
                     style={{ gridArea: getBrowserArea(id) }} 
                     className={cn(
                       "browser-module min-h-0 h-full", 
-                      (isActive || !isStacked) ? "block" : "hidden"
+                      ((isActive || !isStacked) && !isBrowserCollapsed) ? "block" : "hidden"
                     )}
                   >
                     {renderDeckBrowser(id)}

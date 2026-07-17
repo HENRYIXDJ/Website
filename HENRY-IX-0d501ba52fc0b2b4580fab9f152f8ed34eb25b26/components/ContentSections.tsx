@@ -47,8 +47,8 @@ export function Schedule({ isDepth }: { isDepth: boolean }) {
           className="glitch font-sans font-bold tracking-wider leading-none text-center select-none text-primary w-full flex flex-col items-center"
           data-text="COMING SOON"
         >
-          <span className="text-[clamp(2.5rem,13vw,13vw)]">COMING</span>
-          <span className="text-[clamp(2.5rem,13vw,13vw)]">SOON</span>
+          <span className="text-[clamp(2.5rem,10vh,11vw)]">COMING</span>
+          <span className="text-[clamp(2.5rem,10vh,11vw)]">SOON</span>
         </motion.h3>
 
         <p className="font-mono text-[9px] tracking-[0.25em] text-zinc-500 uppercase max-w-md text-center px-4 leading-relaxed mt-8">
