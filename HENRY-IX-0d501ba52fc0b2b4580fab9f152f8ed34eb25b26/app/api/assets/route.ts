@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 
-export const runtime = 'edge';
 
 const accountId = process.env.R2_ACCOUNT_ID;
 const accessKeyId = process.env.R2_ACCESS_KEY_ID;
@@ -53,7 +52,9 @@ async function handleAssetRequest(request: Request) {
   const storageBaseUrl = process.env.NEXT_PUBLIC_STORAGE_BASE_URL;
   const allowedHosts = [
     'tegbbmt42xpyzcnx.private.blob.vercel-storage.com',
-    'vercel-storage.com'
+    'vercel-storage.com',
+    'pub-c7c5ff43a8ae174ad91e2668de0ad7f0.r2.dev',
+    'r2.dev'
   ];
   if (r2PublicDomain) {
     try { allowedHosts.push(new URL(r2PublicDomain).host.toLowerCase()); } catch(_) {}
@@ -61,16 +62,7 @@ async function handleAssetRequest(request: Request) {
   if (storageBaseUrl) {
     try { allowedHosts.push(new URL(storageBaseUrl).host.toLowerCase()); } catch(_) {}
   }
-  const requestHost = request.headers.get('host');
-  if (requestHost) {
-    allowedHosts.push(requestHost.toLowerCase());
-  }
-  const referer = request.headers.get('referer');
-  if (referer) {
-    try {
-      allowedHosts.push(new URL(referer).host.toLowerCase());
-    } catch (_) {}
-  }
+
 
   const parsedHost = parsedUrl.host.toLowerCase();
   const isAllowedHost = allowedHosts.some(allowed => parsedHost === allowed || parsedHost.endsWith('.' + allowed));

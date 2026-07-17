@@ -1,11 +1,92 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { google } from 'googleapis';
 import { S3Client, HeadObjectCommand } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
 import { createClient } from '@sanity/client';
-import * as stream from 'stream';
 
 export const maxDuration = 300; // Allow up to 5 minutes for sync
+
+function base64UrlEncode(str: string | Uint8Array): string {
+  let base64: string;
+  if (typeof str === 'string') {
+    base64 = btoa(unescape(encodeURIComponent(str)));
+  } else {
+    base64 = btoa(String.fromCharCode(...Array.from(str)));
+  }
+  return base64.replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+}
+
+function base64ToArrayBuffer(b64: string): ArrayBuffer {
+  const binaryString = atob(b64);
+  const len = binaryString.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes.buffer;
+}
+
+function cleanPemKey(pem: string): string {
+  return pem
+    .replace(/-----BEGIN PRIVATE KEY-----/, '')
+    .replace(/-----END PRIVATE KEY-----/, '')
+    .replace(/\s+/g, '');
+}
+
+async function getGoogleAccessToken(
+  clientEmail: string,
+  privateKeyPem: string
+): Promise<string> {
+  const iat = Math.floor(Date.now() / 1000);
+  const exp = iat + 3600;
+
+  const header = { alg: 'RS256', typ: 'JWT' };
+  const payload = {
+    iss: clientEmail,
+    scope: 'https://www.googleapis.com/auth/drive.readonly',
+    aud: 'https://oauth2.googleapis.com/token',
+    exp,
+    iat,
+  };
+
+  const headerEncoded = base64UrlEncode(JSON.stringify(header));
+  const payloadEncoded = base64UrlEncode(JSON.stringify(payload));
+  const message = `${headerEncoded}.${payloadEncoded}`;
+
+  const cleanKey = cleanPemKey(privateKeyPem);
+  const keyBuffer = base64ToArrayBuffer(cleanKey);
+
+  const cryptoKey = await crypto.subtle.importKey(
+    'pkcs8',
+    keyBuffer,
+    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+
+  const encoder = new TextEncoder();
+  const signatureBuffer = await crypto.subtle.sign(
+    'RSASSA-PKCS1-v1_5',
+    cryptoKey,
+    encoder.encode(message)
+  );
+
+  const signatureEncoded = base64UrlEncode(new Uint8Array(signatureBuffer));
+  const assertion = `${message}.${signatureEncoded}`;
+
+  const response = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${assertion}`,
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Failed to fetch Google access token: ${errText}`);
+  }
+
+  const data = await response.json();
+  return data.access_token;
+}
 
 function slugify(text: string): string {
   return text
@@ -36,14 +117,21 @@ function cleanMixTitle(fileName: string, mixType: string): string {
 
   return `${mixType}: ${nameWithoutExt}`;
 }
-
 export async function GET(request: NextRequest) {
-  // Authorize request via CRON_SECRET or Bearer token
   const authHeader = request.headers.get('authorization');
   const cronSecret = process.env.CRON_SECRET;
+  const isProduction = process.env.NODE_ENV === 'production';
   
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: 'Unauthorized key transmission' }, { status: 401 });
+  if (isProduction || cronSecret) {
+    if (!cronSecret) {
+      console.error('CRON_SECRET is missing in production environment');
+      return NextResponse.json({ error: 'Cron secret not configured' }, { status: 500 });
+    }
+    if (authHeader !== `Bearer ${cronSecret}`) {
+      return NextResponse.json({ error: 'Unauthorized key transmission' }, { status: 401 });
+    }
+  } else {
+    console.warn('Bypassing cron authorization check (development mode)');
   }
 
   // Parse Google credentials
@@ -52,21 +140,24 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Missing GOOGLE_SERVICE_ACCOUNT_JSON' }, { status: 500 });
   }
 
-  let googleCredentials;
+  let googleCredentials: any;
   try {
     googleCredentials = JSON.parse(googleSAJson);
   } catch (err: any) {
     return NextResponse.json({ error: 'Failed to parse GOOGLE_SERVICE_ACCOUNT_JSON' }, { status: 500 });
   }
 
-  // Initialize Clients
-  const auth = new google.auth.JWT({
-    email: googleCredentials.client_email,
-    key: googleCredentials.private_key,
-    scopes: ['https://www.googleapis.com/auth/drive.readonly']
-  });
-
-  const drive = google.drive({ version: 'v3', auth });
+  // Get OAuth2 Access Token
+  let googleAccessToken: string;
+  try {
+    googleAccessToken = await getGoogleAccessToken(
+      googleCredentials.client_email,
+      googleCredentials.private_key
+    );
+  } catch (err: any) {
+    console.error('Failed to authenticate with Google Service Account:', err);
+    return NextResponse.json({ error: `Google auth failed: ${err.message}` }, { status: 500 });
+  }
 
   let r2Endpoint = process.env.R2_ENDPOINT;
   const bucketName = process.env.R2_BUCKET_NAME || '';
@@ -109,8 +200,23 @@ export async function GET(request: NextRequest) {
     if (parentId) {
       query += ` and '${parentId}' in parents`;
     }
-    const res = await drive.files.list({ q: query, fields: 'files(id)' });
-    return res.data.files?.[0]?.id || null;
+
+    const url = new URL('https://www.googleapis.com/drive/v3/files');
+    url.searchParams.set('q', query);
+    url.searchParams.set('fields', 'files(id)');
+
+    const res = await fetch(url.toString(), {
+      headers: { Authorization: `Bearer ${googleAccessToken}` },
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error(`Failed to find folder ID: ${errText}`);
+      return null;
+    }
+
+    const data = await res.json();
+    return data.files?.[0]?.id || null;
   }
 
   async function getAllFilesRecursively(
@@ -122,32 +228,45 @@ export async function GET(request: NextRequest) {
     try {
       const mimeQuery = mimeTypes.map(m => `mimeType = '${m}'`).join(' or ');
       const fileQuery = `'${parentFolderId}' in parents and trashed = false and (${mimeQuery})`;
-      const filesRes = await drive.files.list({
-        q: fileQuery,
-        fields: 'files(id, name)',
-        pageSize: 1000,
+
+      const url = new URL('https://www.googleapis.com/drive/v3/files');
+      url.searchParams.set('q', fileQuery);
+      url.searchParams.set('fields', 'files(id, name)');
+      url.searchParams.set('pageSize', '1000');
+
+      const filesRes = await fetch(url.toString(), {
+        headers: { Authorization: `Bearer ${googleAccessToken}` },
       });
 
-      if (filesRes.data.files) {
-        for (const f of filesRes.data.files) {
-          if (f.id && f.name) {
-            files.push({ id: f.id, name: f.name, parentName: parentFolderName });
+      if (filesRes.ok) {
+        const filesData = await filesRes.json();
+        if (filesData.files) {
+          for (const f of filesData.files) {
+            if (f.id && f.name) {
+              files.push({ id: f.id, name: f.name, parentName: parentFolderName });
+            }
           }
         }
       }
 
       const folderQuery = `'${parentFolderId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
-      const foldersRes = await drive.files.list({
-        q: folderQuery,
-        fields: 'files(id, name)',
-        pageSize: 100,
+      const fUrl = new URL('https://www.googleapis.com/drive/v3/files');
+      fUrl.searchParams.set('q', folderQuery);
+      fUrl.searchParams.set('fields', 'files(id, name)');
+      fUrl.searchParams.set('pageSize', '100');
+
+      const foldersRes = await fetch(fUrl.toString(), {
+        headers: { Authorization: `Bearer ${googleAccessToken}` },
       });
 
-      if (foldersRes.data.files) {
-        for (const folder of foldersRes.data.files) {
-          if (folder.id && folder.name) {
-            const subFiles = await getAllFilesRecursively(folder.id, mimeTypes, folder.name);
-            files.push(...subFiles);
+      if (foldersRes.ok) {
+        const foldersData = await foldersRes.json();
+        if (foldersData.files) {
+          for (const folder of foldersData.files) {
+            if (folder.id && folder.name) {
+              const subFiles = await getAllFilesRecursively(folder.id, mimeTypes, folder.name);
+              files.push(...subFiles);
+            }
           }
         }
       }
@@ -158,20 +277,25 @@ export async function GET(request: NextRequest) {
   }
 
   async function uploadToR2(fileId: string, key: string, contentType: string) {
-    const response = await drive.files.get(
-      { fileId, alt: 'media' },
-      { responseType: 'stream' }
-    );
+    const driveRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+      headers: { Authorization: `Bearer ${googleAccessToken}` },
+    });
 
-    const passThroughStream = new stream.PassThrough();
-    (response.data as any).pipe(passThroughStream);
+    if (!driveRes.ok) {
+      const errText = await driveRes.text();
+      throw new Error(`Failed to download file ${fileId} from Drive: ${errText}`);
+    }
+
+    if (!driveRes.body) {
+      throw new Error(`Empty body returned for file ${fileId} from Drive`);
+    }
 
     const upload = new Upload({
       client: s3Client,
       params: {
         Bucket: process.env.R2_BUCKET_NAME || '',
         Key: key,
-        Body: passThroughStream,
+        Body: driveRes.body,
         ContentType: contentType,
       },
     });
@@ -262,8 +386,16 @@ export async function GET(request: NextRequest) {
   }
 
   async function downloadFileText(fileId: string): Promise<string> {
-    const response = await drive.files.get({ fileId, alt: 'media' }, { responseType: 'text' });
-    return response.data as string;
+    const driveRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+      headers: { Authorization: `Bearer ${googleAccessToken}` },
+    });
+
+    if (!driveRes.ok) {
+      const errText = await driveRes.text();
+      throw new Error(`Failed to download text file ${fileId} from Drive: ${errText}`);
+    }
+
+    return driveRes.text();
   }
 
   try {
@@ -296,22 +428,36 @@ export async function GET(request: NextRequest) {
     }
 
     const matchedArtworkIds = new Set<string>();
-    const mixTypeFoldersRes = await drive.files.list({
-      q: `'${mixAudioId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
-      fields: 'files(id, name)',
-    });
     
-    const mixTypeFolders = mixTypeFoldersRes.data.files || [];
+    const mixTypeFoldersUrl = new URL('https://www.googleapis.com/drive/v3/files');
+    mixTypeFoldersUrl.searchParams.set('q', `'${mixAudioId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`);
+    mixTypeFoldersUrl.searchParams.set('fields', 'files(id, name)');
+    const mixTypeFoldersRes = await fetch(mixTypeFoldersUrl.toString(), {
+      headers: { Authorization: `Bearer ${googleAccessToken}` },
+    });
+    if (!mixTypeFoldersRes.ok) {
+      const errText = await mixTypeFoldersRes.text();
+      throw new Error(`Failed to list mix type folders: ${errText}`);
+    }
+    const mixTypeFoldersData = await mixTypeFoldersRes.json();
+    const mixTypeFolders = mixTypeFoldersData.files || [];
     const syncResults: string[] = [];
 
     for (const mixFolder of mixTypeFolders) {
       const mixType = mixFolder.name!;
-      const mp3sRes = await drive.files.list({
-        q: `'${mixFolder.id}' in parents and mimeType = 'audio/mpeg' and trashed = false`,
-        fields: 'files(id, name, size)',
+      
+      const mp3sUrl = new URL('https://www.googleapis.com/drive/v3/files');
+      mp3sUrl.searchParams.set('q', `'${mixFolder.id}' in parents and mimeType = 'audio/mpeg' and trashed = false`);
+      mp3sUrl.searchParams.set('fields', 'files(id, name, size)');
+      const mp3sRes = await fetch(mp3sUrl.toString(), {
+        headers: { Authorization: `Bearer ${googleAccessToken}` },
       });
-
-      const mp3Files = mp3sRes.data.files || [];
+      if (!mp3sRes.ok) {
+        const errText = await mp3sRes.text();
+        throw new Error(`Failed to list mp3 files: ${errText}`);
+      }
+      const mp3sData = await mp3sRes.json();
+      const mp3Files = mp3sData.files || [];
       for (const mp3 of mp3Files) {
         const fileName = mp3.name!;
         const mixName = fileName.substring(0, fileName.lastIndexOf('.')) || fileName;

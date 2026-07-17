@@ -16,13 +16,6 @@ const navLinks = [
   { name: 'CONTACT', href: '/contact' },
 ];
 
-const pageTitles: Record<string, string> = {
-  '/mixes': '01 / MIXES',
-  '/gallery': '02 / GALLERY',
-  '/live': '03 / LIVE',
-  '/events': '04 / EVENTS',
-  '/contact': '05 / CONTACT',
-};
 
 const SocialLink = ({ href, icon, className }: { href: string; icon: React.ReactNode; className?: string }) => (
   <a
@@ -42,7 +35,7 @@ const SocialLink = ({ href, icon, className }: { href: string; icon: React.React
 export default function SiteHeader() {
   const pathname = usePathname();
   const isHomePage = pathname === '/';
-  const title = pageTitles[pathname] || '';
+
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 

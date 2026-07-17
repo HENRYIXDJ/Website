@@ -2,3 +2,5 @@
 /.agents/
 /node_modules/
 /.next/
+/.vercel/
+/.open-next/

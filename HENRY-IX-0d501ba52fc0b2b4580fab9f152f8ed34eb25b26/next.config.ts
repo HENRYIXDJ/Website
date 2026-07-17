@@ -26,17 +26,35 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'pub-c7c5ff43a8ae174ad91e2668de0ad7f0.r2.dev',
+        port: '',
+        pathname: '/**',
+      },
     ],
   },
-
   transpilePackages: ['motion'],
-  webpack: (config, {dev, webpack, nextRuntime}) => {
-    config.plugins.push(
-      new webpack.NormalModuleReplacementPlugin(
-        /^react$/,
-        path.resolve(__dirname, 'lib/react-shim.js')
-      )
-    );
+  webpack: (config, {dev, webpack, nextRuntime, isServer}) => {
+    if (!isServer) {
+      if (config.resolve.alias) {
+        delete config.resolve.alias['react'];
+        delete config.resolve.alias['react$'];
+      }
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        react$: path.resolve(__dirname, 'lib/react-shim.js'),
+      };
+    }
+
+    if (isServer) {
+      config.plugins.push(
+        new webpack.NormalModuleReplacementPlugin(
+          /[\\/]app[\\/]studio[\\/]\[\[\.\.\.index\]\][\\/]page\.tsx$/,
+          path.resolve(__dirname, 'lib/studio-mock.js')
+        )
+      );
+    }
 
     if (nextRuntime === 'edge') {
       config.resolve.alias = {

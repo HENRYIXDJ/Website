@@ -1,10 +1,13 @@
 {
+  "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "website",
-  "pages_build_output_dir": ".vercel/output/static",
+  "main": ".open-next/worker.js",
   "compatibility_date": "2026-07-15",
-  "compatibility_flags": [
-    "nodejs_compat"
-  ],
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
   "vars": {
     "NEXT_PUBLIC_USE_CLOUDFLARE_R2": "true",
     "R2_ENDPOINT": "https://c7c5ff43a8ae174ad91e2668de0ad7f0.r2.cloudflarestorage.com",

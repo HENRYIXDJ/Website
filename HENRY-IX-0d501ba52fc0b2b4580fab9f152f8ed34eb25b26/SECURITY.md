@@ -38,5 +38,5 @@ the fix has been merged into main and deployed to the live domain.
 Disclosure: Once the issue is resolved, a public disclosure or acknowledgement can be coordinated if desired.
 
 Out of Scope
-Please note that vulnerabilities found in third-party services utilised by this application (such as the SoundCloud Widget API or Vercel hosting infrastructure)
+Please note that vulnerabilities found in third-party services utilised by this application (such as the SoundCloud Widget API or Cloudflare Pages hosting infrastructure)
 should be reported directly to those respective service providers.

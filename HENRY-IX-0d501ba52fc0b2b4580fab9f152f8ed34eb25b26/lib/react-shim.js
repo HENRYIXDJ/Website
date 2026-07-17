@@ -13,5 +13,7 @@ export const useEffectEvent =
     }, []);
   };
 
+export const experimental_useEffectEvent = useEffectEvent;
+
 export * from '../node_modules/react';
 export default React;
