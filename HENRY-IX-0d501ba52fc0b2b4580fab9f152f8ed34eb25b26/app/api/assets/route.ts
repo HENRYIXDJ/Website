@@ -53,7 +53,9 @@ async function handleAssetRequest(request: Request) {
   const storageBaseUrl = process.env.NEXT_PUBLIC_STORAGE_BASE_URL;
   const allowedHosts = [
     'tegbbmt42xpyzcnx.private.blob.vercel-storage.com',
-    'vercel-storage.com'
+    'vercel-storage.com',
+    'pub-c7c5ff43a8ae174ad91e2668de0ad7f0.r2.dev',
+    'r2.dev'
   ];
   if (r2PublicDomain) {
     try { allowedHosts.push(new URL(r2PublicDomain).host.toLowerCase()); } catch(_) {}
