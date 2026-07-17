@@ -1,7 +1,7 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import { motion, useScroll, useSpring, useTransform, useMotionValueEvent, animate } from 'framer-motion';
-import { useAudio } from '@/components/AudioProvider';
+import { useAudioStore } from '@/store/audioStore';
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import Link from 'next/link';
@@ -214,7 +214,7 @@ const NavigationNode = React.memo(function NavigationNode() {
 
 export default function HomeClient() {
   const isDepth = true;
-  const { preloaderComplete } = useAudio();
+  const preloaderComplete = useAudioStore(s => s.preloaderComplete);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
