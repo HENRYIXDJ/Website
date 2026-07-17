@@ -23,30 +23,30 @@ interface Broadcast {
   duration: string;
 }
 
+const proxyUrl = (url: string) => `/api/assets?url=${encodeURIComponent(url)}`;
+
 const ME_IMAGES: GalleryItem[] = [
   {
-    src: '/gallery/img_2255.jpg',
+    src: proxyUrl(getStorageUrl('/gallery/img_2255.jpg')),
     title: 'DECK CONTROLS',
     gridClass: 'col-span-1 md:col-span-1 aspect-square md:aspect-auto md:row-span-2',
   },
   {
-    src: '/gallery/img_0495.jpg',
+    src: proxyUrl(getStorageUrl('/gallery/img_0495.jpg')),
     title: 'ROYAL COURT S1',
     gridClass: 'col-span-1 aspect-square md:aspect-[4/3]',
   },
   {
-    src: '/gallery/img_3540.jpg',
+    src: proxyUrl(getStorageUrl('/gallery/img_3540.jpg')),
     title: 'BOOTH MONITOR',
     gridClass: 'col-span-1 aspect-square',
   },
   {
-    src: '/gallery/img_4564.jpg',
+    src: proxyUrl(getStorageUrl('/gallery/img_4564.jpg')),
     title: 'CROWD WAVE',
     gridClass: 'col-span-1 md:col-span-2 aspect-square md:aspect-[2/1]',
   },
 ];
-
-const proxyUrl = (url: string) => `/api/assets?url=${encodeURIComponent(url)}`;
 
 const ARTWORK_IMAGES: GalleryItem[] = [
   {
@@ -248,17 +248,54 @@ function CRTBroadcastDeck() {
 
 export default function GalleryClient() {
   const [activeItem, setActiveItem] = useState<{ type: 'me' | 'artwork', idx: number } | null>(null);
+  const [meImages, setMeImages] = useState<GalleryItem[]>(ME_IMAGES);
   const [artworkImages, setArtworkImages] = useState<GalleryItem[]>(ARTWORK_IMAGES);
   const [activeTab, setActiveTab] = useState<'photos' | 'artwork' | 'videos'>('photos');
 
   useEffect(() => {
-    async function loadDynamicArtwork() {
+    async function loadDynamicGallery() {
       try {
-        const mixes = await client.fetch<any[]>(
-          `*[_type == "mix" && defined(audioFile) && defined(artworkFile)]`
-        );
-        if (mixes && mixes.length > 0) {
-          const formatted = mixes.map(mix => ({
+        const [galleryDocs, mixesDocs] = await Promise.all([
+          client.fetch<any[]>(`*[_type == "galleryImage" && defined(imageFile)]`),
+          client.fetch<any[]>(`*[_type == "mix" && defined(artworkFile)]`)
+        ]);
+
+        if (galleryDocs && galleryDocs.length > 0) {
+          const fetchedMe = galleryDocs
+            .filter(d => d.category === 'me')
+            .map(d => ({
+              src: proxyUrl(getStorageUrl(d.imageFile)),
+              title: d.title.toUpperCase(),
+              gridClass: d.gridClass || 'col-span-1 aspect-square'
+            }));
+
+          const fetchedArtwork = galleryDocs
+            .filter(d => d.category === 'artwork')
+            .map(d => ({
+              src: proxyUrl(getStorageUrl(d.imageFile)),
+              title: d.title.toUpperCase(),
+              gridClass: d.gridClass || 'col-span-1 aspect-square'
+            }));
+
+          if (fetchedMe.length > 0) {
+            setMeImages(fetchedMe);
+          }
+          
+          let combinedArtwork = [...fetchedArtwork];
+          if (mixesDocs && mixesDocs.length > 0) {
+            const mixesArtwork = mixesDocs.map(mix => ({
+              src: proxyUrl(getStorageUrl(mix.artworkFile)),
+              title: mix.title.toUpperCase(),
+              gridClass: 'col-span-1 aspect-square'
+            }));
+            combinedArtwork = [...combinedArtwork, ...mixesArtwork];
+          }
+
+          if (combinedArtwork.length > 0) {
+            setArtworkImages(combinedArtwork);
+          }
+        } else if (mixesDocs && mixesDocs.length > 0) {
+          const formatted = mixesDocs.map(mix => ({
             src: proxyUrl(getStorageUrl(mix.artworkFile)),
             title: mix.title.toUpperCase(),
             gridClass: 'col-span-1 aspect-square'
@@ -266,10 +303,10 @@ export default function GalleryClient() {
           setArtworkImages(formatted);
         }
       } catch (err) {
-        console.error('Error loading dynamic artwork for gallery:', err);
+        console.error('Error loading dynamic gallery:', err);
       }
     }
-    loadDynamicArtwork();
+    loadDynamicGallery();
   }, []);
 
   // Handle keyboard navigation for Lightbox
@@ -277,7 +314,7 @@ export default function GalleryClient() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (activeItem === null) return;
       
-      const currentArray = activeItem.type === 'me' ? ME_IMAGES : artworkImages;
+      const currentArray = activeItem.type === 'me' ? meImages : artworkImages;
       
       if (e.key === 'Escape') {
         startTransition(() => setActiveItem(null));
@@ -299,9 +336,9 @@ export default function GalleryClient() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeItem, artworkImages]);
+  }, [activeItem, meImages, artworkImages]);
 
-  const activeImage = activeItem ? (activeItem.type === 'me' ? ME_IMAGES[activeItem.idx] : artworkImages[activeItem.idx]) : null;
+  const activeImage = activeItem ? (activeItem.type === 'me' ? meImages[activeItem.idx] : artworkImages[activeItem.idx]) : null;
 
   return (
     <PageShell>
@@ -359,7 +396,7 @@ export default function GalleryClient() {
         <div className="relative z-10 w-full">
           {activeTab === 'photos' && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 mb-16">
-              {ME_IMAGES.map((item, idx) => (
+              {meImages.map((item, idx) => (
                 <motion.div
                   key={item.src}
                   initial={{ opacity: 0, y: 40 }}
@@ -470,7 +507,7 @@ export default function GalleryClient() {
                   onClick={(e) => {
                     e.stopPropagation();
                     startTransition(() => {
-                      const currentArray = activeItem.type === 'me' ? ME_IMAGES : artworkImages;
+                      const currentArray = activeItem.type === 'me' ? meImages : artworkImages;
                       setActiveItem({
                         type: activeItem.type,
                         idx: (activeItem.idx - 1 + currentArray.length) % currentArray.length
@@ -509,7 +546,7 @@ export default function GalleryClient() {
                   onClick={(e) => {
                     e.stopPropagation();
                     startTransition(() => {
-                      const currentArray = activeItem.type === 'me' ? ME_IMAGES : artworkImages;
+                      const currentArray = activeItem.type === 'me' ? meImages : artworkImages;
                       setActiveItem({
                         type: activeItem.type,
                         idx: (activeItem.idx + 1) % currentArray.length

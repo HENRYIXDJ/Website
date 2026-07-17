@@ -12,7 +12,10 @@ import { playClick, playTabClick, playTick } from '@/lib/audioUtils';
 import { useAudioStore } from '@/store/audioStore';
 import { useAudio } from './AudioProvider';
 import { client } from '@/sanity/lib/client';
-import CDJHardware from './CDJHardware';
+import dynamic from 'next/dynamic';
+
+const CDJHardware = dynamic(() => import('./CDJHardware'), { ssr: false });
+const AudioVisualizerBackground = dynamic(() => import('./AudioVisualizerBackground'), { ssr: false });
 
 
 const formatTime = (secs: number) => {
@@ -1904,6 +1907,15 @@ function MixArchive({
   }, [audioElementsRef]);
 
   // --- Keyboard DJ Hotkeys useEffect ---
+  const togglePlayGlobalRef = useRef(togglePlayGlobal);
+  useEffect(() => { togglePlayGlobalRef.current = togglePlayGlobal; }, [togglePlayGlobal]);
+
+  const alignSyncPlaybackRef = useRef(alignSyncPlayback);
+  useEffect(() => { alignSyncPlaybackRef.current = alignSyncPlayback; }, [alignSyncPlayback]);
+
+  const triggerHotCueRef = useRef(triggerHotCue);
+  useEffect(() => { triggerHotCueRef.current = triggerHotCue; }, [triggerHotCue]);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const activeEl = document.activeElement;
@@ -1914,58 +1926,61 @@ function MixArchive({
         }
       }
 
-      const leftDeckId = leftActiveDeck;
-      const rightDeckId = rightActiveDeck;
+      // Read state dynamically from Zustand to avoid re-binding keydown listener on slider drag/deck changes
+      const state = useAudioStore.getState();
+      const leftDeckId = state.leftActiveDeck;
+      const rightDeckId = state.rightActiveDeck;
+      const currentCrossfader = state.crossfader;
 
       // Left Deck controls
       if (e.code === 'Space' || e.key === 'Enter') {
         e.preventDefault();
-        togglePlayGlobal(leftDeckId);
+        togglePlayGlobalRef.current?.(leftDeckId);
       } else if (e.key === 'c' || e.key === 'C') {
         e.preventDefault();
-        triggerHotCue(leftDeckId, 0.0, 0);
+        triggerHotCueRef.current?.(leftDeckId, 0.0, 0);
       } else if (e.key === '1') {
         e.preventDefault();
-        triggerHotCue(leftDeckId, 0.0, 0);
+        triggerHotCueRef.current?.(leftDeckId, 0.0, 0);
       } else if (e.key === '2') {
         e.preventDefault();
-        triggerHotCue(leftDeckId, 0.25, 1);
+        triggerHotCueRef.current?.(leftDeckId, 0.25, 1);
       } else if (e.key === '3') {
         e.preventDefault();
-        triggerHotCue(leftDeckId, 0.5, 2);
+        triggerHotCueRef.current?.(leftDeckId, 0.5, 2);
       } else if (e.key === '4') {
         e.preventDefault();
-        triggerHotCue(leftDeckId, 0.75, 3);
+        triggerHotCueRef.current?.(leftDeckId, 0.75, 3);
       }
 
       // Right Deck controls
       else if (e.key === 'p' || e.key === 'P') {
         e.preventDefault();
-        togglePlayGlobal(rightDeckId);
+        togglePlayGlobalRef.current?.(rightDeckId);
       } else if (e.key === 'l' || e.key === 'L') {
         e.preventDefault();
-        triggerHotCue(rightDeckId, 0.0, 0);
+        triggerHotCueRef.current?.(rightDeckId, 0.0, 0);
       } else if (e.key === '7') {
         e.preventDefault();
-        triggerHotCue(rightDeckId, 0.0, 0);
+        triggerHotCueRef.current?.(rightDeckId, 0.0, 0);
       } else if (e.key === '8') {
         e.preventDefault();
-        triggerHotCue(rightDeckId, 0.25, 1);
+        triggerHotCueRef.current?.(rightDeckId, 0.25, 1);
       } else if (e.key === '9') {
         e.preventDefault();
-        triggerHotCue(rightDeckId, 0.5, 2);
+        triggerHotCueRef.current?.(rightDeckId, 0.5, 2);
       } else if (e.key === '0') {
         e.preventDefault();
-        triggerHotCue(rightDeckId, 0.75, 3);
+        triggerHotCueRef.current?.(rightDeckId, 0.75, 3);
       }
 
       // Mixer Arrow crossfader controls
       else if (e.key === 'ArrowLeft') {
         e.preventDefault();
-        setCrossfader(Math.max(0, crossfader - 5));
+        setCrossfader(Math.max(0, currentCrossfader - 5));
       } else if (e.key === 'ArrowRight') {
         e.preventDefault();
-        setCrossfader(Math.min(100, crossfader + 5));
+        setCrossfader(Math.min(100, currentCrossfader + 5));
       }
 
       // SYNC triggers
@@ -1982,8 +1997,8 @@ function MixArchive({
             ...prev,
             [leftDeckId]: { ...prev[leftDeckId], syncEnabled: nextSyncState }
           }));
-          if (isBothPlaying && alignSyncPlayback) {
-            alignSyncPlayback(leftDeckId);
+          if (isBothPlaying && alignSyncPlaybackRef.current) {
+            alignSyncPlaybackRef.current(leftDeckId);
           }
         }
       } else if (e.key === 'd' || e.key === 'D') {
@@ -1998,8 +2013,8 @@ function MixArchive({
             ...prev,
             [rightDeckId]: { ...prev[rightDeckId], syncEnabled: nextSyncState }
           }));
-          if (isBothPlaying && alignSyncPlayback) {
-            alignSyncPlayback(rightDeckId);
+          if (isBothPlaying && alignSyncPlaybackRef.current) {
+            alignSyncPlaybackRef.current(rightDeckId);
           }
         }
       }
@@ -2007,8 +2022,7 @@ function MixArchive({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [leftActiveDeck, rightActiveDeck, crossfader, setCrossfader, togglePlayGlobal, alignSyncPlayback]);
+  }, [setCrossfader, setDecks]);
 
   // Average the parameters of all playing decks for the central mixer display
   const playingDecks = Object.values(decks).filter((d: any) => d.isPlaying);
@@ -2635,8 +2649,16 @@ function MixArchive({
       "w-full flex-1 relative pt-2 pb-2 px-2 md:px-4 mx-auto flex flex-col justify-start md:justify-center @container",
       activeView === 'cdj' ? "overflow-hidden" : "overflow-y-auto"
     )}>
+      {activeView === 'cdj' && (
+        <AudioVisualizerBackground
+          isDepth={isDepth}
+          mouseX={mouseX}
+          mouseY={mouseY}
+          isPlaying={activeVisualizer.isPlaying}
+          mode={visualizerMode}
+        />
+      )}
 
- 
       <div 
         ref={archiveRef} 
         onMouseMove={handleMouseMove}
@@ -3268,7 +3290,7 @@ export default function MixPortfolio({ isDepth = true, activeView: initialActive
           title,
           slug,
           description,
-          mixes[]->[defined(audioFile)]{
+          mixes[]->[defined(audioFile) || defined(muxVideo)]{
             _id,
             title,
             slug,
@@ -3277,7 +3299,8 @@ export default function MixPortfolio({ isDepth = true, activeView: initialActive
             audioFile,
             artworkFile,
             tracklist,
-            cuePoints
+            cuePoints,
+            "muxPlaybackId": muxVideo.asset->playbackId
           }
         }`);
 
@@ -3287,7 +3310,9 @@ export default function MixPortfolio({ isDepth = true, activeView: initialActive
             mixes: (group.mixes || []).map((mix: any) => ({
               id: mix._id,
               title: mix.title,
-              url: proxyUrl(getStorageUrl(mix.audioFile || '')),
+              url: mix.muxPlaybackId
+                ? `https://stream.mux.com/${mix.muxPlaybackId}/audio.m4a`
+                : proxyUrl(getStorageUrl(mix.audioFile || '')),
               link: mix.soundcloudLink || '',
               bpm: mix.bpm || 120,
               cuePoints: mix.cuePoints || [],

@@ -30,7 +30,14 @@ const nextConfig: NextConfig = {
   },
 
   transpilePackages: ['motion'],
-  webpack: (config, {dev, webpack}) => {
+  webpack: (config, {dev, webpack, nextRuntime}) => {
+    // Alias @workflow/world-local to false for Edge runtime to avoid node.js module imports
+    if (nextRuntime === 'edge') {
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        '@workflow/world-local': false,
+      };
+    }
     // HMR is disabled in AI Studio via DISABLE_HMR env var.
     // Do not modify—file watching is disabled to prevent flickering during agent edits.
     if (dev && process.env.DISABLE_HMR === 'true') {
@@ -45,4 +52,6 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+import { withWorkflow } from "workflow/next";
+
+export default withWorkflow(withBotId(nextConfig));

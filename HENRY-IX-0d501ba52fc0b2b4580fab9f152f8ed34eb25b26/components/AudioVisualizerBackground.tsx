@@ -52,6 +52,7 @@ export default function AudioVisualizerBackground({
   const isPlayingRef = useRef(isPlaying);
   const isDepthRef = useRef(isDepth);
   const modeRef = useRef(mode);
+  const isIntersectingRef = useRef(true);
   
   useEffect(() => {
     isPlayingRef.current = isPlaying;
@@ -64,8 +65,18 @@ export default function AudioVisualizerBackground({
     const canvas = canvasRef.current;
     if (!canvas) return;
 
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        isIntersectingRef.current = entry.isIntersecting;
+      },
+      { threshold: 0.0 }
+    );
+    observer.observe(canvas);
+
     // If we've already initialized either path, don't try again
-    if (offscreenInitialisedRef.current || fallbackRef.current) return;
+    if (offscreenInitialisedRef.current || fallbackRef.current) {
+      return () => observer.disconnect();
+    }
 
     const supportsOffscreen = typeof canvas.transferControlToOffscreen === 'function';
 
@@ -94,7 +105,7 @@ export default function AudioVisualizerBackground({
         dataArrayRef.current = new Uint8Array(bufferLength);
 
         const tick = () => {
-          if (!isPlayingRef.current) {
+          if (!isIntersectingRef.current || !isPlayingRef.current) {
             rafRef.current = window.setTimeout(tick, 250) as unknown as number;
             return;
           }
@@ -131,6 +142,7 @@ export default function AudioVisualizerBackground({
           worker.postMessage({ type: 'stop' });
           worker.terminate();
           workerRef.current = null;
+          observer.disconnect();
         };
       } catch (e) {
         console.warn('OffscreenCanvas setup failed, falling back:', e);
@@ -160,6 +172,10 @@ export default function AudioVisualizerBackground({
       let bassSmooth = 0, midSmooth = 0, highSmooth = 0;
 
       const renderFallback = () => {
+        if (!isIntersectingRef.current || !isPlayingRef.current) {
+          rafRef.current = window.setTimeout(renderFallback, 250) as unknown as number;
+          return;
+        }
         ctx2d.clearRect(0, 0, width, height);
 
         let bass = 0, mid = 0, high = 0;
@@ -358,6 +374,8 @@ export default function AudioVisualizerBackground({
       return () => {
         window.removeEventListener('resize', handleResize);
         cancelAnimationFrame(rafRef.current);
+        clearTimeout(rafRef.current);
+        observer.disconnect();
       };
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

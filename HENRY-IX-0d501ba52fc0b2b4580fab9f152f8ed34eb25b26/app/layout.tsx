@@ -6,6 +6,8 @@ import { BotIdClient } from 'botid/client';
 import { AudioProvider } from '@/components/AudioProvider';
 import ClientLayoutWrappers from '@/components/ClientLayoutWrappers';
 
+export const runtime = 'edge';
+
 const avathe = localFont({
   src: './fonts/avathe.otf',
   variable: '--font-avathe',
@@ -57,7 +59,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={`${avathe.variable} ${jetbrainsMono.variable}`}>
       <head>
         <link rel="preload" href="https://w.soundcloud.com/player/api.js" as="script" />
-        <BotIdClient protect={[{ path: '/api/signup', method: 'POST' }]} />
+        <BotIdClient protect={[{ path: '/', method: 'POST' }, { path: '/contact', method: 'POST' }]} />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
