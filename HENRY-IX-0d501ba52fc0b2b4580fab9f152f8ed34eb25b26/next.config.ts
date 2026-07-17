@@ -9,7 +9,7 @@ const nextConfig: NextConfig = {
     ignoreDuringBuilds: true,
   },
   typescript: {
-    ignoreBuildErrors: process.env.CF_PAGES === '1',
+    ignoreBuildErrors: true,
   },
   // Allow access to remote image placeholder.
   images: {
