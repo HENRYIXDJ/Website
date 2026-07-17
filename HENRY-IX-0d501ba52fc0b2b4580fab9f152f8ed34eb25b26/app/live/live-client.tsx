@@ -44,7 +44,8 @@ interface LiveClientProps {
     title: string;
     playbackId: string;
     viewerUserId: string;
-    streamStatus: string;
+    status: string;
+    scheduledTime: string | null;
     resolution: string;
     latency: string;
   };
@@ -59,7 +60,6 @@ export default function LiveClient({ initialSettings, history }: LiveClientProps
     { id: '3', user: 'System', text: 'STREAM FEED ONLINE. CHANNEL STABLE.', time: '16:01' }
   ]);
   
-  const [showConsoleLine, setShowConsoleLine] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll chat box
@@ -91,11 +91,10 @@ export default function LiveClient({ initialSettings, history }: LiveClientProps
     return () => clearInterval(addMessageInterval);
   }, []);
 
-  const isStreaming = activeStream.status === 'live' || activeStream.status === 'archived';
 
   return (
     <PageShell>
-      <main className="min-h-screen text-zinc-100 selection:bg-primary/30 selection:text-primary pt-24 pb-20 px-4 md:px-8 w-full relative overflow-y-auto custom-scrollbar">
+      <main className="min-h-[100dvh] text-zinc-100 selection:bg-primary/30 selection:text-primary pt-24 pb-20 px-4 md:px-8 w-full relative overflow-y-auto custom-scrollbar">
         
         {/* Section Header */}
         <div className="relative z-10 mb-8 md:mb-12 flex flex-col items-center text-center">
@@ -335,7 +334,8 @@ export default function LiveClient({ initialSettings, history }: LiveClientProps
                         title: item.title,
                         playbackId: item.playbackId,
                         viewerUserId: "user-id-007",
-                        streamStatus: "archive",
+                        status: "archived",
+                        scheduledTime: null,
                         resolution: item.resolution,
                         latency: "Standard Latency"
                       });

@@ -4,7 +4,7 @@ import React, { useRef, useEffect, createContext, useContext, useMemo, useCallba
 import { usePathname } from 'next/navigation';
 import { playClick, playLockoutBlip, setMutedGlobal } from '@/lib/audioUtils';
 import { useAudioStore, generateStaticPeaks } from '@/store/audioStore';
-import { audioEngine, type DeckDSPNodes } from '@/lib/AudioEngine';
+import { audioEngine } from '@/lib/AudioEngine';
 import { getStorageUrl } from '@/lib/storage';
 
 // ---------------------------------------------------------------------------
@@ -65,6 +65,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   const setDecks = useAudioStore(s => s.setDecks);
   const isMuted = useAudioStore(s => s.isMuted);
   const setIsMuted = useAudioStore(s => s.setIsMuted);
+  const leftActiveDeck = useAudioStore(s => s.leftActiveDeck);
   const setLeftActiveDeck = useAudioStore(s => s.setLeftActiveDeck);
   const setRightActiveDeck = useAudioStore(s => s.setRightActiveDeck);
 
@@ -533,7 +534,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       // Fallback to bar alignment (4 beats) if phrase alignment causes out-of-bound errors
       if (targetTimeB < 0 || (durationB && targetTimeB > durationB)) {
         const barInterval = activeBeatInterval * 4;
-        const barPhaseA = elapsedA % barInterval;
+      const barPhaseA = elapsedA % barInterval;
         targetTimeB = offsetB + Math.round(elapsedB / barInterval) * barInterval + barPhaseA;
       }
 
@@ -558,7 +559,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   };
 
   // ── togglePlayGlobal (React-accessible version) ─────────────────────────
-  const togglePlayGlobal = (deckId: number) => {
+  const togglePlayGlobal = useCallback((deckId: number) => {
     ensureDeckInitialized(deckId);
     const state = useAudioStore.getState();
     const deck = state.decks[deckId];
@@ -584,13 +585,27 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       if (!audio) return;
 
       if (audio.paused) {
+        // Set gain to 0 instantly before starting play to allow fade-in
+        const nodes = deckNodesRef.current[deckId];
+        if (nodes && audioContextRef.current) {
+          nodes.gainNode.gain.cancelScheduledValues(audioContextRef.current.currentTime);
+          nodes.gainNode.gain.setValueAtTime(0, audioContextRef.current.currentTime);
+        }
+
         if (audio.readyState >= 2) {
           if (deck.syncEnabled) {
             alignSyncPlayback(deckId);
           }
           playPendingRef.current[deckId] = true;
           audio.play()
-            .then(() => { playPendingRef.current[deckId] = false; })
+            .then(() => { 
+              playPendingRef.current[deckId] = false; 
+              // Fade gain to fader volume over 1.5s (timeConstant = 0.35s)
+              const freshState = useAudioStore.getState();
+              const freshDeck = freshState.decks[deckId];
+              const cfMult = audioEngine.computeCrossfaderGain(freshDeck.crossfaderAssign, freshState.crossfader);
+              audioEngine.setGain(deckId, freshDeck.volume, cfMult, freshState.isMuted, 0.35);
+            })
             .catch(err => {
               playPendingRef.current[deckId] = false;
               if (err.name !== 'AbortError') {
@@ -605,7 +620,14 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
             alignSyncPlayback(deckId);
           }
           audio.play()
-            .then(() => { playPendingRef.current[deckId] = false; })
+            .then(() => { 
+              playPendingRef.current[deckId] = false; 
+              // Fade gain to fader volume over 1.5s
+              const freshState = useAudioStore.getState();
+              const freshDeck = freshState.decks[deckId];
+              const cfMult = audioEngine.computeCrossfaderGain(freshDeck.crossfaderAssign, freshState.crossfader);
+              audioEngine.setGain(deckId, freshDeck.volume, cfMult, freshState.isMuted, 0.35);
+            })
             .catch(err => {
               playPendingRef.current[deckId] = false;
               if (err.name !== 'AbortError') {
@@ -620,7 +642,13 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
                     }
                     playPendingRef.current[deckId] = true;
                     audio.play()
-                      .then(() => { playPendingRef.current[deckId] = false; })
+                      .then(() => { 
+                        playPendingRef.current[deckId] = false; 
+                        const freshState = useAudioStore.getState();
+                        const freshDeck2 = freshState.decks[deckId];
+                        const cfMult = audioEngine.computeCrossfaderGain(freshDeck2.crossfaderAssign, freshState.crossfader);
+                        audioEngine.setGain(deckId, freshDeck2.volume, cfMult, freshState.isMuted, 0.35);
+                      })
                       .catch(err2 => {
                         playPendingRef.current[deckId] = false;
                         if (err2.name !== 'AbortError') {
@@ -639,7 +667,20 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
             });
         }
       } else {
-        audio.pause();
+        // Pause: fade down to 0 and pause after 1.5s
+        setDeck(deckId, { isPlaying: false });
+        const nodes = deckNodesRef.current[deckId];
+        if (nodes && audioContextRef.current) {
+          nodes.gainNode.gain.cancelScheduledValues(audioContextRef.current.currentTime);
+          nodes.gainNode.gain.setTargetAtTime(0, audioContextRef.current.currentTime, 0.35);
+        }
+        setTimeout(() => {
+          audio.pause();
+          const freshState = useAudioStore.getState();
+          const freshDeck = freshState.decks[deckId];
+          const cfMult = audioEngine.computeCrossfaderGain(freshDeck.crossfaderAssign, freshState.crossfader);
+          audioEngine.setGain(deckId, freshDeck.volume, cfMult, freshState.isMuted, 0.005);
+        }, 1500);
       }
     };
 
@@ -653,7 +694,53 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     } else {
       executeToggle();
     }
-  };
+  }, [initAudioDSP, ensureDeckInitialized, getQuantizedDelay, alignSyncPlayback, setDeck]);
+
+  // ── Sync MediaSession metadata to Browser Lockscreen ───────────────────
+  const activeDeck = useAudioStore(s => s.decks[s.leftActiveDeck]);
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.MediaMetadata || !navigator.mediaSession) return;
+
+    const activeDeckId = leftActiveDeck;
+    const deck = activeDeck;
+    
+    if (deck && deck.title && deck.isPlaying) {
+      const coverArtUrl = getSessionImage(deck.title, deck.artworkUrl);
+      
+      navigator.mediaSession.metadata = new window.MediaMetadata({
+        title: deck.title,
+        artist: 'Henry IX',
+        album: 'DJ Mixes & Sessions',
+        artwork: [
+          { src: coverArtUrl, sizes: '512x512', type: 'image/jpeg' }
+        ]
+      });
+
+      navigator.mediaSession.playbackState = 'playing';
+      
+      // Bind controls
+      navigator.mediaSession.setActionHandler('play', () => {
+        togglePlayGlobal(activeDeckId);
+      });
+      navigator.mediaSession.setActionHandler('pause', () => {
+        togglePlayGlobal(activeDeckId);
+      });
+      
+      const audio = audioElementsRef.current[activeDeckId];
+      if (audio) {
+        navigator.mediaSession.setActionHandler('seekbackward', (details) => {
+          const offset = details.seekOffset || 15;
+          audio.currentTime = Math.max(0, audio.currentTime - offset);
+        });
+        navigator.mediaSession.setActionHandler('seekforward', (details) => {
+          const offset = details.seekOffset || 15;
+          audio.currentTime = Math.min(audio.duration || 300, audio.currentTime + offset);
+        });
+      }
+    } else {
+      navigator.mediaSession.playbackState = 'paused';
+    }
+  }, [leftActiveDeck, activeDeck, togglePlayGlobal]);
 
   // ── Expose isMuted to non-React code (audioUtils) ──────────────────────
   useEffect(() => {
@@ -1063,6 +1150,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
         waveformPeaks: dynamicWaveformsRef.current[track.id] || generateStaticPeaks(500),
         cuePoints: track.cuePoints,
         firstBeatOffset: firstBeatOffset,
+        artworkUrl: track.artworkUrl,
       });
     } else {
       // SoundCloud mode — lazily mount iframe if not yet done
@@ -1077,6 +1165,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
         waveformPeaks: dynamicWaveformsRef.current[track.id] || generateStaticPeaks(500),
         cuePoints: track.cuePoints,
         firstBeatOffset: firstBeatOffset,
+        artworkUrl: track.artworkUrl,
       });
       if (widget) {
         try {

@@ -5,10 +5,10 @@ import { motion, useMotionValue, AnimatePresence } from 'framer-motion';
 import { Play, Pause, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-import { LEDEqualizer, RotaryKnob, SplitFlapText } from '@/components/DJComponents';
+import { LEDEqualizer, RotaryKnob } from '@/components/DJComponents';
 import { getStorageUrl } from '@/lib/storage';
 import { audioEngine } from '@/lib/AudioEngine';
-import { playClick, playTabClick, playTick } from '@/lib/audioUtils';
+import { playClick, playTick } from '@/lib/audioUtils';
 import { useAudioStore } from '@/store/audioStore';
 import { useAudio } from './AudioProvider';
 import { client } from '@/sanity/lib/client';
@@ -67,6 +67,35 @@ const getTrackDescription = (title: string, isLocalFile: boolean) => {
   if (lower.includes('corner new cross')) return "Recorded live. A past residency.";
   return `Recorded live. Features high quality uncompressed audio ${isLocalFile ? "directly from the studio." : "via SoundCloud Integration."}`;
 };
+
+function parseTracklist(text: string) {
+  if (!text) return [];
+  const lines = text.split('\n');
+  return lines
+    .map(line => {
+      const timestampMatch = line.match(/(?:\[)?(\d{1,2}):(\d{2})(?::(\d{2}))?(?:\])?/);
+      if (timestampMatch) {
+        const fullMatch = timestampMatch[0];
+        const m = parseInt(timestampMatch[1], 10);
+        const s = parseInt(timestampMatch[2], 10);
+        const h = timestampMatch[3] ? parseInt(timestampMatch[3], 10) : 0;
+        const seconds = h * 3600 + m * 60 + s;
+        return {
+          isTimestamp: true,
+          text: line.replace(fullMatch, '').trim().replace(/^[:-]\s*/, ''),
+          timestampText: fullMatch,
+          seconds,
+        };
+      }
+      return {
+        isTimestamp: false,
+        text: line.trim(),
+        timestampText: '',
+        seconds: 0,
+      };
+    })
+    .filter(item => item.text.length > 0 || item.isTimestamp);
+}
 
 const STATIC_MIX_GROUPS = [
   {
@@ -424,17 +453,6 @@ const VinylStack = ({ group, onClick, playTick }: { group: any, onClick: () => v
 
 // RotaryKnob is imported from @/components/DJComponents
 
-// Helper for deterministic hash to generate unique waveform for each track
-const hashCode = (str: string) => {
-  let hash = 0;
-  if (!str) return hash;
-  for (let i = 0; i < str.length; i++) {
-    hash = (hash << 5) - hash + str.charCodeAt(i);
-    hash |= 0;
-  }
-  return hash;
-};
-
 // Get waveform height at a specific time sample (deterministic audio fingerprinting mimicking real mastered EDM)
 const getWaveformHeight = (trackId: string, idx: number, duration = 300) => {
   if (!trackId) return 0.02;
@@ -552,12 +570,9 @@ function SingleDeckWaveform({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const deckRef = useRef(deck);
   const smoothProgressRef = useRef<number>(deck?.progress || 0);
-  const lastReportedProgressRef = useRef<number>(deck?.progress || 0);
 
   // References for ultra-smooth jitter-free interpolation
   const isPlayingRef = useRef<boolean>(false);
-  const anchorAudioTimeRef = useRef<number>(0);
-  const anchorSystemTimeRef = useRef<number>(0);
   const lastFrameTimeRef = useRef<number>(0);
   const lastDrawnProgressRef = useRef<number>(-1);
   const lastDrawnDeckStateRef = useRef<string>('');
@@ -1233,8 +1248,6 @@ function MixArchive({
   const fileInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
   const mouseX = useMotionValue(0);
   const mouseY = useMotionValue(0);
-  const [embedSCPlayerId, setEmbedSCPlayerId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'all' | 'knight club' | 'royal court' | 'corner new cross'>('all');
   const [deckCount, setDeckCount] = useState<2 | 4>(4);
   const [isBrowserCollapsed, setIsBrowserCollapsed] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -1296,7 +1309,7 @@ function MixArchive({
   };
 
   // --- Visualizer and Keyboard Modal states ---
-  const [visualizerMode, setVisualizerMode] = useState<'ambient' | 'circular' | 'grid'>(() => {
+  const [visualizerMode] = useState<'ambient' | 'circular' | 'grid'>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('henryix_visualizer_mode') as 'ambient' | 'circular' | 'grid';
       if (saved && ['ambient', 'circular', 'grid'].includes(saved)) {
@@ -1739,87 +1752,9 @@ function MixArchive({
     }
   };
 
-  const triggerSync = (deckId: number, otherDeckId: number) => {
-    const deck = decks[deckId];
-    const otherDeck = decks[otherDeckId];
-    if (deck && otherDeck && deck.id !== 'locked') {
-      const targetBpm = otherDeck.bpm * (1 + (otherDeck.pitch || 0) / 100);
-      const requiredPitch = ((targetBpm / deck.bpm) - 1) * 100;
-      const clampedPitch = Math.max(-8, Math.min(8, requiredPitch));
-      setDecks((prev: any) => ({
-        ...prev,
-        [deckId]: { ...prev[deckId], pitch: clampedPitch }
-      }));
-      playClick(800, 'sine', 0.02);
-    }
-  };
 
-  // --- Manual Looping ---
-  const handleLoopIn = (deckId: number) => {
-    const audio = audioElementsRef?.current?.[deckId];
-    if (!audio) return;
-    useAudioStore.getState().setDeck(deckId, { loopIn: audio.currentTime, isLoopActive: false, loopOut: null });
-    playClick(1100, 'sine', 0.02);
-  };
-  const handleLoopOut = (deckId: number) => {
-    const audio = audioElementsRef?.current?.[deckId];
-    const deck = decks[deckId];
-    if (!audio || !deck) return;
-    if (deck.loopIn !== undefined && deck.loopIn !== null && audio.currentTime > deck.loopIn) {
-      useAudioStore.getState().setDeck(deckId, { loopOut: audio.currentTime, isLoopActive: true });
-      playClick(1000, 'sine', 0.02);
-    }
-  };
-  const handleReloop = (deckId: number) => {
-    const audio = audioElementsRef?.current?.[deckId];
-    const deck = decks[deckId];
-    if (deck?.loopIn !== undefined && deck?.loopIn !== null && audio) {
-      audio.currentTime = deck.loopIn;
-      useAudioStore.getState().setDeck(deckId, { isLoopActive: true });
-      playClick(900, 'sine', 0.02);
-    }
-  };
-  const handleExitLoop = (deckId: number) => {
-    useAudioStore.getState().setDeck(deckId, { isLoopActive: false });
-    playClick(800, 'sine', 0.02);
-  };
 
-  // --- Beat Loop Roll Helpers ---
-  const startLoopRoll = (deckId: number, division: number) => {
-    const audio = audioElementsRef?.current?.[deckId];
-    if (!audio || audio.paused) return;
-    
-    playClick(1000, 'sine', 0.02);
-    setActiveRoll(prev => ({
-      ...prev,
-      [deckId]: {
-        division,
-        startTime: audio.currentTime,
-        virtualTime: audio.currentTime
-      }
-    }));
-  };
 
-  const stopLoopRoll = (deckId: number) => {
-    setActiveRoll(prev => {
-      const roll = prev[deckId];
-      if (!roll) return prev;
-      
-      playClick(900, 'sine', 0.02);
-      const audio = audioElementsRef?.current?.[deckId];
-      if (audio && isFinite(audio.duration)) {
-        const deck = decksRef.current[deckId];
-        if (deck?.slipEnabled) {
-          let targetTime = roll.virtualTime;
-          if (targetTime > audio.duration) targetTime = audio.duration;
-          if (isFinite(targetTime) && !isNaN(targetTime)) {
-            audio.currentTime = targetTime;
-          }
-        }
-      }
-      return { ...prev, [deckId]: null };
-    });
-  };
 
   // --- Platter Physics & Loop Roll Tick useEffect ---
   useEffect(() => {
@@ -2305,7 +2240,11 @@ function MixArchive({
   };
 
   const renderDeckControls = (deckId: 1 | 2 | 3 | 4) => {
-    return <CDJHardware deckId={deckId} />;
+    return (
+      <div style={{ touchAction: 'none' }} className="w-full h-full select-none">
+        <CDJHardware deckId={deckId} />
+      </div>
+    );
   };
 
   const renderMixer = () => {
@@ -2615,9 +2554,34 @@ function MixArchive({
                         </span>
                       )}
                     </div>
-                    <div className="text-xs text-zinc-400 mt-2 line-clamp-2">
-                       {getTrackDescription(track.title, track.isLocalFile)}
-                    </div>
+                    {track.tracklist ? (
+                      <div className="mt-3 border-t border-zinc-900 pt-3 max-h-36 overflow-y-auto custom-scrollbar flex flex-col gap-1 z-20 relative">
+                        <span className="text-[8px] font-mono text-zinc-500 uppercase tracking-widest font-black mb-1 select-none">
+                          Tracklist (Click to Seek)
+                        </span>
+                        {parseTracklist(track.tracklist).map((item, idx) => (
+                          <div key={idx} className="text-[10px] text-zinc-400 font-mono flex gap-2 items-center leading-normal">
+                            {item.isTimestamp ? (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const playingDeckId = playingOnDecks[0] || leftActiveDeck;
+                                  seekDeckToTime(playingDeckId, item.seconds);
+                                }}
+                                className="text-primary hover:text-red-400 cursor-pointer font-bold select-none hover:underline shrink-0"
+                              >
+                                {item.timestampText}
+                              </button>
+                            ) : null}
+                            <span className="truncate select-text">{item.text}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-xs text-zinc-400 mt-2 line-clamp-2">
+                        {getTrackDescription(track.title, track.isLocalFile)}
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -3282,6 +3246,73 @@ export default function MixPortfolio({ isDepth = true, activeView: initialActive
     widgetRefs, initAudioDSP, loadLocalFile, seekLocalBuffer,
     audioElementsRef, playPendingRef, scratchingRef, alignSyncPlayback
   } = useAudio();
+
+  const seekDeckToTime = (deckId: number, seekPosSec: number) => {
+    const deck = decks[deckId];
+    if (!deck) return;
+    const widget = widgetRefs.current[deckId];
+    if (deck.scMode && widget) {
+      try {
+        widget.seekTo(seekPosSec * 1000);
+      } catch (e) {
+        setDecks((prev: any) => ({
+          ...prev,
+          [deckId]: { ...prev[deckId], progress: seekPosSec }
+        }));
+      }
+    } else {
+      if (seekLocalBuffer) {
+        seekLocalBuffer(deckId, seekPosSec);
+      }
+      setDecks((prev: any) => ({
+        ...prev,
+        [deckId]: { ...prev[deckId], progress: seekPosSec }
+      }));
+    }
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.isContentEditable
+      ) {
+        return;
+      }
+
+      const activeDeckId = leftActiveDeck;
+      const deck = decks[activeDeckId];
+      if (!deck) return;
+
+      if (e.code === 'Space') {
+        e.preventDefault();
+        togglePlayGlobal(activeDeckId);
+      } else if (e.code === 'KeyM') {
+        e.preventDefault();
+        const currentVolume = deck.volume !== undefined ? deck.volume : 1;
+        setDecks((prev: any) => ({
+          ...prev,
+          [activeDeckId]: { ...prev[activeDeckId], volume: currentVolume > 0 ? 0 : 1 }
+        }));
+      } else if (e.code === 'ArrowLeft') {
+        e.preventDefault();
+        const currentProgress = deck.progress || 0;
+        const newProgress = Math.max(0, currentProgress - 15);
+        seekDeckToTime(activeDeckId, newProgress);
+      } else if (e.code === 'ArrowRight') {
+        e.preventDefault();
+        const currentProgress = deck.progress || 0;
+        const duration = deck.duration || 300;
+        const newProgress = Math.min(duration, currentProgress + 15);
+        seekDeckToTime(activeDeckId, newProgress);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [leftActiveDeck, decks, seekDeckToTime, togglePlayGlobal, setDecks]);
 
   useEffect(() => {
     async function loadDynamicMixes() {

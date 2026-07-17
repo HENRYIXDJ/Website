@@ -5,7 +5,7 @@ import { useAudio } from '@/components/AudioProvider';
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import Link from 'next/link';
-import { playClick, playTick, playNavSwoosh } from '@/lib/audioUtils';
+import { playTick, playNavSwoosh } from '@/lib/audioUtils';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -71,7 +71,7 @@ const HeroNode = React.memo(function HeroNode({
   const styleFloatRight = { y: yFloatRight, willChange: "transform" };
 
   return (
-    <section className="min-h-screen flex flex-col justify-center items-center w-full px-6 relative pt-20 overflow-hidden" style={{ scrollSnapAlign: 'start' }}>
+    <section className="min-h-[100dvh] flex flex-col justify-center items-center w-full px-6 relative pt-20 overflow-hidden" style={{ scrollSnapAlign: 'start' }}>
       
       {/* Foreground decorative floating elements (Negative Parallax for high-end 3D depth) */}
       <motion.div 
@@ -172,7 +172,7 @@ const navItemVariants = {
 
 const NavigationNode = React.memo(function NavigationNode() {
   return (
-    <section className="min-h-screen flex flex-col items-center justify-center pt-24 pb-8 relative w-full overflow-hidden z-20" style={{ scrollSnapAlign: 'start' }}>
+    <section className="min-h-[100dvh] flex flex-col items-center justify-center pt-24 pb-8 relative w-full overflow-hidden z-20" style={{ scrollSnapAlign: 'start' }}>
       <motion.nav 
         variants={navContainerVariants}
         initial="hidden"

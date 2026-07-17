@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { motion, useMotionTemplate } from 'framer-motion';
 import { useAudio } from './AudioProvider';
 
@@ -53,6 +53,16 @@ export default function AudioVisualizerBackground({
   const isDepthRef = useRef(isDepth);
   const modeRef = useRef(mode);
   const isIntersectingRef = useRef(true);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile, { passive: true });
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
   
   useEffect(() => {
     isPlayingRef.current = isPlaying;
@@ -62,6 +72,7 @@ export default function AudioVisualizerBackground({
 
   // ── On mount: decide OffscreenCanvas vs. fallback ─────────────────────
   useEffect(() => {
+    if (isMobile) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -402,7 +413,18 @@ export default function AudioVisualizerBackground({
   return (
     <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
       {/* Canvas — controlled by OffscreenCanvas worker or fallback */}
-      <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
+      {isMobile ? (
+        <div className="absolute inset-0 bg-gradient-to-tr from-black via-zinc-950 to-black opacity-80 animate-pulse z-0">
+          <div
+            className="absolute inset-0 opacity-40 z-0"
+            style={{
+              background: 'radial-gradient(500px circle at 50% 50%, rgba(216, 22, 63, 0.08), transparent 70%)',
+            }}
+          />
+        </div>
+      ) : (
+        <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
+      )}
 
       {/* CSS fallback radial glow for older browsers / SSR */}
       <motion.div

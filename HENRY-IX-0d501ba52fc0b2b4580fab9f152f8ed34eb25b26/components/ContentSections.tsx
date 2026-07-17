@@ -10,14 +10,11 @@ import { signupAction, contactAction } from '@/app/actions';
 const SPRING_CONFIG = { type: "spring" as const, stiffness: 300, damping: 20 };
 
 export function Schedule({ isDepth }: { isDepth: boolean }) {
-  const [inView, setInView] = useState(false);
-
   return (
     <motion.section 
       id="schedule" 
       className="w-full relative py-16 md:py-32 px-6 max-w-7xl mx-auto scroll-mt-24"
       onViewportEnter={() => {
-        setInView(true);
         playClick(700, 'sine', 0.05);
       }}
     >

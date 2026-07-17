@@ -25,7 +25,14 @@ const GIG_DATA: GigStop[] = [
   { id: '6', date: '31', month: 'OCT', year: '2026', city: 'London, UK', venue: 'Printworks London', status: 'SOLD OUT' }
 ];
 
-export function GigSchedule({ isDepth }: { isDepth: boolean }) {
+export function GigSchedule({
+  isDepth,
+  initialEvents,
+}: {
+  isDepth: boolean;
+  initialEvents?: GigStop[] | null;
+}) {
+  const gigs = initialEvents && initialEvents.length > 0 ? initialEvents : GIG_DATA;
   // Dynamically calculate the next Friday at 10 PM as the countdown target, ensuring it is always active
   const [targetDate] = useState(() => {
     const now = new Date();
@@ -123,7 +130,7 @@ export function GigSchedule({ isDepth }: { isDepth: boolean }) {
 
       {/* Tourstops Timeline */}
       <div className="w-full flex flex-col gap-3 z-10 relative">
-        {GIG_DATA.map((stop) => {
+        {gigs.map((stop) => {
           const isSoldOut = stop.status === 'SOLD OUT';
           
           return (
