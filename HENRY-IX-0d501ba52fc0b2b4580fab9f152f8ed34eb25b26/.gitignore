@@ -2,3 +2,4 @@
 /.agents/
 /node_modules/
 /.next/
+/.vercel/
