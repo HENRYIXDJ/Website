@@ -11,6 +11,12 @@
   "r2_buckets": [
     { "binding": "R2_BUCKET", "bucket_name": "websiteassets" }
   ],
+  "observability": {
+    "logs": {
+      "enabled": true,
+      "invocation_logs": true
+    }
+  },
   "vars": {
     "NEXT_PUBLIC_SANITY_DATASET": "production",
     "NEXT_PUBLIC_SANITY_PROJECT_ID": "r6mln4n3",
