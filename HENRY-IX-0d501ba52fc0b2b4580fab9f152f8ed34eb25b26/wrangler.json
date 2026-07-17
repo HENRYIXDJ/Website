@@ -1,10 +1,6 @@
 {
   "name": "website",
-  "main": ".open-next/worker.js",
-  "assets": {
-    "directory": ".open-next/assets",
-    "binding": "ASSETS"
-  },
+  "pages_build_output_dir": ".vercel/output/static",
   "compatibility_date": "2026-07-15",
   "compatibility_flags": [
     "nodejs_compat"

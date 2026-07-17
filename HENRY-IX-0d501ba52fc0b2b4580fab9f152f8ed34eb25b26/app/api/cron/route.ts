@@ -3,6 +3,7 @@ import { S3Client, HeadObjectCommand } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
 import { createClient } from '@sanity/client';
 
+export const runtime = 'edge';
 export const maxDuration = 300; // Allow up to 5 minutes for sync
 
 function base64UrlEncode(str: string | Uint8Array): string {
