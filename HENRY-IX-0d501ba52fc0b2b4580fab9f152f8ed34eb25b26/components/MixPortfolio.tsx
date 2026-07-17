@@ -1754,72 +1754,7 @@ function MixArchive({
 
 
 
-  // --- Manual Looping ---
-  const handleLoopIn = (deckId: number) => {
-    const audio = audioElementsRef?.current?.[deckId];
-    if (!audio) return;
-    useAudioStore.getState().setDeck(deckId, { loopIn: audio.currentTime, isLoopActive: false, loopOut: null });
-    playClick(1100, 'sine', 0.02);
-  };
-  const handleLoopOut = (deckId: number) => {
-    const audio = audioElementsRef?.current?.[deckId];
-    const deck = decks[deckId];
-    if (!audio || !deck) return;
-    if (deck.loopIn !== undefined && deck.loopIn !== null && audio.currentTime > deck.loopIn) {
-      useAudioStore.getState().setDeck(deckId, { loopOut: audio.currentTime, isLoopActive: true });
-      playClick(1000, 'sine', 0.02);
-    }
-  };
-  const handleReloop = (deckId: number) => {
-    const audio = audioElementsRef?.current?.[deckId];
-    const deck = decks[deckId];
-    if (deck?.loopIn !== undefined && deck?.loopIn !== null && audio) {
-      audio.currentTime = deck.loopIn;
-      useAudioStore.getState().setDeck(deckId, { isLoopActive: true });
-      playClick(900, 'sine', 0.02);
-    }
-  };
-  const handleExitLoop = (deckId: number) => {
-    useAudioStore.getState().setDeck(deckId, { isLoopActive: false });
-    playClick(800, 'sine', 0.02);
-  };
 
-  // --- Beat Loop Roll Helpers ---
-  const startLoopRoll = (deckId: number, division: number) => {
-    const audio = audioElementsRef?.current?.[deckId];
-    if (!audio || audio.paused) return;
-    
-    playClick(1000, 'sine', 0.02);
-    setActiveRoll(prev => ({
-      ...prev,
-      [deckId]: {
-        division,
-        startTime: audio.currentTime,
-        virtualTime: audio.currentTime
-      }
-    }));
-  };
-
-  const stopLoopRoll = (deckId: number) => {
-    setActiveRoll(prev => {
-      const roll = prev[deckId];
-      if (!roll) return prev;
-      
-      playClick(900, 'sine', 0.02);
-      const audio = audioElementsRef?.current?.[deckId];
-      if (audio && isFinite(audio.duration)) {
-        const deck = decksRef.current[deckId];
-        if (deck?.slipEnabled) {
-          let targetTime = roll.virtualTime;
-          if (targetTime > audio.duration) targetTime = audio.duration;
-          if (isFinite(targetTime) && !isNaN(targetTime)) {
-            audio.currentTime = targetTime;
-          }
-        }
-      }
-      return { ...prev, [deckId]: null };
-    });
-  };
 
   // --- Platter Physics & Loop Roll Tick useEffect ---
   useEffect(() => {
