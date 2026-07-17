@@ -1215,7 +1215,8 @@ function MixArchive({
   audioElementsRef,
   playPendingRef,
   scratchingRef,
-  alignSyncPlayback
+  alignSyncPlayback,
+  seekDeckToTime
 }: { 
   isDepth: boolean; 
   activeView: 'cdj' | 'tracklist';
@@ -1240,6 +1241,7 @@ function MixArchive({
   playPendingRef?: React.MutableRefObject<Record<number, boolean>>;
   scratchingRef?: React.MutableRefObject<Record<number, boolean>>;
   alignSyncPlayback?: (deckId: number) => void;
+  seekDeckToTime: (deckId: number, seekPosSec: number) => void;
 }) {
   const decksRef = useRef(decks);
   useEffect(() => { decksRef.current = decks; }, [decks]);
@@ -1590,7 +1592,7 @@ function MixArchive({
   }, [togglePlayGlobal, seekLocalBuffer, alignSyncPlayback]);
 
   // --- Active Loop Roll states ---
-  const [activeRoll, setActiveRoll] = useState<Record<number, { division: number; startTime: number; virtualTime: number } | null>>({
+  const [activeRoll] = useState<Record<number, { division: number; startTime: number; virtualTime: number } | null>>({
     1: null, 2: null, 3: null, 4: null
   });
   const activeRollRef = useRef(activeRoll);
@@ -1980,12 +1982,6 @@ function MixArchive({
     activeEqLow = leftDeck.eqLow;
   }
 
-  const isMixActiveInDecks = (mixId: string) => {
-    return Object.values(decks).some((d: any) => d.id === mixId);
-  };
-  const isMixPlayingInDecks = (mixId: string) => {
-    return Object.values(decks).some((d: any) => d.id === mixId && d.isPlaying);
-  };
 
   function handleMouseMove({ currentTarget, clientX, clientY }: React.MouseEvent) {
     const { left, top } = currentTarget.getBoundingClientRect();
@@ -2464,8 +2460,6 @@ function MixArchive({
       </div>
     );
   };
-
-  const [searchQuery, setSearchQuery] = useState('');
   const [expandedFamily, setExpandedFamily] = useState<string | null>(null);
 
   const renderTracklist = () => {
@@ -3247,7 +3241,7 @@ export default function MixPortfolio({ isDepth = true, activeView: initialActive
     audioElementsRef, playPendingRef, scratchingRef, alignSyncPlayback
   } = useAudio();
 
-  const seekDeckToTime = (deckId: number, seekPosSec: number) => {
+  function seekDeckToTime(deckId: number, seekPosSec: number) {
     const deck = decks[deckId];
     if (!deck) return;
     const widget = widgetRefs.current[deckId];
@@ -3446,6 +3440,7 @@ export default function MixPortfolio({ isDepth = true, activeView: initialActive
       playPendingRef={playPendingRef}
       scratchingRef={scratchingRef}
       alignSyncPlayback={alignSyncPlayback}
+      seekDeckToTime={seekDeckToTime}
     />
   );
 }
