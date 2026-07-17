@@ -15,7 +15,13 @@ export const liveStreamType = defineType({
       name: 'playbackId',
       title: 'Mux Playback ID',
       type: 'string',
-      validation: Rule => Rule.required(),
+      description: 'Optional manual playback ID if not uploading directly.',
+    }),
+    defineField({
+      name: 'muxVideo',
+      title: 'Mux Video Asset',
+      type: 'mux.video',
+      description: 'Upload directly to generate Mux Playback ID and streaming assets.',
     }),
     defineField({
       name: 'viewerUserId',
@@ -23,16 +29,23 @@ export const liveStreamType = defineType({
       type: 'string',
     }),
     defineField({
-      name: 'streamStatus',
+      name: 'status',
       title: 'Stream Status',
       type: 'string',
       options: {
         list: [
-          { title: 'Live Broadcast Active', value: 'active' },
-          { title: 'Offline / Last Broadcast Archive', value: 'offline' }
+          { title: 'Upcoming Show Scheduled', value: 'upcoming' },
+          { title: 'Live Broadcast Active', value: 'live' },
+          { title: 'Archived VOD Broadcast', value: 'archived' }
         ]
       },
       validation: Rule => Rule.required(),
+    }),
+    defineField({
+      name: 'scheduledTime',
+      title: 'Scheduled Time',
+      type: 'datetime',
+      description: 'The date and time when the upcoming stream is scheduled to start.',
     }),
     defineField({
       name: 'diagnosticsResolution',

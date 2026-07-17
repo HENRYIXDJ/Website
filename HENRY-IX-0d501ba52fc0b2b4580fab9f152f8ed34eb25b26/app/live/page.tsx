@@ -25,8 +25,10 @@ export default async function Page() {
       _id,
       title,
       playbackId,
+      "muxPlaybackId": muxVideo.asset->playbackId,
       viewerUserId,
-      streamStatus,
+      status,
+      scheduledTime,
       diagnosticsResolution,
       diagnosticsLatency,
       _createdAt
@@ -35,13 +37,17 @@ export default async function Page() {
     console.warn('Could not fetch live streams from Sanity:', err);
   }
 
-  const activeStream = streams.find((s: any) => s.streamStatus === 'active') || streams[0];
+  const activeStream = 
+    streams.find((s: any) => s.status === 'live') || 
+    streams.find((s: any) => s.status === 'upcoming') || 
+    streams[0];
   
   const initialSettings = {
     title: activeStream?.title || "Test VOD",
-    playbackId: activeStream?.playbackId || "EcHgOK9coz5K4rjSwOkoE7Y7O01201YMIC200RI6lNxnhs",
+    playbackId: activeStream?.muxPlaybackId || activeStream?.playbackId || "EcHgOK9coz5K4rjSwOkoE7Y7O01201YMIC200RI6lNxnhs",
     viewerUserId: activeStream?.viewerUserId || "user-id-007",
-    streamStatus: activeStream?.streamStatus || "offline",
+    status: activeStream?.status || "archived",
+    scheduledTime: activeStream?.scheduledTime || null,
     resolution: activeStream?.diagnosticsResolution || "1080P60 HD",
     latency: activeStream?.diagnosticsLatency || "Low Latency"
   };
@@ -49,11 +55,11 @@ export default async function Page() {
   // Build history list
   const activeId = activeStream?._id;
   const dbHistory = streams
-    .filter((s: any) => s._id !== activeId)
+    .filter((s: any) => s._id !== activeId && s.status === 'archived')
     .map((s: any) => ({
       id: s._id,
       title: s.title,
-      playbackId: s.playbackId,
+      playbackId: s.muxPlaybackId || s.playbackId,
       date: s._createdAt ? new Date(s._createdAt).toISOString().split('T')[0] : "2026-07-16",
       resolution: s.diagnosticsResolution || "1080P60 HD"
     }));

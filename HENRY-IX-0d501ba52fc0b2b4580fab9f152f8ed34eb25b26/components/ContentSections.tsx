@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Cloud, ArrowRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { playClick, playTick, playDegauss } from '@/lib/audioUtils';
+import { signupAction, contactAction } from '@/app/actions';
 
 const SPRING_CONFIG = { type: "spring" as const, stiffness: 300, damping: 20 };
 
@@ -101,15 +102,9 @@ export function MailingList({ isDepth }: { isDepth: boolean }) {
     playClick(1000, 'sine', 0.1);
 
     try {
-      const res = await fetch('/api/signup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email })
-      });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Failed to establish transmission');
+      const res = await signupAction(email);
+      if (res.error) {
+        throw new Error(res.error);
       }
 
       setStatus('success');
@@ -233,15 +228,9 @@ export function ContactForm({ isDepth }: { isDepth: boolean }) {
     playClick(1000, 'triangle', 0.15);
 
     try {
-      const res = await fetch('/api/contact', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
-      });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Failed to send message');
+      const res = await contactAction(formData);
+      if (res.error) {
+        throw new Error(res.error);
       }
 
       setStatus('success');

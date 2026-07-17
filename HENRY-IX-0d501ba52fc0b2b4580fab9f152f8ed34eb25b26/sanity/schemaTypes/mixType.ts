@@ -38,6 +38,12 @@ export const mixType = defineType({
       description: 'The path to the audio file in your Cloudflare R2 bucket (e.g. /Mixes/Knight Club/KC Music/Session 1.mp3)',
     }),
     defineField({
+      name: 'muxVideo',
+      title: 'Mux Video/Audio Asset',
+      type: 'mux.video',
+      description: 'Upload directly to generate Mux Playback ID and streaming assets.',
+    }),
+    defineField({
       name: 'artworkFile',
       title: 'Artwork File path (R2 relative)',
       type: 'string',

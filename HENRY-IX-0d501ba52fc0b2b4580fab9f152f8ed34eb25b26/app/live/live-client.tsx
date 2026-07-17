@@ -91,7 +91,7 @@ export default function LiveClient({ initialSettings, history }: LiveClientProps
     return () => clearInterval(addMessageInterval);
   }, []);
 
-  const isStreaming = initialSettings.streamStatus === 'active' || activeStream.streamStatus === 'archive';
+  const isStreaming = activeStream.status === 'live' || activeStream.status === 'archived';
 
   return (
     <PageShell>
@@ -127,13 +127,20 @@ export default function LiveClient({ initialSettings, history }: LiveClientProps
             {/* Top Stats Bar */}
             <div className="w-full flex justify-between items-center text-[7.5px] text-zinc-500 uppercase tracking-widest border-b border-zinc-900/60 pb-2 z-10">
               <span className="flex items-center gap-1.5 text-zinc-300">
-                {initialSettings.streamStatus === 'active' ? (
+                {activeStream.status === 'live' ? (
                   <>
                     <span className="relative flex h-2 w-2">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                       <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                     </span>
                     LIVE BROADCAST ACTIVE
+                  </>
+                ) : activeStream.status === 'upcoming' ? (
+                  <>
+                    <span className="relative flex h-2 w-2">
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-yellow-500"></span>
+                    </span>
+                    UPCOMING TRANSMISSION SCHEDULED
                   </>
                 ) : (
                   <>
@@ -149,9 +156,10 @@ export default function LiveClient({ initialSettings, history }: LiveClientProps
 
             {/* Mux Player element */}
             <div className="relative w-full aspect-video rounded-2xl overflow-hidden border border-zinc-900 bg-zinc-950 z-10 shadow-[inset_0_0_40px_rgba(0,0,0,0.85)] flex flex-col items-center justify-center">
-              {isStreaming ? (
+              {activeStream.status === 'live' || activeStream.status === 'archived' ? (
                 <MuxPlayer
                   playbackId={activeStream.playbackId}
+                  streamType={activeStream.status === 'live' ? 'live' : 'on-demand'}
                   accentColor="#d8163f"
                   metadata={{
                     videoTitle: activeStream.title,
@@ -159,6 +167,41 @@ export default function LiveClient({ initialSettings, history }: LiveClientProps
                   }}
                   className="w-full h-full object-contain"
                 />
+              ) : activeStream.status === 'upcoming' ? (
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/95 p-6 text-center select-none overflow-hidden">
+                  <div className="absolute inset-0 bg-[linear-gradient(rgba(18,18,18,0)_95%,rgba(216,22,63,0.1)_95%)] bg-[size:100%_6px] pointer-events-none z-20 opacity-30 animate-pulse" />
+                  
+                  <div className="flex flex-col gap-4 relative z-10 items-center">
+                    <span className="text-primary font-black text-xs md:text-sm tracking-[0.3em] uppercase animate-pulse">
+                      [ UPCOMING_TRANSMISSION ]
+                    </span>
+                    <span className="text-[14px] md:text-[18px] font-sans font-bold text-zinc-200 tracking-wider max-w-sm uppercase">
+                      {activeStream.title}
+                    </span>
+                    {activeStream.scheduledTime && (
+                      <div className="flex flex-col gap-1.5 mt-2 bg-zinc-900/50 border border-zinc-800 rounded px-4 py-2 font-mono">
+                        <span className="text-[10px] text-zinc-500 tracking-widest uppercase">Scheduled Start Time:</span>
+                        <span className="text-xs text-primary font-bold">
+                          {new Date(activeStream.scheduledTime).toLocaleString('en-GB', {
+                            day: 'numeric',
+                            month: 'short',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            timeZoneName: 'short'
+                          })}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Diagnostic details */}
+                  <div className="absolute bottom-4 left-4 right-4 flex justify-between text-[7px] text-zinc-600 uppercase font-black tracking-widest border-t border-zinc-900/60 pt-2.5">
+                    <span>SYS_MODE: SCHEDULED</span>
+                    <span>SIGNAL: READY_FOR_CARRIER</span>
+                    <span>TARGET: {activeStream.title}</span>
+                  </div>
+                </div>
               ) : (
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/95 p-6 text-center select-none overflow-hidden">
                   {/* Subtle Grid Scanning overlay */}
