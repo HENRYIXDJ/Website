@@ -1248,7 +1248,6 @@ function MixArchive({
   const fileInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
   const mouseX = useMotionValue(0);
   const mouseY = useMotionValue(0);
-  const [activeTab, setActiveTab] = useState<'all' | 'knight club' | 'royal court' | 'corner new cross'>('all');
   const [deckCount, setDeckCount] = useState<2 | 4>(4);
   const [isBrowserCollapsed, setIsBrowserCollapsed] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
