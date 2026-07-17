@@ -1309,7 +1309,7 @@ function MixArchive({
   };
 
   // --- Visualizer and Keyboard Modal states ---
-  const [visualizerMode, setVisualizerMode] = useState<'ambient' | 'circular' | 'grid'>(() => {
+  const [visualizerMode] = useState<'ambient' | 'circular' | 'grid'>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('henryix_visualizer_mode') as 'ambient' | 'circular' | 'grid';
       if (saved && ['ambient', 'circular', 'grid'].includes(saved)) {
@@ -1752,20 +1752,7 @@ function MixArchive({
     }
   };
 
-  const triggerSync = (deckId: number, otherDeckId: number) => {
-    const deck = decks[deckId];
-    const otherDeck = decks[otherDeckId];
-    if (deck && otherDeck && deck.id !== 'locked') {
-      const targetBpm = otherDeck.bpm * (1 + (otherDeck.pitch || 0) / 100);
-      const requiredPitch = ((targetBpm / deck.bpm) - 1) * 100;
-      const clampedPitch = Math.max(-8, Math.min(8, requiredPitch));
-      setDecks((prev: any) => ({
-        ...prev,
-        [deckId]: { ...prev[deckId], pitch: clampedPitch }
-      }));
-      playClick(800, 'sine', 0.02);
-    }
-  };
+
 
   // --- Manual Looping ---
   const handleLoopIn = (deckId: number) => {
