@@ -1,6 +1,6 @@
 'use client';
 import React, { useState, useEffect } from 'react';
-import { motion, useScroll, useSpring, useTransform, useMotionValueEvent } from 'framer-motion';
+import { motion, useScroll, useSpring, useTransform, useMotionValueEvent, animate } from 'framer-motion';
 import { useAudio } from '@/components/AudioProvider';
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -66,13 +66,17 @@ const HeroNode = React.memo(function HeroNode({
   const yFloatLeft = useTransform(smoothScrollY, [0, targetDims.range + 200], [0, -150]);
   const yFloatRight = useTransform(smoothScrollY, [0, targetDims.range + 200], [0, -220]);
 
+  const styleText = { y: yText, scale: scaleText, opacity: opacityText, willChange: "transform, opacity" };
+  const styleFloatLeft = { y: yFloatLeft, willChange: "transform" };
+  const styleFloatRight = { y: yFloatRight, willChange: "transform" };
+
   return (
     <section className="min-h-screen flex flex-col justify-center items-center w-full px-6 relative pt-20 overflow-hidden" style={{ scrollSnapAlign: 'start' }}>
       
       {/* Foreground decorative floating elements (Negative Parallax for high-end 3D depth) */}
       <motion.div 
         className="absolute bottom-1/4 left-8 md:left-16 font-mono text-[10px] tracking-[0.2em] opacity-20 text-primary z-10 select-none pointer-events-none hidden sm:flex flex-col gap-1.5"
-        style={{ y: yFloatLeft, willChange: "transform" }}
+        style={styleFloatLeft}
       >
         <span>SYS_STATUS: ACTIVE</span>
         <span>LATENCY: 0.00ms</span>
@@ -81,7 +85,7 @@ const HeroNode = React.memo(function HeroNode({
 
       <motion.div 
         className="absolute top-1/4 right-8 md:right-16 font-mono text-[10px] tracking-[0.2em] opacity-20 text-primary z-10 select-none pointer-events-none hidden sm:flex flex-col gap-1.5"
-        style={{ y: yFloatRight, willChange: "transform" }}
+        style={styleFloatRight}
       >
         <span>LOC: LONDON, UK</span>
         <span>COORD_X: 51.5074° N</span>
@@ -92,10 +96,10 @@ const HeroNode = React.memo(function HeroNode({
 
       <motion.div 
         className="fixed inset-0 flex justify-center items-center z-40 pointer-events-none"
-        style={{ y: yText, scale: scaleText, opacity: opacityText, willChange: "transform, opacity" }}
+        style={styleText}
       >
         <motion.h1 
-          className="glitch font-sans text-[clamp(2rem,15vw,15vw)] w-full font-bold tracking-wider leading-none text-center select-none text-primary whitespace-nowrap magnetic-snap cursor-pointer pointer-events-auto"
+          className="glitch font-sans text-[clamp(5rem,22vh,24vw)] w-full font-bold tracking-wider leading-none text-center select-none text-primary whitespace-nowrap magnetic-snap cursor-pointer pointer-events-auto"
           onClick={() => {
             if (isBigText) {
               window.scrollTo({ top: window.innerHeight, behavior: 'smooth' });
@@ -168,13 +172,13 @@ const navItemVariants = {
 
 const NavigationNode = React.memo(function NavigationNode() {
   return (
-    <section className="min-h-screen flex flex-col items-center justify-center relative w-full overflow-hidden z-20" style={{ scrollSnapAlign: 'start' }}>
+    <section className="min-h-screen flex flex-col items-center justify-center pt-24 pb-8 relative w-full overflow-hidden z-20" style={{ scrollSnapAlign: 'start' }}>
       <motion.nav 
         variants={navContainerVariants}
         initial="hidden"
         whileInView="show"
         viewport={{ once: false, margin: "-100px" }}
-        className="flex flex-col items-center gap-6 md:gap-10 w-full px-6 max-w-4xl mx-auto z-10 relative"
+        className="flex flex-col items-center gap-[4vh] w-full px-6 max-w-4xl mx-auto z-10 relative"
       >
         {[
           { label: 'MIXES', href: '/mixes', desc: 'Enter the CDJ Portfolio' },
@@ -195,7 +199,7 @@ const NavigationNode = React.memo(function NavigationNode() {
               onClick={() => playNavSwoosh()}
             >
               <span
-                className="glitch font-sans font-bold text-primary text-[clamp(2.5rem,10vw,8rem)] leading-none tracking-wider uppercase select-none inline-block"
+                className="glitch font-sans font-bold text-primary text-[clamp(2.5rem,8.5vh,10.5vw)] leading-none tracking-wider uppercase select-none inline-block"
                 data-text={label}
               >
                 {label}
@@ -213,33 +217,121 @@ export default function HomeClient() {
   const { preloaderComplete } = useAudio();
 
   useEffect(() => {
-    let isScrolling = false;
-    let scrollTimeout: NodeJS.Timeout;
+    if (typeof window === 'undefined') return;
     
-    const handleWheel = (e: WheelEvent) => {
-      if (Math.abs(e.deltaY) < 15) return; // Ignore tiny trackpad micro-movements
-      
-      e.preventDefault(); // Stop normal slow scrolling
-      if (isScrolling) return;
+    let isAnimating = false;
+    let currentSection = 0; // 0 = Hero, 1 = Tabs
 
-      isScrolling = true;
-      if (e.deltaY > 0) {
-        window.scrollTo({ top: window.innerHeight, behavior: 'smooth' });
-      } else {
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+    // Keep track of scroll position to sync if the user scrolls using scrollbar or keyboard
+    const syncSection = () => {
+      if (isAnimating) return;
+      const threshold = window.innerHeight / 2;
+      currentSection = window.scrollY > threshold ? 1 : 0;
+    };
+    window.addEventListener('scroll', syncSection, { passive: true });
+
+    const scrollToSection = (sectionIndex: number) => {
+      if (sectionIndex < 0 || sectionIndex > 1) return;
+      isAnimating = true;
+      currentSection = sectionIndex;
+      
+      const targetY = sectionIndex * window.innerHeight;
+      
+      // Animate scroll position using Framer Motion's optimized spring solver
+      const controls = animate(window.scrollY, targetY, {
+        type: "spring",
+        stiffness: 90,
+        damping: 17,
+        mass: 0.95,
+        onUpdate: (value) => {
+          window.scrollTo(0, value);
+        },
+        onComplete: () => {
+          isAnimating = false;
+        }
+      });
+
+      return controls;
+    };
+
+    const handleWheel = (e: WheelEvent) => {
+      if (Math.abs(e.deltaY) < 10) return;
+      
+      e.preventDefault();
+      
+      if (isAnimating) return;
+      
+      if (e.deltaY > 0 && currentSection === 0) {
+        scrollToSection(1);
+      } else if (e.deltaY < 0 && currentSection === 1) {
+        scrollToSection(0);
+      }
+    };
+
+    let touchStartY = 0;
+    const handleTouchStart = (e: TouchEvent) => {
+      touchStartY = e.touches[0].clientY;
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (isAnimating) {
+        e.preventDefault();
+        return;
       }
       
-      // Debounce to prevent momentum from re-triggering instantly
-      clearTimeout(scrollTimeout);
-      scrollTimeout = setTimeout(() => {
-        isScrolling = false;
-      }, 800);
+      const touchEndY = e.touches[0].clientY;
+      const deltaY = touchStartY - touchEndY;
+      
+      if (Math.abs(deltaY) < 30) return; // Threshold for swipe
+      
+      if (deltaY > 0 && currentSection === 0) {
+        e.preventDefault();
+        scrollToSection(1);
+      } else if (deltaY < 0 && currentSection === 1) {
+        e.preventDefault();
+        scrollToSection(0);
+      }
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (isAnimating) return;
+      
+      if (e.key === 'ArrowDown' || e.key === 'PageDown' || (e.key === ' ' && !e.shiftKey)) {
+        if (currentSection === 0) {
+          e.preventDefault();
+          scrollToSection(1);
+        }
+      } else if (e.key === 'ArrowUp' || e.key === 'PageUp' || (e.key === ' ' && e.shiftKey)) {
+        if (currentSection === 1) {
+          e.preventDefault();
+          scrollToSection(0);
+        }
+      }
+    };
+
+    const handleResize = () => {
+      const currentScroll = window.scrollY;
+      const height = window.innerHeight;
+      const target = currentScroll > height / 2 ? height : 0;
+      window.scrollTo({
+        top: target,
+        behavior: 'auto'
+      });
     };
 
     window.addEventListener('wheel', handleWheel, { passive: false });
+    window.addEventListener('touchstart', handleTouchStart, { passive: true });
+    window.addEventListener('touchmove', handleTouchMove, { passive: false });
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('resize', handleResize);
+
     return () => {
+      window.removeEventListener('scroll', syncSection);
       window.removeEventListener('wheel', handleWheel);
-      clearTimeout(scrollTimeout);
+      window.removeEventListener('touchstart', handleTouchStart);
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('resize', handleResize);
     };
   }, []);
   

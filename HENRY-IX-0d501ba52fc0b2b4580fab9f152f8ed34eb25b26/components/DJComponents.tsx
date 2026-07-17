@@ -373,6 +373,25 @@ export function Preloader({ onComplete, onEnter }: { onComplete: () => void; onE
   const [stage, setStage] = useState(0);
   const [displayedLogs, setDisplayedLogs] = useState<string[]>([]);
 
+  // Post-hydration: skip preloader for returning users, or start warning-less logs for new users
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      if (sessionStorage.getItem('hasVisited')) {
+        setStage(4);
+        onComplete();
+      } else {
+        if (onEnter) onEnter();
+      }
+    }
+  }, [onComplete, onEnter]);
+
+  // If already complete, notify parent immediately
+  useEffect(() => {
+    if (stage === 4) {
+      onComplete();
+    }
+  }, [stage, onComplete]);
+
   // Start stage 0: Play CRT turn-on click and display horizontal line
   useEffect(() => {
     if (stage === 0) {
@@ -413,10 +432,10 @@ export function Preloader({ onComplete, onEnter }: { onComplete: () => void; onE
       const targetLine = logLines[currentLineIdx];
       
       if (currentCharIdx < targetLine.length) {
-        currentLogs[currentLineIdx] = targetLine.substring(0, currentCharIdx + 1);
+        currentCharIdx = Math.min(currentCharIdx + 3, targetLine.length);
+        currentLogs[currentLineIdx] = targetLine.substring(0, currentCharIdx);
         setDisplayedLogs([...currentLogs]);
-        currentCharIdx++;
-        if (Math.random() < 0.75) playTick();
+        if (Math.random() < 0.25) playTick();
       } else {
         currentLineIdx++;
         currentCharIdx = 0;
@@ -424,7 +443,7 @@ export function Preloader({ onComplete, onEnter }: { onComplete: () => void; onE
           currentLogs.push("");
         }
       }
-    }, 3);
+    }, 20);
 
     return () => clearInterval(interval);
   }, [stage]);
@@ -435,6 +454,9 @@ export function Preloader({ onComplete, onEnter }: { onComplete: () => void; onE
       playDegauss();
       const t = setTimeout(() => {
         setStage(4); // preloader completes, fades out
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem('hasVisited', 'true');
+        }
         onComplete();
       }, 450);
       return () => clearTimeout(t);
@@ -451,41 +473,6 @@ export function Preloader({ onComplete, onEnter }: { onComplete: () => void; onE
         transition={{ duration: 0.5 }}
         className="fixed inset-0 z-[100] bg-black flex items-center justify-center pointer-events-auto overflow-hidden font-mono"
       >
-        {stage === -1 && (
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            className="w-[85vw] max-w-md p-8 bg-zinc-950 border border-primary/20 rounded-lg text-center flex flex-col items-center gap-6 relative shadow-[0_0_30px_rgba(216,22,63,0.15)] z-50"
-          >
-            <div className="w-12 h-12 rounded-full border border-primary flex items-center justify-center text-primary text-xl font-bold shadow-[0_0_10px_rgba(216,22,63,0.3)] select-none">
-              !
-            </div>
-            
-            <div className="flex flex-col gap-2">
-              <h3 className="text-primary font-bold tracking-widest text-sm uppercase">
-                SENSORY WARNING
-              </h3>
-              <p className="text-zinc-400 text-[10px] md:text-xs leading-relaxed tracking-wider uppercase">
-                THIS SITE UTILIZES HIGH-FREQUENCY CRT SCANLINE SWEEPS, RETRO GLITCH SCAN DEVIATIONS, AND FLASHING ANIMATIONS.
-              </p>
-            </div>
-
-            <button
-              onClick={() => {
-                playClick(400, 'sawtooth', 0.08);
-                if (onEnter) onEnter();
-                setStage(0);
-                if (typeof window !== 'undefined') {
-                  sessionStorage.setItem('hasVisited', 'true');
-                }
-              }}
-              className="px-6 py-2 border border-primary text-primary font-bold text-xs uppercase tracking-widest hover:bg-primary/10 transition-colors cursor-pointer select-none rounded bg-transparent active:scale-95"
-            >
-              ENTER KINGDOM
-            </button>
-          </motion.div>
-        )}
 
         {stage === 0 && (
           <motion.div 

@@ -61,6 +61,8 @@ body::-webkit-scrollbar {
     rgba(0, 0, 0, 0.05) 3px,
     rgba(0, 0, 0, 0.05) 4px
   );
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
 }
 
 .crt-vignette {
@@ -70,137 +72,84 @@ body::-webkit-scrollbar {
   pointer-events: none;
   background: radial-gradient(circle, transparent 65%, rgba(0, 0, 0, 0.22) 100%);
   box-shadow: inset 0 0 80px rgba(0, 0, 0, 0.35);
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
 }
 
 .crt-roll {
   position: fixed;
-  inset: 0;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 30vh;
   z-index: 9993;
   pointer-events: none;
   background: linear-gradient(
     to bottom,
     transparent 0%,
-    rgba(255, 255, 255, 0) 15%,
-    rgba(255, 255, 255, 0.015) 17%,
-    rgba(255, 255, 255, 0) 19%,
-    transparent 40%,
+    rgba(255, 255, 255, 0.015) 50%,
     transparent 100%
   );
-  background-size: 100% 300%;
   animation: crt-roll-anim 18s linear infinite;
+  will-change: transform;
 }
 
 @keyframes crt-roll-anim {
-  0% { background-position: 0 0%; }
-  100% { background-position: 0 300%; }
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100vh); }
 }
 
 .vhs-glitch-bar {
   position: fixed;
-  inset: 0;
+  left: 0;
+  right: 0;
+  height: 4vh;
   z-index: 9991;
   pointer-events: none;
   opacity: 0;
+  background: linear-gradient(
+    to right,
+    rgba(255, 0, 0, 0.15),
+    rgba(0, 255, 0, 0.15),
+    rgba(0, 0, 255, 0.15)
+  );
   animation: vhs-bars 4.2s infinite steps(1);
+  will-change: transform, opacity, top;
 }
 
 @keyframes vhs-bars {
-  0%, 100% { opacity: 0; transform: none; }
+  0%, 100% { opacity: 0; transform: none; top: 0; }
 
-  /* Event 1 — drift with 9+ strips of 7 colors and horizontal skew */
+  /* Event 1 */
   7% {
     opacity: 1;
+    top: 15%;
     transform: translateX(5px) skewX(2deg);
-    background: linear-gradient(
-      transparent 5%,     rgba(0, 255, 255, 0.07) 5%,    rgba(0, 255, 255, 0.07) 6.5%,
-      transparent 6.5%,
-      transparent 14%,    rgba(255, 0, 255, 0.06) 14%,   rgba(255, 0, 255, 0.06) 15%,
-      transparent 15%,
-      transparent 23%,    rgba(255, 255, 0, 0.06) 23%,   rgba(255, 255, 0, 0.06) 24.5%,
-      transparent 24.5%,
-      transparent 35%,    rgba(0, 255, 0, 0.05) 35%,     rgba(0, 255, 0, 0.05) 36%,
-      transparent 36%,
-      transparent 47%,    rgba(255, 0, 0, 0.07) 47%,     rgba(255, 0, 0, 0.07) 48.5%,
-      transparent 48.5%,
-      transparent 58%,    rgba(0, 0, 255, 0.05) 58%,     rgba(0, 0, 255, 0.05) 59%,
-      transparent 59%,
-      transparent 69%,    rgba(255, 165, 0, 0.06) 69%,   rgba(255, 165, 0, 0.06) 70.5%,
-      transparent 70.5%,
-      transparent 80%,    rgba(0, 255, 255, 0.07) 80%,    rgba(0, 255, 255, 0.07) 81.5%,
-      transparent 81.5%,
-      transparent 90%,    rgba(255, 0, 255, 0.06) 90%,   rgba(255, 0, 255, 0.06) 91%,
-      transparent 91%
-    );
   }
   7.4% { opacity: 0; transform: none; }
 
-  /* Event 2 — left skew and drift */
+  /* Event 2 */
   28% {
     opacity: 1;
+    top: 45%;
     transform: translateX(-7px) skewX(-2deg);
-    background: linear-gradient(
-      transparent 2%,     rgba(255, 0, 255, 0.06) 2%,    rgba(255, 0, 255, 0.06) 3%,
-      transparent 3%,
-      transparent 11%,    rgba(0, 255, 255, 0.05) 11%,   rgba(0, 255, 255, 0.05) 12.5%,
-      transparent 12.5%,
-      transparent 20%,    rgba(255, 0, 0, 0.05) 20%,     rgba(255, 0, 0, 0.05) 21.5%,
-      transparent 21.5%,
-      transparent 31%,    rgba(255, 255, 0, 0.05) 31%,   rgba(255, 255, 0, 0.05) 32%,
-      transparent 32%,
-      transparent 42%,    rgba(0, 255, 0, 0.05) 42%,     rgba(0, 255, 0, 0.05) 43.5%,
-      transparent 43.5%,
-      transparent 53%,    rgba(0, 0, 255, 0.05) 53%,     rgba(0, 0, 255, 0.05) 54%,
-      transparent 54%,
-      transparent 64%,    rgba(255, 165, 0, 0.05) 64%,   rgba(255, 165, 0, 0.05) 65.5%,
-      transparent 65.5%,
-      transparent 75%,    rgba(0, 255, 255, 0.07) 75%,    rgba(0, 255, 255, 0.07) 76%,
-      transparent 76%,
-      transparent 86%,    rgba(255, 0, 255, 0.05) 86%,   rgba(255, 0, 255, 0.05) 87.5%,
-      transparent 87.5%
-    );
   }
   28.4% { opacity: 0; transform: none; }
 
-  /* Event 3 — intense tracking tear and drift */
+  /* Event 3 */
   54% {
     opacity: 1;
+    top: 75%;
     transform: translateX(9px) skewX(3deg);
-    background: linear-gradient(
-      transparent 1%,     rgba(0, 255, 255, 0.08) 1%,    rgba(0, 255, 255, 0.08) 2.5%,
-      transparent 2.5%,
-      transparent 9%,     rgba(255, 0, 255, 0.07) 9%,    rgba(255, 0, 255, 0.07) 10.5%,
-      transparent 10.5%,
-      transparent 18%,    rgba(255, 255, 0, 0.07) 18%,   rgba(255, 255, 0, 0.07) 19.5%,
-      transparent 19.5%,
-      transparent 28%,    rgba(0, 255, 0, 0.06) 28%,     rgba(0, 255, 0, 0.06) 29%,
-      transparent 29%,
-      transparent 38%,    rgba(255, 0, 0, 0.07) 38%,     rgba(255, 0, 0, 0.07) 40%,
-      transparent 40%,
-      transparent 49%,    rgba(0, 0, 255, 0.07) 49%,     rgba(0, 0, 255, 0.07) 50%,
-      transparent 50%,
-      transparent 59%,    rgba(255, 165, 0, 0.06) 59%,   rgba(255, 165, 0, 0.06) 60.5%,
-      transparent 60.5%,
-      transparent 69%,    rgba(0, 255, 255, 0.07) 69%,    rgba(0, 255, 255, 0.07) 70%,
-      transparent 70%,
-      transparent 78%,    rgba(255, 0, 255, 0.07) 78%,   rgba(255, 0, 255, 0.07) 79.5%,
-      transparent 79.5%,
-      transparent 88%,    rgba(255, 255, 0, 0.07) 88%,   rgba(255, 255, 0, 0.07) 89%,
-      transparent 89%
-    );
   }
   54.2% { transform: translateX(-4px) skewX(-1deg); }
   54.5% { opacity: 0; transform: none; }
 
-  /* Event 4 — fast horizontal twitch */
+  /* Event 4 */
   76% {
     opacity: 0.9;
+    top: 30%;
     transform: translateX(-8px) skewX(2deg);
-    background: linear-gradient(
-      transparent 12%, rgba(0, 255, 255, 0.08) 12%, rgba(0, 255, 255, 0.08) 14%,
-      transparent 14%, transparent 45%, rgba(255, 0, 255, 0.08) 45%, rgba(255, 0, 255, 0.08) 47%,
-      transparent 47%, transparent 78%, rgba(255, 255, 0, 0.07) 78%, rgba(255, 255, 0, 0.07) 80%,
-      transparent 80%
-    );
   }
   76.3% { opacity: 0; transform: none; }
 }

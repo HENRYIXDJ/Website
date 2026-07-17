@@ -314,7 +314,7 @@ export default function GalleryClient() {
             transition={{ duration: 0.8, ease: 'easeOut' }}
           >
             <h1
-              className="glitch font-sans font-black text-primary text-[clamp(2.5rem,7vw,5.5rem)] leading-none tracking-wider uppercase select-none"
+              className="glitch font-sans font-black text-primary text-[clamp(2rem,6vh,5.5rem)] leading-none tracking-wider uppercase select-none"
               data-text="GALLERY"
             >
               GALLERY
@@ -323,8 +323,8 @@ export default function GalleryClient() {
         </div>
 
         {/* Skeuomorphic Category Tab Switcher */}
-        <div className="relative z-10 flex justify-center items-center select-none font-mono mb-12">
-          <div className="relative flex p-1 bg-zinc-950 border border-zinc-900 rounded-xl backdrop-blur-md">
+        <div className="relative z-10 flex justify-center items-center select-none font-mono mb-12 w-full px-4">
+          <div className="relative flex p-1 bg-zinc-950 border border-zinc-900 rounded-xl backdrop-blur-md w-full max-w-md">
             {[
               { id: 'photos', label: 'STILL PHOTOS' },
               { id: 'artwork', label: 'MIX ARTWORKS' },
@@ -338,7 +338,7 @@ export default function GalleryClient() {
                 }}
                 onMouseEnter={() => playTick()}
                 className={cn(
-                  "relative px-4 py-1.5 rounded-lg font-mono text-[9px] md:text-[10px] tracking-widest font-black uppercase transition-colors cursor-pointer flex items-center justify-center w-28 md:w-36 h-8",
+                  "relative flex-1 py-1.5 rounded-lg font-mono text-[8px] sm:text-[9px] md:text-[10px] tracking-widest font-black uppercase transition-colors cursor-pointer flex items-center justify-center h-8 px-1",
                   activeTab === tab.id ? "text-zinc-950" : "text-zinc-400 hover:text-zinc-200"
                 )}
               >

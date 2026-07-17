@@ -80,53 +80,52 @@ async function handleAssetRequest(request: Request) {
   }
 
   if (!isR2 || !s3Client) {
-    if (r2PublicDomain) {
-      const publicUrl = r2PublicDomain.endsWith('/') ? r2PublicDomain : `${r2PublicDomain}/`;
-      const targetUrl = `${publicUrl}${pathname}`;
-      
-      try {
-        const fetchHeaders = new Headers();
-        const range = request.headers.get('Range');
-        if (range) {
-          fetchHeaders.set('Range', range);
-        }
-        
-        const response = await fetch(targetUrl, {
-          headers: fetchHeaders,
-          method: request.method,
-        });
-        
-        const headers = new Headers();
-        headers.set('Access-Control-Allow-Origin', '*');
-        headers.set('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
-        headers.set('Access-Control-Allow-Headers', '*');
-        headers.set('Accept-Ranges', 'bytes');
-        
-        const headersToForward = [
-          'content-type',
-          'content-length',
-          'content-range',
-          'etag',
-          'last-modified',
-          'cache-control'
-        ];
-        headersToForward.forEach(h => {
-          const val = response.headers.get(h);
-          if (val !== null) {
-            headers.set(h, val);
-          }
-        });
-        
-        return new NextResponse(response.body, {
-          status: response.status,
-          headers,
-        });
-      } catch (err) {
-        console.error('Error fetching from public URL fallback:', err);
-        return new NextResponse('Failed to fetch from public storage fallback', { status: 500 });
+    // If Cloudflare R2 is not configured (e.g. in local development), fallback to fetching the source URL directly
+    const targetUrl = r2PublicDomain
+      ? `${r2PublicDomain.endsWith('/') ? r2PublicDomain : `${r2PublicDomain}/`}${pathname}`
+      : url;
+
+    try {
+      const fetchHeaders = new Headers();
+      const range = request.headers.get('Range');
+      if (range) {
+        fetchHeaders.set('Range', range);
       }
+      
+      const response = await fetch(targetUrl, {
+        headers: fetchHeaders,
+        method: request.method,
+      });
+      
+      const headers = new Headers();
+      headers.set('Access-Control-Allow-Origin', '*');
+      headers.set('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+      headers.set('Access-Control-Allow-Headers', '*');
+      headers.set('Accept-Ranges', 'bytes');
+      
+      const headersToForward = [
+        'content-type',
+        'content-length',
+        'content-range',
+        'etag',
+        'last-modified',
+        'cache-control'
+      ];
+      headersToForward.forEach(h => {
+        const val = response.headers.get(h);
+        if (val !== null) {
+          headers.set(h, val);
+        }
+      });
+      
+      return new NextResponse(response.body, {
+        status: response.status,
+        headers,
+      });
+    } catch (err) {
+      console.error('Error fetching from asset storage fallback:', err);
+      return new NextResponse('Failed to fetch from asset storage fallback', { status: 500 });
     }
-    return new NextResponse('Storage (Cloudflare R2) is not configured correctly', { status: 500 });
   }
 
   if (!bucketName) {
