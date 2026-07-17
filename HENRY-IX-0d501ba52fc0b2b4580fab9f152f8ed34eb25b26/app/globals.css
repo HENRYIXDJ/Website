@@ -283,7 +283,7 @@ body::-webkit-scrollbar {
 /* ─── SCROLL SNAPPING ────────────────────────────────────────── */
 html:has(.home-snap-container) {
   scroll-snap-type: y mandatory;
-  scroll-behavior: smooth;
+  scroll-behavior: auto;
 }
 
 /* ─── CUSTOM SCROLLBARS (BLACK & RED Theme) ───────────────────── */

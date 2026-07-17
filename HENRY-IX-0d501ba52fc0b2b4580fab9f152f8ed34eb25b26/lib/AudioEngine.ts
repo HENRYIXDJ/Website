@@ -634,7 +634,7 @@ export class AudioEngine {
     const state = useAudioStore.getState();
     const deck = state.decks[deckId];
     const widget = this.widgetRefs[deckId];
-    const isLocal = !!track.isLocalFile || (track.url && track.url.startsWith('/'));
+    const isLocal = !track.url?.includes('soundcloud.com') && !track.link?.includes('soundcloud.com');
 
     if (deck.id === track.id) {
       const targetPlaying = !deck.isPlaying;

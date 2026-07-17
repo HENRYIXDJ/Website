@@ -103,7 +103,7 @@ export default function MixPortfolio({
           title,
           slug,
           description,
-          mixes[]->[defined(audioFile) || defined(muxVideo)]{
+          mixes[]->{
             _id,
             title,
             slug,
@@ -125,7 +125,7 @@ export default function MixPortfolio({
               title: mix.title,
               url: mix.muxPlaybackId
                 ? `https://stream.mux.com/${mix.muxPlaybackId}/audio.m4a`
-                : proxyUrl(getStorageUrl(mix.audioFile || '')),
+                : (mix.audioFile ? proxyUrl(getStorageUrl(mix.audioFile)) : mix.soundcloudLink || ''),
               link: mix.soundcloudLink || '',
               bpm: mix.bpm || 120,
               cuePoints: mix.cuePoints || [],
