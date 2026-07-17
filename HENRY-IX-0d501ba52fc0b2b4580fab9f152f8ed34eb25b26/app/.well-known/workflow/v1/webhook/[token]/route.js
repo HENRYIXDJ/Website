@@ -1,7 +1,5 @@
 import { resumeWebhook } from 'workflow/api';
 
-export const runtime = 'edge';
-
 async function handler(request) {
   const url = new URL(request.url);
   // Extract token from pathname: /.well-known/workflow/v1/webhook/{token}

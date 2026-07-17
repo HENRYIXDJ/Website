@@ -1,6 +1,5 @@
 // biome-ignore-all lint: generated file
 /* eslint-disable */
-export const runtime = 'edge';
 import { workflowEntrypoint } from 'workflow/runtime';
 
 const workflowCode = `globalThis.__private_workflows = new Map();

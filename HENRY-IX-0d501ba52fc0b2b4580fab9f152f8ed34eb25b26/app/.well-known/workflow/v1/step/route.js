@@ -1,6 +1,5 @@
 // biome-ignore-all lint: generated file
 /* eslint-disable */
-export const runtime = 'edge';
 
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
