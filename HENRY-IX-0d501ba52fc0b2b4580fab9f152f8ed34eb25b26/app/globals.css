@@ -48,7 +48,8 @@ body::-webkit-scrollbar {
   display: none;
 }
 
-/* ─── CRT / VHS PAGE OVERLAY ──────────────────────────────────── */
+/* ─── CRT / VHS PAGE OVERLAY (Disabled for Rework) ──────────────────── */
+/*
 .crt-scanlines {
   position: fixed;
   inset: 0;
@@ -120,7 +121,6 @@ body::-webkit-scrollbar {
 @keyframes vhs-bars {
   0%, 100% { opacity: 0; transform: none; top: 0; }
 
-  /* Event 1 */
   7% {
     opacity: 1;
     top: 15%;
@@ -128,7 +128,6 @@ body::-webkit-scrollbar {
   }
   7.4% { opacity: 0; transform: none; }
 
-  /* Event 2 */
   28% {
     opacity: 1;
     top: 45%;
@@ -136,7 +135,6 @@ body::-webkit-scrollbar {
   }
   28.4% { opacity: 0; transform: none; }
 
-  /* Event 3 */
   54% {
     opacity: 1;
     top: 75%;
@@ -145,7 +143,6 @@ body::-webkit-scrollbar {
   54.2% { transform: translateX(-4px) skewX(-1deg); }
   54.5% { opacity: 0; transform: none; }
 
-  /* Event 4 */
   76% {
     opacity: 0.9;
     top: 30%;
@@ -153,8 +150,10 @@ body::-webkit-scrollbar {
   }
   76.3% { opacity: 0; transform: none; }
 }
+*/
 
-/* ─── GLITCH TEXT EFFECT ─────────────────────────────────────── */
+/* ─── GLITCH TEXT EFFECT (Disabled for Rework) ─────────────────────── */
+/*
 .glitch {
   position: relative;
 }
@@ -190,32 +189,27 @@ body::-webkit-scrollbar {
     -5px 0 #00ffff;
 }
 
-/* Trigger on hover */
 .glitch:hover::before { animation: glitch-before 0.7s steps(1) forwards; }
 .glitch:hover::after  { animation: glitch-after  0.7s steps(1) forwards; }
 
-/* Trigger when pinned in header — made significantly more frequent (2.2s cycle instead of 3.5s) */
 .glitch-active::before { animation: glitch-before 2.2s infinite steps(1); }
 .glitch-active::after  { animation: glitch-after  2.2s infinite steps(1); }
 
 @keyframes glitch-before {
   0%   { opacity: 0; }
 
-  /* Burst 1 – top region, rapid multi-strip and horizontal skew sync */
   8%   { opacity: 1; transform: translate(-7px, 0) skewX(4deg); clip-path: polygon(0 2%,  100% 2%,  100% 8%,  0 8%);  }
   9%   { transform: translate(5px,  0) skewX(-3deg); clip-path: polygon(0 10%, 100% 10%, 100% 16%, 0 16%); }
   10%  { transform: translate(-4px, 0) skewX(2deg); clip-path: polygon(0 5%,  100% 5%,  100% 12%, 0 12%); }
   11%  { transform: translate(6px,  0) skewX(-4deg); clip-path: polygon(0 18%, 100% 18%, 100% 23%, 0 23%); }
   12%  { opacity: 0; }
 
-  /* Burst 2 – mid region */
   40%  { opacity: 1; transform: translate(6px,  0) skewX(-3deg); clip-path: polygon(0 30%, 100% 30%, 100% 38%, 0 38%); }
   41%  { transform: translate(-5px, 0) skewX(4deg); clip-path: polygon(0 35%, 100% 35%, 100% 44%, 0 44%); }
   42%  { transform: translate(8px,  0) skewX(-5deg); clip-path: polygon(0 40%, 100% 40%, 100% 50%, 0 50%); }
   43%  { transform: translate(-4px, 0) skewX(3deg); clip-path: polygon(0 25%, 100% 25%, 100% 33%, 0 33%); }
   44%  { opacity: 0; }
 
-  /* Burst 3 – lower region */
   72%  { opacity: 1; transform: translate(-8px, 0) skewX(5deg); clip-path: polygon(0 58%, 100% 58%, 100% 65%, 0 65%); }
   73%  { transform: translate(5px,  0) skewX(-4deg); clip-path: polygon(0 63%, 100% 63%, 100% 72%, 0 72%); }
   74%  { transform: translate(-4px, 0) skewX(3deg); clip-path: polygon(0 70%, 100% 70%, 100% 78%, 0 78%); }
@@ -229,21 +223,18 @@ body::-webkit-scrollbar {
 @keyframes glitch-after {
   0%   { opacity: 0; }
 
-  /* Burst 1 */
   8%   { opacity: 1; transform: translate(7px,  0) skewX(-4deg); clip-path: polygon(0 3%,  100% 3%,  100% 10%, 0 10%); }
   9%   { transform: translate(-5px, 0) skewX(3deg); clip-path: polygon(0 12%, 100% 12%, 100% 19%, 0 19%); }
   10%  { transform: translate(4px,  0) skewX(-2deg); clip-path: polygon(0 7%,  100% 7%,  100% 15%, 0 15%); }
   11%  { transform: translate(-6px, 0) skewX(4deg); clip-path: polygon(0 20%, 100% 20%, 100% 26%, 0 26%); }
   12%  { opacity: 0; }
 
-  /* Burst 2 */
   40%  { opacity: 1; transform: translate(-5px, 0) skewX(3deg); clip-path: polygon(0 32%, 100% 32%, 100% 40%, 0 40%); }
   41%  { transform: translate(6px,  0) skewX(-4deg); clip-path: polygon(0 37%, 100% 37%, 100% 47%, 0 47%); }
   42%  { transform: translate(-8px, 0) skewX(5deg); clip-path: polygon(0 43%, 100% 43%, 100% 52%, 0 52%); }
   43%  { transform: translate(4px,  0) skewX(-3deg); clip-path: polygon(0 28%, 100% 28%, 100% 36%, 0 36%); }
   44%  { opacity: 0; }
 
-  /* Burst 3 */
   72%  { opacity: 1; transform: translate(8px,  0) skewX(-5deg); clip-path: polygon(0 60%, 100% 60%, 100% 68%, 0 68%); }
   73%  { transform: translate(-5px, 0) skewX(4deg); clip-path: polygon(0 65%, 100% 65%, 100% 74%, 0 74%); }
   74%  { transform: translate(4px,  0) skewX(-3deg); clip-path: polygon(0 72%, 100% 72%, 100% 80%, 0 80%); }
@@ -253,6 +244,8 @@ body::-webkit-scrollbar {
 
   100% { opacity: 0; }
 }
+*/
+
 
 /* ─── GPU ACCELERATED DJ CONTROLLER ROTATIONS ──────────────────── */
 @keyframes gpu-spin {
