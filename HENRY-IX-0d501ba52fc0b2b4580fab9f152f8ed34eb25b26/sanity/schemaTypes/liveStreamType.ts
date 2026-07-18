@@ -13,15 +13,9 @@ export const liveStreamType = defineType({
     }),
     defineField({
       name: 'playbackId',
-      title: 'Mux Playback ID',
+      title: 'Stream Playback URL / ID',
       type: 'string',
-      description: 'Optional manual playback ID if not uploading directly.',
-    }),
-    defineField({
-      name: 'muxVideo',
-      title: 'Mux Video Asset',
-      type: 'mux.video',
-      description: 'Upload directly to generate Mux Playback ID and streaming assets.',
+      description: 'Enter direct HLS stream URL (.m3u8), YouTube video/live link, Twitch channel link, or Mux playback ID.',
     }),
     defineField({
       name: 'viewerUserId',

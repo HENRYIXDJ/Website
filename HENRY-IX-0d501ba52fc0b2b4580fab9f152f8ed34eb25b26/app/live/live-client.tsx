@@ -3,14 +3,69 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import dynamic from 'next/dynamic';
-const MuxPlayer = dynamic(() => import('@mux/mux-player-react'), {
+const HlsPlayer = dynamic(() => Promise.resolve(({ src, title }: { src: string; title: string }) => {
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    let hls: any;
+
+    if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      video.src = src;
+    } else {
+      import('hls.js').then(({ default: Hls }) => {
+        if (Hls.isSupported()) {
+          hls = new Hls({
+            enableWorker: true,
+            lowLatencyMode: true,
+          });
+          hls.loadSource(src);
+          hls.attachMedia(video);
+        }
+      });
+    }
+
+    return () => {
+      if (hls) {
+        hls.destroy();
+      }
+    };
+  }, [src]);
+
+  return (
+    <video
+      ref={videoRef}
+      controls
+      playsInline
+      className="w-full h-full object-contain"
+      title={title}
+      autoPlay
+      muted
+    />
+  );
+}), {
   ssr: false,
   loading: () => (
     <div className="w-full aspect-video bg-[#09090b] flex items-center justify-center border border-zinc-800 text-zinc-500 font-mono text-xs">
-      INITIALIZING MUX DECODERS...
+      INITIALIZING HLS PLAYBACK...
     </div>
   )
 });
+
+function getYouTubeEmbedId(url: string) {
+  if (!url) return null;
+  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+  const match = url.match(regExp);
+  return (match && match[2].length === 11) ? match[2] : null;
+}
+
+function getTwitchChannel(url: string) {
+  if (!url) return null;
+  const match = url.match(/(?:twitch\.tv\/)([a-zA-Z0-9_]+)/i);
+  return match ? match[1] : null;
+}
 import PageShell from '@/components/PageShell';
 import { playClick, playTick } from '@/lib/audioUtils';
 import { cn } from '@/lib/utils';
@@ -164,16 +219,43 @@ export default function LiveClient({ initialSettings, history }: LiveClientProps
             {/* Mux Player element */}
             <div className="relative w-full aspect-video rounded-2xl overflow-hidden border border-zinc-900 bg-zinc-950 z-10 shadow-[inset_0_0_40px_rgba(0,0,0,0.85)] flex flex-col items-center justify-center">
               {activeStream.status === 'live' || activeStream.status === 'archived' ? (
-                <MuxPlayer
-                  playbackId={activeStream.playbackId}
-                  streamType={activeStream.status === 'live' ? 'live' : 'on-demand'}
-                  accentColor="#d8163f"
-                  metadata={{
-                    videoTitle: activeStream.title,
-                    viewerUserId: activeStream.viewerUserId
-                  }}
-                  className="w-full h-full object-contain"
-                />
+                (() => {
+                  const ytId = getYouTubeEmbedId(activeStream.playbackId);
+                  const twitchChannel = getTwitchChannel(activeStream.playbackId);
+
+                  if (ytId) {
+                    return (
+                      <iframe
+                        src={`https://www.youtube.com/embed/${ytId}?autoplay=1`}
+                        title={activeStream.title}
+                        frameBorder="0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                        allowFullScreen
+                        className="w-full h-full"
+                      />
+                    );
+                  }
+
+                  if (twitchChannel) {
+                    const parentDomain = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
+                    return (
+                      <iframe
+                        src={`https://player.twitch.tv/?channel=${twitchChannel}&parent=${parentDomain}&autoplay=true`}
+                        frameBorder="0"
+                        allowFullScreen
+                        scrolling="no"
+                        className="w-full h-full"
+                      />
+                    );
+                  }
+
+                  return (
+                    <HlsPlayer
+                      src={activeStream.playbackId}
+                      title={activeStream.title}
+                    />
+                  );
+                })()
               ) : activeStream.status === 'upcoming' ? (
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/95 p-6 text-center select-none overflow-hidden">
                   <div className="absolute inset-0 bg-[linear-gradient(rgba(18,18,18,0)_95%,rgba(216,22,63,0.1)_95%)] bg-[size:100%_6px] pointer-events-none z-20 opacity-30 animate-pulse" />

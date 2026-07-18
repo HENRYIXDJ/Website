@@ -25,7 +25,6 @@ export default async function Page() {
       _id,
       title,
       playbackId,
-      "muxPlaybackId": muxVideo.asset->playbackId,
       viewerUserId,
       status,
       scheduledTime,
@@ -43,10 +42,10 @@ export default async function Page() {
     streams[0];
   
   const initialSettings = {
-    title: activeStream?.title || "Test VOD",
-    playbackId: activeStream?.muxPlaybackId || activeStream?.playbackId || "EcHgOK9coz5K4rjSwOkoE7Y7O01201YMIC200RI6lNxnhs",
+    title: activeStream?.title || "Transmission Standby",
+    playbackId: activeStream?.playbackId || "",
     viewerUserId: activeStream?.viewerUserId || "user-id-007",
-    status: activeStream?.status || "archived",
+    status: activeStream?.status || "standby",
     scheduledTime: activeStream?.scheduledTime || null,
     resolution: activeStream?.diagnosticsResolution || "1080P60 HD",
     latency: activeStream?.diagnosticsLatency || "Low Latency"
@@ -59,15 +58,15 @@ export default async function Page() {
     .map((s: any) => ({
       id: s._id,
       title: s.title,
-      playbackId: s.muxPlaybackId || s.playbackId,
+      playbackId: s.playbackId,
       date: s._createdAt ? new Date(s._createdAt).toISOString().split('T')[0] : "2026-07-16",
       resolution: s.diagnosticsResolution || "1080P60 HD"
     }));
 
   const mockHistory = [
-    { id: 'mock-4', title: "Knight Club: Session 4 - UK Garage Headliner", playbackId: "EcHgOK9coz5K4rjSwOkoE7Y7O01201YMIC200RI6lNxnhs", date: "2026-07-02", resolution: "1080P60 HD" },
-    { id: 'mock-3', title: "Knight Club: Session 3 - Deep Tech Rehearsal", playbackId: "EcHgOK9coz5K4rjSwOkoE7Y7O01201YMIC200RI6lNxnhs", date: "2026-06-18", resolution: "1080P60 HD" },
-    { id: 'mock-2', title: "Knight Club: Session 2 - Liquid DnB Blend", playbackId: "EcHgOK9coz5K4rjSwOkoE7Y7O01201YMIC200RI6lNxnhs", date: "2026-06-04", resolution: "1080P60 HD" }
+    { id: 'mock-4', title: "Knight Club: Session 4 - UK Garage Headliner", playbackId: "https://cph-p2p-hls.akamaized.net/hls/live/2000341/test/master.m3u8", date: "2026-07-02", resolution: "1080P60 HD" },
+    { id: 'mock-3', title: "Knight Club: Session 3 - Deep Tech Rehearsal", playbackId: "https://cph-p2p-hls.akamaized.net/hls/live/2000341/test/master.m3u8", date: "2026-06-18", resolution: "1080P60 HD" },
+    { id: 'mock-2', title: "Knight Club: Session 2 - Liquid DnB Blend", playbackId: "https://cph-p2p-hls.akamaized.net/hls/live/2000341/test/master.m3u8", date: "2026-06-04", resolution: "1080P60 HD" }
   ];
 
   const history = dbHistory.length > 0 ? dbHistory : mockHistory;
