@@ -274,8 +274,58 @@ async function handleAssetRequest(request: Request) {
     });
 
   } catch (error: any) {
-    console.error('Error proxying asset from R2:', error);
+    console.error('Error proxying asset from R2, attempting fallback:', error);
     if (error.name === 'NoSuchKey' || error.$metadata?.httpStatusCode === 404) {
+      // Fallback: Try fetching the asset directly from the local server's public directory
+      try {
+        const origin = new URL(request.url).origin;
+        const fallbackUrl = `${origin}/${pathname}`;
+        
+        console.log(`R2 key not found. Trying local fallback fetch: ${fallbackUrl}`);
+        
+        const fetchHeaders = new Headers();
+        const range = request.headers.get('Range');
+        if (range) {
+          fetchHeaders.set('Range', range);
+        }
+        
+        const fallbackResponse = await fetch(fallbackUrl, {
+          headers: fetchHeaders,
+          method: request.method,
+          cache: 'no-store',
+        });
+        
+        if (fallbackResponse.ok) {
+          const headers = new Headers();
+          headers.set('Access-Control-Allow-Origin', '*');
+          headers.set('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+          headers.set('Access-Control-Allow-Headers', '*');
+          headers.set('Accept-Ranges', 'bytes');
+          
+          const headersToForward = [
+            'content-type',
+            'content-length',
+            'content-range',
+            'etag',
+            'last-modified',
+            'cache-control'
+          ];
+          headersToForward.forEach(h => {
+            const val = fallbackResponse.headers.get(h);
+            if (val !== null) {
+              headers.set(h, val);
+            }
+          });
+          
+          return new NextResponse(fallbackResponse.body, {
+            status: fallbackResponse.status,
+            headers,
+          });
+        }
+      } catch (fallbackErr) {
+        console.error('Fallback fetch failed:', fallbackErr);
+      }
+      
       return new NextResponse('Asset not found in storage', { status: 404 });
     }
     return new NextResponse('Error generating signed URL', { status: 500 });
