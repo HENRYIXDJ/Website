@@ -258,106 +258,94 @@ interface Album {
   images: AlbumImage[];
 }
 
-function AlbumStack({ album, onClick }: { album: Album; onClick: () => void }) {
-  const stackImages = album.images.slice(0, 3);
-  // Ensure we have 3 layers if possible
-  while (stackImages.length > 0 && stackImages.length < 3) {
-    stackImages.push(stackImages[0]);
-  }
+function StorybookAlbum({
+  album,
+  onClick
+}: {
+  album: Album;
+  onClick: () => void;
+}) {
+  // Get 4 preview images for the inner page grid
+  const previewImages = album.images.slice(0, 4);
 
   return (
     <motion.div
       onClick={onClick}
-      className="flex flex-col items-center group cursor-pointer w-full"
+      className="relative aspect-[3/4] w-full max-w-[320px] cursor-pointer group [perspective:2000px] mb-12 select-none"
       whileHover="hover"
       initial="initial"
     >
-      {/* Photo Stack Container */}
-      <div className="relative w-full aspect-[4/3] max-w-[320px] mb-6 flex items-center justify-center">
-        {/* Layer 3 (Bottom) */}
-        {stackImages[2] && (
-          <motion.div
-            variants={{
-              initial: { rotate: 2, scale: 0.94, opacity: 0.5, y: 5 },
-              hover: { rotate: 8, x: 22, y: -8, scale: 0.96, opacity: 0.7 }
-            }}
-            transition={{ type: "spring", stiffness: 150, damping: 15 }}
-            className="absolute inset-0 rounded-2xl border border-zinc-900 bg-zinc-950 overflow-hidden shadow-md"
-          >
-            <Image
-              src={stackImages[2].src}
-              alt=""
-              fill
-              sizes="320px"
-              className="object-cover filter grayscale contrast-125 brightness-75"
-            />
-          </motion.div>
-        )}
+      {/* 3D Book Wrapper */}
+      <div className="absolute inset-0 [transform-style:preserve-3d] transition-transform duration-700 ease-out group-hover:[transform:rotateY(-15deg)] shadow-2xl">
+        
+        {/* Book Spine (Left edge) */}
+        <div className="absolute left-0 top-0 bottom-0 w-4 bg-zinc-950 border-r border-zinc-900 rounded-l shadow-2xl z-40 [transform:translateZ(1px)]" />
 
-        {/* Layer 2 (Middle) */}
-        {stackImages[1] && (
-          <motion.div
-            variants={{
-              initial: { rotate: -3, scale: 0.97, opacity: 0.7, y: 2 },
-              hover: { rotate: -8, x: -22, y: -6, scale: 0.98, opacity: 0.85 }
-            }}
-            transition={{ type: "spring", stiffness: 150, damping: 15 }}
-            className="absolute inset-0 rounded-2xl border border-zinc-900 bg-zinc-950 overflow-hidden shadow-lg"
-          >
-            <Image
-              src={stackImages[1].src}
-              alt=""
-              fill
-              sizes="320px"
-              className="object-cover filter grayscale contrast-125 brightness-90"
-            />
-          </motion.div>
-        )}
+        {/* Inner Page (revealed on open) */}
+        <div className="absolute inset-0 bg-[#0e0e11] border border-zinc-900 rounded-r-xl shadow-[inset_0_0_20px_rgba(0,0,0,0.85)] p-5 flex flex-col justify-between ml-2.5 z-10">
+          <div className="flex flex-col gap-2.5">
+            <span className="text-[7.5px] text-zinc-500 uppercase tracking-widest font-mono">INSIDE CONTENTS</span>
+            <div className="grid grid-cols-2 gap-2 mt-1">
+              {previewImages.map((img, idx) => (
+                <div key={idx} className="relative aspect-square rounded-md border border-zinc-900 overflow-hidden bg-black">
+                  <Image
+                    src={img.src}
+                    alt=""
+                    fill
+                    sizes="120px"
+                    className="object-cover filter grayscale contrast-125 brightness-90"
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="border-t border-zinc-900/60 pt-2.5 font-mono text-[7px] text-zinc-600 uppercase flex justify-between">
+            <span>FILES: {album.images.length}</span>
+            <span>SECURE_READ</span>
+          </div>
+        </div>
 
-        {/* Layer 1 (Top Cover) */}
-        {stackImages[0] && (
-          <motion.div
-            variants={{
-              initial: { rotate: 0, scale: 1, opacity: 0.95 },
-              hover: { rotate: -1, scale: 1.02, opacity: 1, y: -4 }
-            }}
-            transition={{ type: "spring", stiffness: 150, damping: 15 }}
-            className="absolute inset-0 rounded-2xl border border-zinc-800 bg-zinc-900 overflow-hidden shadow-2xl flex flex-col justify-end"
-          >
-            <div className="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%)] bg-[length:100%_4px] pointer-events-none z-10 opacity-30" />
-            <div className="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-10 transition-opacity duration-300 pointer-events-none z-10" />
+        {/* Front Cover Page (swings open) */}
+        <motion.div
+          variants={{
+            initial: { rotateY: 0 },
+            hover: { rotateY: -105 }
+          }}
+          transition={{ type: "spring", stiffness: 90, damping: 14 }}
+          className="absolute inset-0 bg-zinc-900 border border-zinc-800 rounded-r-xl shadow-2xl z-30 [transform-origin:left_center] [transform-style:preserve-3d] [backface-visibility:hidden] flex flex-col justify-between p-6 overflow-hidden"
+        >
+          {/* Cover background tech grid lines */}
+          <div className="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.3)_50%)] bg-[length:100%_4px] pointer-events-none z-10 opacity-30" />
+          <div className="absolute inset-0 bg-primary/[0.02] pointer-events-none z-10" />
 
-            <Image
-              src={stackImages[0].src}
-              alt={album.title}
-              fill
-              sizes="320px"
-              className="object-cover filter grayscale group-hover:grayscale-0 contrast-125 transition-all duration-500 ease-out"
-            />
-            
-            <div className="absolute top-4 left-4 w-2 h-2 border-t border-l border-primary/40 group-hover:border-primary/80 transition-all duration-300 z-10" />
-            <div className="absolute top-4 right-4 w-2 h-2 border-t border-r border-primary/40 group-hover:border-primary/80 transition-all duration-300 z-10" />
-            <div className="absolute bottom-4 left-4 w-2 h-2 border-b border-l border-primary/40 group-hover:border-primary/80 transition-all duration-300 z-10" />
-            <div className="absolute bottom-4 right-4 w-2 h-2 border-b border-r border-primary/40 group-hover:border-primary/80 transition-all duration-300 z-10" />
+          {/* Album Title plate */}
+          <div className="flex flex-col gap-1 text-left relative z-20">
+            <div className="w-8 h-1 bg-primary rounded-full mb-3 shadow-[0_0_8px_rgba(216,22,63,0.6)]" />
+            <h3 className="font-mono text-xs md:text-sm font-black text-zinc-100 uppercase tracking-[0.2em] leading-tight group-hover:text-primary transition-colors duration-300">
+              {album.title}
+            </h3>
+            <span className="font-mono text-[7.5px] text-zinc-500 uppercase tracking-widest font-bold block mt-1">
+              VOL // 01
+            </span>
+          </div>
 
-            <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-black/10 z-0 opacity-80 group-hover:opacity-90 transition-opacity duration-300" />
-          </motion.div>
-        )}
-      </div>
-
-      <div className="text-center font-mono relative z-10">
-        <h3 className="text-xs md:text-sm font-black text-zinc-100 uppercase tracking-widest group-hover:text-primary transition-colors duration-300">
-          {album.title}
-        </h3>
-        <span className="text-[8px] text-zinc-500 uppercase tracking-[0.2em] block mt-1.5 font-bold">
-          {album.images.length} TRACKED FILES // DECODER_OK
-        </span>
+          {/* Lower cover branding info */}
+          <div className="border-t border-zinc-800/80 pt-4 flex flex-col gap-2 relative z-20 text-left">
+            <span className="font-mono text-[6.5px] text-zinc-600 uppercase tracking-[0.3em] font-black">
+              HENRY IX // TECH BINDER
+            </span>
+            <div className="flex justify-between items-center text-[7px] text-zinc-500 font-mono font-bold">
+              <span>SYSTEM: OK</span>
+              <span>READ_PORT_3</span>
+            </div>
+          </div>
+        </motion.div>
       </div>
     </motion.div>
   );
 }
 
-function ExpandedAlbumView({
+function ExpandedBookView({
   album,
   prevAlbum,
   nextAlbum,
@@ -372,6 +360,33 @@ function ExpandedAlbumView({
   onNavigate: (id: string) => void;
   onPhotoClick: (idx: number) => void;
 }) {
+  const hasChapters = album.id === 'track_artworks';
+  
+  const getChapters = (): { name: string; images: AlbumImage[] }[] => {
+    if (!hasChapters) {
+      return [{ name: 'PHOTOS', images: album.images }];
+    }
+    
+    const knightClub = album.images.filter(img => img.title.includes('KNIGHT CLUB') || img.src.includes('Knight%20Club') || (!img.title.includes('ROYAL COURT') && !img.title.includes('CORNER') && !img.title.includes('CNC')));
+    const royalCourt = album.images.filter(img => img.title.includes('ROYAL COURT') || img.src.includes('Royal%20Court'));
+    const cnc = album.images.filter(img => img.title.includes('CORNER') || img.title.includes('CNC') || img.src.includes('Corner') || img.src.includes('CNC'));
+    
+    return [
+      { name: 'KNIGHT CLUB', images: knightClub },
+      { name: 'ROYAL COURT', images: royalCourt },
+      { name: 'CORNER NEW CROSS', images: cnc }
+    ];
+  };
+
+  const chapters = getChapters();
+  const [activeChapterIndex, setActiveChapterIndex] = useState(0);
+  const activeChapter = chapters[activeChapterIndex] || chapters[0];
+
+  const handleChapterChange = (idx: number) => {
+    playTick();
+    setActiveChapterIndex(idx);
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 30 }}
@@ -390,7 +405,7 @@ function ExpandedAlbumView({
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
           </svg>
-          [ BACK TO ALBUMS ]
+          [ CLOSE ALBUM ]
         </button>
 
         {/* Prev / Next Album Toggles */}
@@ -400,7 +415,7 @@ function ExpandedAlbumView({
               onClick={() => onNavigate(prevAlbum.id)}
               className="text-zinc-500 hover:text-zinc-200 transition-colors uppercase tracking-widest font-black flex items-center gap-1 cursor-pointer"
             >
-              [ ← {prevAlbum.title} ]
+              [ ← TO {prevAlbum.title} ]
             </button>
           )}
           <span className="text-zinc-700">|</span>
@@ -409,56 +424,119 @@ function ExpandedAlbumView({
               onClick={() => onNavigate(nextAlbum.id)}
               className="text-zinc-500 hover:text-zinc-200 transition-colors uppercase tracking-widest font-black flex items-center gap-1 cursor-pointer"
             >
-              [ {nextAlbum.title} → ]
+              [ TO {nextAlbum.title} → ]
             </button>
           )}
         </div>
       </div>
 
-      {/* Album Title Description Header */}
-      <div className="mb-8 text-left select-none">
-        <h2 className="text-md sm:text-lg font-black text-primary uppercase tracking-[0.25em] mb-2">
-          {album.title}
-        </h2>
-        <p className="text-[10px] sm:text-[11px] text-zinc-400 leading-relaxed max-w-2xl font-sans">
-          {album.description}
-        </p>
-      </div>
-
-      {/* Photos Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 mb-12">
-        {album.images.map((img, idx) => (
-          <motion.div
-            key={img.src}
-            initial={{ opacity: 0, scale: 0.98 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.4, delay: idx * 0.05 }}
-            onClick={() => onPhotoClick(idx)}
-            className="group relative aspect-[4/3] rounded-xl overflow-hidden border border-zinc-900 bg-zinc-950 cursor-pointer hover:border-primary/40 transition-colors"
-          >
-            <div className="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%)] bg-[length:100%_4px] pointer-events-none z-10 opacity-30" />
-            
-            <Image
-              src={img.src}
-              alt={img.title}
-              fill
-              sizes="(max-width: 768px) 100vw, 33vw"
-              className="object-cover filter grayscale group-hover:grayscale-0 contrast-125 group-hover:scale-[1.03] transition-all duration-500"
-            />
-            
-            {/* Hover details overlay */}
-            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-4 z-10 text-left">
-              <span className="text-[10px] text-primary font-black uppercase tracking-widest mb-0.5">
-                {img.title}
+      {/* Main Dual-Page Flat Spread Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 md:gap-12 items-stretch">
+        
+        {/* Left Page: Index Ledger & Chapters */}
+        <div className="lg:col-span-1 bg-zinc-950 border border-zinc-900/80 rounded-2xl p-6 flex flex-col justify-between min-h-[300px] shadow-xl relative select-none">
+          <div className="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_95%,rgba(0,0,0,0.15)_95%)] bg-[length:100%_4px] pointer-events-none z-10 opacity-30" />
+          
+          <div className="relative z-20 flex flex-col gap-6 text-left">
+            <div>
+              <span className="text-[7.5px] text-zinc-500 uppercase tracking-[0.3em] font-black block mb-1">
+                ALBUM ARCHIVE
               </span>
-              <span className="text-[7.5px] text-zinc-500 uppercase tracking-wider font-bold">
-                CAPTURE_ID // {(idx + 1).toString().padStart(2, '0')}
-              </span>
+              <h2 className="text-md font-black text-primary uppercase tracking-[0.2em]">
+                {album.title}
+              </h2>
+              <div className="w-12 h-0.5 bg-primary/40 mt-2" />
             </div>
+            
+            <p className="text-[10px] text-zinc-400 leading-relaxed font-sans">
+              {album.description}
+            </p>
 
-            <div className="absolute inset-0 bg-black/20 z-0" />
-          </motion.div>
-        ))}
+            {/* Chapters / Sub-folders Selector list */}
+            {hasChapters && (
+              <div className="flex flex-col gap-2 mt-2">
+                <span className="text-[8px] text-zinc-500 uppercase tracking-widest font-black">CHAPTERS</span>
+                <div className="flex flex-col gap-1.5">
+                  {chapters.map((chap, idx) => (
+                    <button
+                      key={chap.name}
+                      onClick={() => handleChapterChange(idx)}
+                      className={cn(
+                        "text-left text-[9px] uppercase tracking-widest py-2 px-3.5 rounded border transition-all cursor-pointer select-none active:scale-[0.98] flex justify-between items-center",
+                        activeChapterIndex === idx
+                          ? "bg-primary border-primary/20 text-black font-black shadow-[0_0_10px_rgba(216,22,63,0.25)]"
+                          : "bg-black border-zinc-900 text-zinc-400 hover:text-zinc-200"
+                      )}
+                    >
+                      <span>0{idx + 1} // {chap.name}</span>
+                      <span className="text-[7.5px] opacity-80">({chap.images.length})</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="border-t border-zinc-900/60 pt-4 mt-8 flex justify-between items-center text-[7px] text-zinc-600 uppercase font-black tracking-widest relative z-20">
+            <span>SYS_LOC: PORT_03</span>
+            <span>SECURE_ENCRYPTED</span>
+          </div>
+        </div>
+
+        {/* Right Page: Expanded Images Grid */}
+        <div className="lg:col-span-2 flex flex-col gap-6">
+          <div className="flex justify-between items-center select-none border-b border-zinc-900 pb-2">
+            <span className="text-[8px] text-zinc-500 uppercase tracking-widest font-black">
+              CONTENTS // {activeChapter.name}
+            </span>
+            <span className="text-[8px] text-zinc-500 uppercase tracking-[0.2em]">
+              {activeChapter.images.length} RECORDS FOUND
+            </span>
+          </div>
+
+          {activeChapter.images.length === 0 ? (
+            <div className="flex flex-col items-center justify-center border border-dashed border-zinc-900 rounded-2xl py-20 text-zinc-600 uppercase text-[9px] tracking-widest select-none">
+              [ NO IMAGES LOADED IN THIS CHAPTER ]
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+              {activeChapter.images.map((img, idx) => {
+                const absoluteIdx = album.images.findIndex(i => i.src === img.src);
+                return (
+                  <motion.div
+                    key={img.src}
+                    initial={{ opacity: 0, scale: 0.98 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ duration: 0.4, delay: idx * 0.04 }}
+                    onClick={() => onPhotoClick(absoluteIdx)}
+                    className="group relative aspect-[4/3] rounded-xl overflow-hidden border border-zinc-900 bg-zinc-950 cursor-pointer hover:border-primary/45 transition-colors"
+                  >
+                    <div className="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%)] bg-[length:100%_4px] pointer-events-none z-10 opacity-30" />
+                    
+                    <Image
+                      src={img.src}
+                      alt={img.title}
+                      fill
+                      sizes="(max-width: 768px) 100vw, 25vw"
+                      className="object-cover filter grayscale group-hover:grayscale-0 contrast-125 group-hover:scale-[1.03] transition-all duration-500"
+                    />
+                    
+                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-4 z-10 text-left">
+                      <span className="text-[9px] text-primary font-black uppercase tracking-widest mb-0.5">
+                        {img.title}
+                      </span>
+                      <span className="text-[7px] text-zinc-500 uppercase tracking-wider font-bold">
+                        FILE_ID // {(idx + 1).toString().padStart(2, '0')}
+                      </span>
+                    </div>
+
+                    <div className="absolute inset-0 bg-black/15 z-0" />
+                  </motion.div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
     </motion.div>
   );
@@ -471,28 +549,21 @@ export default function GalleryClient() {
 
   const [albums, setAlbums] = useState<Album[]>([
     {
-      id: 'gear',
-      title: 'DECK CONTROLS & GEAR',
-      description: 'Close-up captures of DJ rigs, Pioneer mixers, and booth dials.',
-      images: [
-        { src: proxyUrl(getStorageUrl('/gallery/img_2255.jpg')), title: 'DECK CONTROLS' },
-        { src: proxyUrl(getStorageUrl('/gallery/img_3540.jpg')), title: 'BOOTH MONITOR' }
-      ]
+      id: 'track_artworks',
+      title: 'TRACK ARTWORKS',
+      description: 'Official promotional mix artwork covers, digital banners, and album graphics organized by series.',
+      images: ARTWORK_IMAGES.map(img => ({ src: img.src, title: img.title }))
     },
     {
-      id: 'shows',
-      title: 'KNIGHT CLUB & LIVE SHOWS',
-      description: 'Crowd capture records, club sets, and performance highlights.',
+      id: 'me',
+      title: 'ME',
+      description: 'Candid deck captures, crowd wave highlights, studio sessions, and headshots of HENRY IX.',
       images: [
+        { src: proxyUrl(getStorageUrl('/gallery/img_2255.jpg')), title: 'DECK CONTROLS' },
+        { src: proxyUrl(getStorageUrl('/gallery/img_3540.jpg')), title: 'BOOTH MONITOR' },
         { src: proxyUrl(getStorageUrl('/gallery/img_0495.jpg')), title: 'ROYAL COURT S1' },
         { src: proxyUrl(getStorageUrl('/gallery/img_4564.jpg')), title: 'CROWD WAVE' }
       ]
-    },
-    {
-      id: 'artwork',
-      title: 'GRAPHIC & COVER ARTWORK',
-      description: 'Official branding artwork, session graphics, and promotional flyers.',
-      images: ARTWORK_IMAGES.map(img => ({ src: img.src, title: img.title }))
     }
   ]);
 
@@ -504,8 +575,7 @@ export default function GalleryClient() {
           client.fetch<any[]>(`*[_type == "mix" && defined(artworkFile)]`)
         ]);
 
-        let dynamicGear: AlbumImage[] = [];
-        let dynamicShows: AlbumImage[] = [];
+        let dynamicMe: AlbumImage[] = [];
         let dynamicArtwork: AlbumImage[] = [];
 
         if (galleryDocs && galleryDocs.length > 0) {
@@ -513,11 +583,7 @@ export default function GalleryClient() {
             const url = proxyUrl(getStorageUrl(d.imageFile));
             const title = d.title.toUpperCase();
             if (d.category === 'me') {
-              if (title.includes('DECK') || title.includes('MONITOR') || title.includes('GEAR') || title.includes('KNOB')) {
-                dynamicGear.push({ src: url, title });
-              } else {
-                dynamicShows.push({ src: url, title });
-              }
+              dynamicMe.push({ src: url, title });
             } else if (d.category === 'artwork') {
               dynamicArtwork.push({ src: url, title });
             }
@@ -533,18 +599,13 @@ export default function GalleryClient() {
 
         setAlbums(prev => {
           return prev.map(album => {
-            if (album.id === 'gear') {
-              const merged = [...album.images, ...dynamicGear];
-              const unique = merged.filter((v, i, a) => a.findIndex(t => t.src === v.src) === i);
-              return { ...album, images: unique };
-            }
-            if (album.id === 'shows') {
-              const merged = [...album.images, ...dynamicShows];
-              const unique = merged.filter((v, i, a) => a.findIndex(t => t.src === v.src) === i);
-              return { ...album, images: unique };
-            }
-            if (album.id === 'artwork') {
+            if (album.id === 'track_artworks') {
               const merged = [...album.images, ...dynamicArtwork];
+              const unique = merged.filter((v, i, a) => a.findIndex(t => t.src === v.src) === i);
+              return { ...album, images: unique };
+            }
+            if (album.id === 'me') {
+              const merged = [...album.images, ...dynamicMe];
               const unique = merged.filter((v, i, a) => a.findIndex(t => t.src === v.src) === i);
               return { ...album, images: unique };
             }
@@ -650,10 +711,10 @@ export default function GalleryClient() {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-12 max-w-5xl mx-auto w-full mb-16"
+                  className="grid grid-cols-1 md:grid-cols-2 gap-12 max-w-3xl mx-auto w-full mb-16 justify-items-center"
                 >
                   {albums.map((album) => (
-                    <AlbumStack
+                    <StorybookAlbum
                       key={album.id}
                       album={album}
                       onClick={() => {
