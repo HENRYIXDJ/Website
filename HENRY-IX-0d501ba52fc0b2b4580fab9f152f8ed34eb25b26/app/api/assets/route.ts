@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 
+export const dynamic = 'force-dynamic';
+export const fetchCache = 'force-no-store';
+
 
 const accountId = process.env.R2_ACCOUNT_ID;
 const accessKeyId = process.env.R2_ACCESS_KEY_ID;
@@ -107,7 +110,7 @@ async function handleAssetRequest(request: Request) {
         }
         
         let statusCode = 200;
-        if (rangeHeader && object.size) {
+        if (rangeHeader && range && object.size) {
           statusCode = 206;
           const start = range.offset;
           const end = range.length ? (start + range.length - 1) : (object.size - 1);
@@ -143,6 +146,7 @@ async function handleAssetRequest(request: Request) {
       const response = await fetch(targetUrl, {
         headers: fetchHeaders,
         method: request.method,
+        cache: 'no-store',
       });
       
       const headers = new Headers();

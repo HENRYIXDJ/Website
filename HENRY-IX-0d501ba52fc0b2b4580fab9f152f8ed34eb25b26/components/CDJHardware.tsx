@@ -364,7 +364,7 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
       return;
     }
     playClick(800, 'sine', 0.02);
-    const otherDeckId = (deckId === 1 || deckId === 2) ? rightActiveDeck : leftActiveDeck;
+    const otherDeckId = (deckId === 1 || deckId === 3) ? rightActiveDeck : leftActiveDeck;
     const otherDeck = useAudioStore.getState().decks[otherDeckId];
     const isBothPlaying = deck.isPlaying && otherDeck && otherDeck.isPlaying;
 
