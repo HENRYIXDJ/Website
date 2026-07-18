@@ -1579,26 +1579,12 @@ export default function MixArchive({
                 </>
               )}
 
-              {/* Visual Latency Calibration */}
+              {/* Visual Latency Calibration - Auto Audited */}
               {activeView === 'cdj' && (
-                <div className="flex items-center gap-1.5 border border-zinc-900 bg-zinc-950/80 px-2 py-0.5 rounded-md backdrop-blur-md">
-                  <span className="text-[7px] md:text-[8px] text-zinc-500 font-bold uppercase tracking-wider select-none font-mono">
-                    LATENCY:
-                  </span>
-                  <input 
-                    type="range"
-                    min="0"
-                    max="200"
-                    step="5"
-                    value={visualLatencyOffset}
-                    onChange={(e) => {
-                      const val = parseInt(e.target.value);
-                      setVisualLatencyOffset(val);
-                    }}
-                    className="w-16 md:w-20 h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-primary"
-                    title="Calibrate visual latency (0ms to 200ms)"
-                  />
-                  <span className="text-[7.5px] md:text-[8px] font-mono text-zinc-400 font-bold w-9 text-right shrink-0">
+                <div className="flex items-center gap-1.5 border border-zinc-900 bg-zinc-950/80 px-2.5 py-1 rounded-md backdrop-blur-md font-mono text-[7.5px] md:text-[8px] text-zinc-500 uppercase font-bold tracking-wider select-none">
+                  <span>LATENCY:</span>
+                  <span className="text-primary font-black animate-pulse">AUTO</span>
+                  <span className="text-zinc-400 font-bold bg-zinc-900 px-1 py-0.5 rounded ml-0.5">
                     {visualLatencyOffset}ms
                   </span>
                 </div>
