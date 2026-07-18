@@ -246,11 +246,255 @@ function CRTBroadcastDeck() {
   );
 }
 
+interface AlbumImage {
+  src: string;
+  title: string;
+}
+
+interface Album {
+  id: string;
+  title: string;
+  description: string;
+  images: AlbumImage[];
+}
+
+function AlbumStack({ album, onClick }: { album: Album; onClick: () => void }) {
+  const stackImages = album.images.slice(0, 3);
+  // Ensure we have 3 layers if possible
+  while (stackImages.length > 0 && stackImages.length < 3) {
+    stackImages.push(stackImages[0]);
+  }
+
+  return (
+    <motion.div
+      onClick={onClick}
+      className="flex flex-col items-center group cursor-pointer w-full"
+      whileHover="hover"
+      initial="initial"
+    >
+      {/* Photo Stack Container */}
+      <div className="relative w-full aspect-[4/3] max-w-[320px] mb-6 flex items-center justify-center">
+        {/* Layer 3 (Bottom) */}
+        {stackImages[2] && (
+          <motion.div
+            variants={{
+              initial: { rotate: 2, scale: 0.94, opacity: 0.5, y: 5 },
+              hover: { rotate: 8, x: 22, y: -8, scale: 0.96, opacity: 0.7 }
+            }}
+            transition={{ type: "spring", stiffness: 150, damping: 15 }}
+            className="absolute inset-0 rounded-2xl border border-zinc-900 bg-zinc-950 overflow-hidden shadow-md"
+          >
+            <Image
+              src={stackImages[2].src}
+              alt=""
+              fill
+              sizes="320px"
+              className="object-cover filter grayscale contrast-125 brightness-75"
+            />
+          </motion.div>
+        )}
+
+        {/* Layer 2 (Middle) */}
+        {stackImages[1] && (
+          <motion.div
+            variants={{
+              initial: { rotate: -3, scale: 0.97, opacity: 0.7, y: 2 },
+              hover: { rotate: -8, x: -22, y: -6, scale: 0.98, opacity: 0.85 }
+            }}
+            transition={{ type: "spring", stiffness: 150, damping: 15 }}
+            className="absolute inset-0 rounded-2xl border border-zinc-900 bg-zinc-950 overflow-hidden shadow-lg"
+          >
+            <Image
+              src={stackImages[1].src}
+              alt=""
+              fill
+              sizes="320px"
+              className="object-cover filter grayscale contrast-125 brightness-90"
+            />
+          </motion.div>
+        )}
+
+        {/* Layer 1 (Top Cover) */}
+        {stackImages[0] && (
+          <motion.div
+            variants={{
+              initial: { rotate: 0, scale: 1, opacity: 0.95 },
+              hover: { rotate: -1, scale: 1.02, opacity: 1, y: -4 }
+            }}
+            transition={{ type: "spring", stiffness: 150, damping: 15 }}
+            className="absolute inset-0 rounded-2xl border border-zinc-800 bg-zinc-900 overflow-hidden shadow-2xl flex flex-col justify-end"
+          >
+            <div className="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%)] bg-[length:100%_4px] pointer-events-none z-10 opacity-30" />
+            <div className="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-10 transition-opacity duration-300 pointer-events-none z-10" />
+
+            <Image
+              src={stackImages[0].src}
+              alt={album.title}
+              fill
+              sizes="320px"
+              className="object-cover filter grayscale group-hover:grayscale-0 contrast-125 transition-all duration-500 ease-out"
+            />
+            
+            <div className="absolute top-4 left-4 w-2 h-2 border-t border-l border-primary/40 group-hover:border-primary/80 transition-all duration-300 z-10" />
+            <div className="absolute top-4 right-4 w-2 h-2 border-t border-r border-primary/40 group-hover:border-primary/80 transition-all duration-300 z-10" />
+            <div className="absolute bottom-4 left-4 w-2 h-2 border-b border-l border-primary/40 group-hover:border-primary/80 transition-all duration-300 z-10" />
+            <div className="absolute bottom-4 right-4 w-2 h-2 border-b border-r border-primary/40 group-hover:border-primary/80 transition-all duration-300 z-10" />
+
+            <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-black/10 z-0 opacity-80 group-hover:opacity-90 transition-opacity duration-300" />
+          </motion.div>
+        )}
+      </div>
+
+      <div className="text-center font-mono relative z-10">
+        <h3 className="text-xs md:text-sm font-black text-zinc-100 uppercase tracking-widest group-hover:text-primary transition-colors duration-300">
+          {album.title}
+        </h3>
+        <span className="text-[8px] text-zinc-500 uppercase tracking-[0.2em] block mt-1.5 font-bold">
+          {album.images.length} TRACKED FILES // DECODER_OK
+        </span>
+      </div>
+    </motion.div>
+  );
+}
+
+function ExpandedAlbumView({
+  album,
+  prevAlbum,
+  nextAlbum,
+  onClose,
+  onNavigate,
+  onPhotoClick
+}: {
+  album: Album;
+  prevAlbum: Album | null;
+  nextAlbum: Album | null;
+  onClose: () => void;
+  onNavigate: (id: string) => void;
+  onPhotoClick: (idx: number) => void;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 30 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -30 }}
+      transition={{ duration: 0.5, ease: 'easeOut' }}
+      className="w-full max-w-5xl mx-auto flex flex-col font-mono"
+    >
+      {/* Top Album HUD Header Navigation */}
+      <div className="w-full flex flex-col sm:flex-row items-center justify-between border-b border-zinc-900/80 pb-4 mb-8 gap-4 select-none">
+        {/* Back Button */}
+        <button
+          onClick={onClose}
+          className="text-[9px] text-zinc-400 hover:text-primary transition-colors uppercase tracking-[0.2em] font-bold border border-zinc-800 bg-zinc-950 px-3 py-1.5 rounded-lg active:scale-95 cursor-pointer flex items-center gap-1.5"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+          </svg>
+          [ BACK TO ALBUMS ]
+        </button>
+
+        {/* Prev / Next Album Toggles */}
+        <div className="flex items-center gap-4 text-[8px] sm:text-[9.5px]">
+          {prevAlbum && (
+            <button
+              onClick={() => onNavigate(prevAlbum.id)}
+              className="text-zinc-500 hover:text-zinc-200 transition-colors uppercase tracking-widest font-black flex items-center gap-1 cursor-pointer"
+            >
+              [ ← {prevAlbum.title} ]
+            </button>
+          )}
+          <span className="text-zinc-700">|</span>
+          {nextAlbum && (
+            <button
+              onClick={() => onNavigate(nextAlbum.id)}
+              className="text-zinc-500 hover:text-zinc-200 transition-colors uppercase tracking-widest font-black flex items-center gap-1 cursor-pointer"
+            >
+              [ {nextAlbum.title} → ]
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Album Title Description Header */}
+      <div className="mb-8 text-left select-none">
+        <h2 className="text-md sm:text-lg font-black text-primary uppercase tracking-[0.25em] mb-2">
+          {album.title}
+        </h2>
+        <p className="text-[10px] sm:text-[11px] text-zinc-400 leading-relaxed max-w-2xl font-sans">
+          {album.description}
+        </p>
+      </div>
+
+      {/* Photos Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 mb-12">
+        {album.images.map((img, idx) => (
+          <motion.div
+            key={img.src}
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.4, delay: idx * 0.05 }}
+            onClick={() => onPhotoClick(idx)}
+            className="group relative aspect-[4/3] rounded-xl overflow-hidden border border-zinc-900 bg-zinc-950 cursor-pointer hover:border-primary/40 transition-colors"
+          >
+            <div className="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%)] bg-[length:100%_4px] pointer-events-none z-10 opacity-30" />
+            
+            <Image
+              src={img.src}
+              alt={img.title}
+              fill
+              sizes="(max-width: 768px) 100vw, 33vw"
+              className="object-cover filter grayscale group-hover:grayscale-0 contrast-125 group-hover:scale-[1.03] transition-all duration-500"
+            />
+            
+            {/* Hover details overlay */}
+            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-4 z-10 text-left">
+              <span className="text-[10px] text-primary font-black uppercase tracking-widest mb-0.5">
+                {img.title}
+              </span>
+              <span className="text-[7.5px] text-zinc-500 uppercase tracking-wider font-bold">
+                CAPTURE_ID // {(idx + 1).toString().padStart(2, '0')}
+              </span>
+            </div>
+
+            <div className="absolute inset-0 bg-black/20 z-0" />
+          </motion.div>
+        ))}
+      </div>
+    </motion.div>
+  );
+}
+
 export default function GalleryClient() {
-  const [activeItem, setActiveItem] = useState<{ type: 'me' | 'artwork', idx: number } | null>(null);
-  const [meImages, setMeImages] = useState<GalleryItem[]>(ME_IMAGES);
-  const [artworkImages, setArtworkImages] = useState<GalleryItem[]>(ARTWORK_IMAGES);
-  const [activeTab, setActiveTab] = useState<'photos' | 'artwork' | 'videos'>('photos');
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [expandedAlbumId, setExpandedAlbumId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'albums' | 'videos'>('albums');
+
+  const [albums, setAlbums] = useState<Album[]>([
+    {
+      id: 'gear',
+      title: 'DECK CONTROLS & GEAR',
+      description: 'Close-up captures of DJ rigs, Pioneer mixers, and booth dials.',
+      images: [
+        { src: proxyUrl(getStorageUrl('/gallery/img_2255.jpg')), title: 'DECK CONTROLS' },
+        { src: proxyUrl(getStorageUrl('/gallery/img_3540.jpg')), title: 'BOOTH MONITOR' }
+      ]
+    },
+    {
+      id: 'shows',
+      title: 'KNIGHT CLUB & LIVE SHOWS',
+      description: 'Crowd capture records, club sets, and performance highlights.',
+      images: [
+        { src: proxyUrl(getStorageUrl('/gallery/img_0495.jpg')), title: 'ROYAL COURT S1' },
+        { src: proxyUrl(getStorageUrl('/gallery/img_4564.jpg')), title: 'CROWD WAVE' }
+      ]
+    },
+    {
+      id: 'artwork',
+      title: 'GRAPHIC & COVER ARTWORK',
+      description: 'Official branding artwork, session graphics, and promotional flyers.',
+      images: ARTWORK_IMAGES.map(img => ({ src: img.src, title: img.title }))
+    }
+  ]);
 
   useEffect(() => {
     async function loadDynamicGallery() {
@@ -260,48 +504,53 @@ export default function GalleryClient() {
           client.fetch<any[]>(`*[_type == "mix" && defined(artworkFile)]`)
         ]);
 
+        let dynamicGear: AlbumImage[] = [];
+        let dynamicShows: AlbumImage[] = [];
+        let dynamicArtwork: AlbumImage[] = [];
+
         if (galleryDocs && galleryDocs.length > 0) {
-          const fetchedMe = galleryDocs
-            .filter(d => d.category === 'me')
-            .map(d => ({
-              src: proxyUrl(getStorageUrl(d.imageFile)),
-              title: d.title.toUpperCase(),
-              gridClass: d.gridClass || 'col-span-1 aspect-square'
-            }));
-
-          const fetchedArtwork = galleryDocs
-            .filter(d => d.category === 'artwork')
-            .map(d => ({
-              src: proxyUrl(getStorageUrl(d.imageFile)),
-              title: d.title.toUpperCase(),
-              gridClass: d.gridClass || 'col-span-1 aspect-square'
-            }));
-
-          if (fetchedMe.length > 0) {
-            setMeImages(fetchedMe);
-          }
-          
-          let combinedArtwork = [...fetchedArtwork];
-          if (mixesDocs && mixesDocs.length > 0) {
-            const mixesArtwork = mixesDocs.map(mix => ({
-              src: proxyUrl(getStorageUrl(mix.artworkFile)),
-              title: mix.title.toUpperCase(),
-              gridClass: 'col-span-1 aspect-square'
-            }));
-            combinedArtwork = [...combinedArtwork, ...mixesArtwork];
-          }
-
-          if (combinedArtwork.length > 0) {
-            setArtworkImages(combinedArtwork);
-          }
-        } else if (mixesDocs && mixesDocs.length > 0) {
-          const formatted = mixesDocs.map(mix => ({
-            src: proxyUrl(getStorageUrl(mix.artworkFile)),
-            title: mix.title.toUpperCase(),
-            gridClass: 'col-span-1 aspect-square'
-          }));
-          setArtworkImages(formatted);
+          galleryDocs.forEach(d => {
+            const url = proxyUrl(getStorageUrl(d.imageFile));
+            const title = d.title.toUpperCase();
+            if (d.category === 'me') {
+              if (title.includes('DECK') || title.includes('MONITOR') || title.includes('GEAR') || title.includes('KNOB')) {
+                dynamicGear.push({ src: url, title });
+              } else {
+                dynamicShows.push({ src: url, title });
+              }
+            } else if (d.category === 'artwork') {
+              dynamicArtwork.push({ src: url, title });
+            }
+          });
         }
+
+        if (mixesDocs && mixesDocs.length > 0) {
+          mixesDocs.forEach(mix => {
+            const url = proxyUrl(getStorageUrl(mix.artworkFile));
+            dynamicArtwork.push({ src: url, title: mix.title.toUpperCase() });
+          });
+        }
+
+        setAlbums(prev => {
+          return prev.map(album => {
+            if (album.id === 'gear') {
+              const merged = [...album.images, ...dynamicGear];
+              const unique = merged.filter((v, i, a) => a.findIndex(t => t.src === v.src) === i);
+              return { ...album, images: unique };
+            }
+            if (album.id === 'shows') {
+              const merged = [...album.images, ...dynamicShows];
+              const unique = merged.filter((v, i, a) => a.findIndex(t => t.src === v.src) === i);
+              return { ...album, images: unique };
+            }
+            if (album.id === 'artwork') {
+              const merged = [...album.images, ...dynamicArtwork];
+              const unique = merged.filter((v, i, a) => a.findIndex(t => t.src === v.src) === i);
+              return { ...album, images: unique };
+            }
+            return album;
+          });
+        });
       } catch (err) {
         console.error('Error loading dynamic gallery:', err);
       }
@@ -309,36 +558,35 @@ export default function GalleryClient() {
     loadDynamicGallery();
   }, []);
 
+  const expandedAlbum = albums.find(a => a.id === expandedAlbumId) || null;
+  const currentAlbumIndex = albums.findIndex(a => a.id === expandedAlbumId);
+  const prevAlbum = currentAlbumIndex > -1 ? albums[(currentAlbumIndex - 1 + albums.length) % albums.length] : null;
+  const nextAlbum = currentAlbumIndex > -1 ? albums[(currentAlbumIndex + 1) % albums.length] : null;
+
   // Handle keyboard navigation for Lightbox
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (activeItem === null) return;
-      
-      const currentArray = activeItem.type === 'me' ? meImages : artworkImages;
+      if (lightboxIndex === null || !expandedAlbum) return;
       
       if (e.key === 'Escape') {
-        startTransition(() => setActiveItem(null));
+        setLightboxIndex(null);
       } else if (e.key === 'ArrowRight') {
-        startTransition(() => {
-          setActiveItem({
-            type: activeItem.type,
-            idx: (activeItem.idx + 1) % currentArray.length
-          });
-        });
+        setLightboxIndex((lightboxIndex + 1) % expandedAlbum.images.length);
       } else if (e.key === 'ArrowLeft') {
-        startTransition(() => {
-          setActiveItem({
-            type: activeItem.type,
-            idx: (activeItem.idx - 1 + currentArray.length) % currentArray.length
-          });
-        });
+        setLightboxIndex((lightboxIndex - 1 + expandedAlbum.images.length) % expandedAlbum.images.length);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeItem, meImages, artworkImages]);
+  }, [lightboxIndex, expandedAlbum]);
 
-  const activeImage = activeItem ? (activeItem.type === 'me' ? meImages[activeItem.idx] : artworkImages[activeItem.idx]) : null;
+  const activeImage = expandedAlbum && lightboxIndex !== null ? expandedAlbum.images[lightboxIndex] : null;
+
+  const navigateToAlbum = (id: string) => {
+    playClick(1000, 'sine', 0.04);
+    setExpandedAlbumId(id);
+    setLightboxIndex(null);
+  };
 
   return (
     <PageShell>
@@ -361,16 +609,16 @@ export default function GalleryClient() {
 
         {/* Skeuomorphic Category Tab Switcher */}
         <div className="relative z-10 flex justify-center items-center select-none font-mono mb-12 w-full px-4">
-          <div className="relative flex p-1 bg-zinc-950 border border-zinc-900 rounded-xl backdrop-blur-md w-full max-w-md">
+          <div className="relative flex p-1 bg-zinc-950 border border-zinc-900 rounded-xl backdrop-blur-md w-full max-w-sm">
             {[
-              { id: 'photos', label: 'STILL PHOTOS' },
-              { id: 'artwork', label: 'MIX ARTWORKS' },
+              { id: 'albums', label: 'PHOTO ALBUMS' },
               { id: 'videos', label: 'VIDEO BROADCASTS' }
             ].map(tab => (
               <button
                 key={tab.id}
                 onClick={() => {
                   setActiveTab(tab.id as any);
+                  setExpandedAlbumId(null);
                   playClick(800, 'sine', 0.025);
                 }}
                 onMouseEnter={() => playTick()}
@@ -394,77 +642,47 @@ export default function GalleryClient() {
 
         {/* Tab contents */}
         <div className="relative z-10 w-full">
-          {activeTab === 'photos' && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 mb-16">
-              {meImages.map((item, idx) => (
+          {activeTab === 'albums' && (
+            <AnimatePresence mode="wait">
+              {expandedAlbumId === null ? (
                 <motion.div
-                  key={item.src}
-                  initial={{ opacity: 0, y: 40 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.8, delay: idx * 0.1, ease: 'easeOut' }}
-                  className={cn(
-                    "group overflow-hidden rounded-2xl bg-zinc-950 border border-zinc-900/80 flex flex-col justify-between cursor-pointer hover:border-primary/30 transition-colors duration-500",
-                    item.gridClass
-                  )}
-                  onClick={() => startTransition(() => setActiveItem({ type: 'me', idx }))}
+                  key="album-list"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-12 max-w-5xl mx-auto w-full mb-16"
                 >
-                  <div className="relative flex-grow overflow-hidden aspect-video md:aspect-auto h-full min-h-[220px]">
-                    <div className="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%)] bg-[length:100%_4px] pointer-events-none z-10 opacity-40 group-hover:opacity-20 transition-opacity duration-500" />
-                    <div className="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none z-10" />
-
-                    <Image
-                      src={item.src}
-                      alt={item.title}
-                      fill
-                      sizes="(max-width: 768px) 100vw, 33vw"
-                      loading="lazy"
-                      className="object-cover filter grayscale group-hover:grayscale-0 contrast-125 group-hover:scale-[1.03] transition-all duration-700 ease-out"
+                  {albums.map((album) => (
+                    <AlbumStack
+                      key={album.id}
+                      album={album}
+                      onClick={() => {
+                        playClick(800, 'sine', 0.05);
+                        setExpandedAlbumId(album.id);
+                      }}
                     />
-
-                    <div className="absolute top-4 left-4 w-2 h-2 border-t border-l border-primary/0 group-hover:border-primary/60 transition-all duration-500 z-10" />
-                    <div className="absolute top-4 right-4 w-2 h-2 border-t border-r border-primary/0 group-hover:border-primary/60 transition-all duration-500 z-10" />
-                    <div className="absolute bottom-4 left-4 w-2 h-2 border-b border-l border-primary/0 group-hover:border-primary/60 transition-all duration-500 z-10" />
-                    <div className="absolute bottom-4 right-4 w-2 h-2 border-b border-r border-primary/0 group-hover:border-primary/60 transition-all duration-500 z-10" />
-                    <div className="absolute inset-0 bg-black/40 opacity-100 group-hover:opacity-0 transition-opacity duration-500 z-0" />
-                  </div>
+                  ))}
                 </motion.div>
-              ))}
-            </div>
-          )}
-
-          {activeTab === 'artwork' && (
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6 mb-16">
-              {artworkImages.map((item, idx) => (
-                <motion.div
-                  key={item.src}
-                  initial={{ opacity: 0, y: 40 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.8, delay: idx * 0.1, ease: 'easeOut' }}
-                  className={cn(
-                    "group overflow-hidden rounded-2xl bg-zinc-950 border border-zinc-900/80 flex flex-col justify-between cursor-pointer hover:border-primary/30 transition-colors duration-500",
-                    item.gridClass
-                  )}
-                  onClick={() => startTransition(() => setActiveItem({ type: 'artwork', idx }))}
-                >
-                  <div className="relative flex-grow overflow-hidden aspect-square h-full min-h-[220px]">
-                    <div className="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%)] bg-[length:100%_4px] pointer-events-none z-10 opacity-40 group-hover:opacity-20 transition-opacity duration-500" />
-                    <div className="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none z-10" />
-
-                    <Image
-                      src={item.src}
-                      alt={item.title}
-                      fill
-                      sizes="(max-width: 768px) 100vw, 25vw"
-                      loading="lazy"
-                      unoptimized={true}
-                      className="object-cover filter grayscale group-hover:grayscale-0 contrast-125 group-hover:scale-[1.03] transition-all duration-700 ease-out"
-                    />
-
-                    <div className="absolute inset-0 bg-black/40 opacity-100 group-hover:opacity-0 transition-opacity duration-500 z-0" />
-                  </div>
-                </motion.div>
-              ))}
-            </div>
+              ) : (
+                expandedAlbum && (
+                  <ExpandedAlbumView
+                    key={expandedAlbum.id}
+                    album={expandedAlbum}
+                    prevAlbum={prevAlbum}
+                    nextAlbum={nextAlbum}
+                    onClose={() => {
+                      playClick(700, 'triangle', 0.04);
+                      setExpandedAlbumId(null);
+                    }}
+                    onNavigate={navigateToAlbum}
+                    onPhotoClick={(idx) => {
+                      playClick(900, 'sine', 0.03);
+                      setLightboxIndex(idx);
+                    }}
+                  />
+                )
+              )}
+            </AnimatePresence>
           )}
 
           {activeTab === 'videos' && (
@@ -476,19 +694,19 @@ export default function GalleryClient() {
 
         {/* Lightbox Overlay */}
         <AnimatePresence>
-          {activeItem !== null && activeImage !== null && (
+          {expandedAlbum && lightboxIndex !== null && activeImage !== null && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.3 }}
               className="fixed inset-0 z-[100] flex flex-col justify-center bg-black/95 backdrop-blur-xl p-4 md:p-8 select-none"
-              onClick={() => startTransition(() => setActiveItem(null))}
+              onClick={() => setLightboxIndex(null)}
             >
               {/* Lightbox Close */}
               <div className="absolute top-6 right-6 md:top-10 md:right-10 z-50">
                 <button
-                  onClick={() => startTransition(() => setActiveItem(null))}
+                  onClick={() => setLightboxIndex(null)}
                   className="w-12 h-12 rounded-full bg-zinc-950 border border-zinc-800 hover:border-primary/50 text-zinc-400 hover:text-white flex items-center justify-center cursor-pointer transition-colors active:scale-90"
                 >
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -506,13 +724,7 @@ export default function GalleryClient() {
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    startTransition(() => {
-                      const currentArray = activeItem.type === 'me' ? meImages : artworkImages;
-                      setActiveItem({
-                        type: activeItem.type,
-                        idx: (activeItem.idx - 1 + currentArray.length) % currentArray.length
-                      });
-                    });
+                    setLightboxIndex((lightboxIndex - 1 + expandedAlbum.images.length) % expandedAlbum.images.length);
                   }}
                   className="absolute left-2 md:-left-12 z-50 w-12 h-12 rounded-full bg-zinc-950/80 border border-zinc-800 hover:border-primary/50 text-zinc-400 hover:text-white flex items-center justify-center cursor-pointer transition-colors"
                 >
@@ -545,13 +757,7 @@ export default function GalleryClient() {
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    startTransition(() => {
-                      const currentArray = activeItem.type === 'me' ? meImages : artworkImages;
-                      setActiveItem({
-                        type: activeItem.type,
-                        idx: (activeItem.idx + 1) % currentArray.length
-                      });
-                    });
+                    setLightboxIndex((lightboxIndex + 1) % expandedAlbum.images.length);
                   }}
                   className="absolute right-2 md:-right-12 z-50 w-12 h-12 rounded-full bg-zinc-950/80 border border-zinc-800 hover:border-primary/50 text-zinc-400 hover:text-white flex items-center justify-center cursor-pointer transition-colors"
                 >
