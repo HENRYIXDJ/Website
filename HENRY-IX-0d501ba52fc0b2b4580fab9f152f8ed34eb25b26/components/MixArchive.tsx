@@ -1539,7 +1539,7 @@ export default function MixArchive({
                       transition={{ type: "spring", bounce: 0.2, duration: 0.5 }}
                     />
                   )}
-                  <span className="relative z-10">{view === 'cdj' ? 'DECK VIEW' : 'TRACKLIST VIEW'}</span>
+                  <span className="glitch relative z-10" data-text={view === 'cdj' ? 'DECK VIEW' : 'TRACKLIST VIEW'}>{view === 'cdj' ? 'DECK VIEW' : 'TRACKLIST VIEW'}</span>
                 </button>
               ))}
             </div>
@@ -1579,16 +1579,7 @@ export default function MixArchive({
                 </>
               )}
 
-              {/* Visual Latency Calibration - Auto Audited */}
-              {activeView === 'cdj' && (
-                <div className="flex items-center gap-1.5 border border-zinc-900 bg-zinc-950/80 px-2.5 py-1 rounded-md backdrop-blur-md font-mono text-[7.5px] md:text-[8px] text-zinc-500 uppercase font-bold tracking-wider select-none">
-                  <span>LATENCY:</span>
-                  <span className="text-primary font-black animate-pulse">AUTO</span>
-                  <span className="text-zinc-400 font-bold bg-zinc-900 px-1 py-0.5 rounded ml-0.5">
-                    {visualLatencyOffset}ms
-                  </span>
-                </div>
-              )}
+
 
               {/* Keyboard Shortcuts Trigger */}
               {activeView === 'cdj' && (

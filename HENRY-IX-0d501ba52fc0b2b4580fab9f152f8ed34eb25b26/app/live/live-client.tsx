@@ -120,6 +120,7 @@ export default function LiveClient({ initialSettings, history }: LiveClientProps
   const [activeStream, setActiveStream] = useState(initialSettings);
   const [preCountdownSecs, setPreCountdownSecs] = useState<number | null>(null);
   const [postCountdownSecs, setPostCountdownSecs] = useState<number | null>(null);
+  const [forceOnline, setForceOnline] = useState(false);
 
   useEffect(() => {
     let timer: NodeJS.Timeout;
@@ -271,12 +272,25 @@ export default function LiveClient({ initialSettings, history }: LiveClientProps
                   </>
                 )}
               </span>
-              <span className="font-bold text-primary">PORT_3000 // DECODER_ENGAGED</span>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setForceOnline(!forceOnline)}
+                  className={cn(
+                    "text-[7px] border px-2 py-0.5 rounded cursor-pointer font-black tracking-widest transition-all",
+                    forceOnline 
+                      ? "border-primary/45 text-primary bg-primary/5 shadow-[0_0_5px_rgba(216,22,63,0.25)] animate-pulse" 
+                      : "border-zinc-800 text-zinc-500 hover:text-zinc-300 bg-zinc-900/30"
+                  )}
+                >
+                  {forceOnline ? "[ BYPASS SYSTEM: ON ]" : "[ BYPASS SYSTEM: OFF ]"}
+                </button>
+                <span className="font-bold text-primary">PORT_3000 // DECODER_ENGAGED</span>
+              </div>
             </div>
 
             {/* Mux Player element */}
             <div className="relative w-full aspect-video rounded-2xl overflow-hidden border border-zinc-900 bg-zinc-950 z-10 shadow-[inset_0_0_40px_rgba(0,0,0,0.85)] flex flex-col items-center justify-center">
-              {activeStream.status === 'live' || activeStream.status === 'archived' ? (
+              {activeStream.status === 'live' || activeStream.status === 'archived' || forceOnline ? (
                 (() => {
                   const ytId = getYouTubeEmbedId(activeStream.playbackId);
                   const twitchChannel = getTwitchChannel(activeStream.playbackId);
@@ -422,7 +436,7 @@ export default function LiveClient({ initialSettings, history }: LiveClientProps
             {/* Bottom Info deck */}
             <div className="bg-black/50 border border-zinc-900/60 p-3.5 rounded-xl z-10 text-left">
               <span className="text-[7px] text-zinc-500 uppercase tracking-widest font-bold">STREAM DIAGNOSTICS</span>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-2 text-[8px] text-zinc-400 font-bold uppercase tracking-wider">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-2 text-[8px] text-zinc-400 font-bold uppercase tracking-wider">
                 <div className="flex flex-col gap-0.5">
                   <span className="text-[6.5px] text-zinc-600">RESOLUTION</span>
                   <span className="text-primary font-black">{activeStream.resolution}</span>
@@ -434,13 +448,6 @@ export default function LiveClient({ initialSettings, history }: LiveClientProps
                 <div className="flex flex-col gap-0.5">
                   <span className="text-[6.5px] text-zinc-600">TARGET BITRATE</span>
                   <span className="text-white">6800 KBPS</span>
-                </div>
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-[6.5px] text-zinc-600">LATENCY MODE</span>
-                  <span className={cn(
-                    "font-black",
-                    activeStream.latency.toLowerCase().includes('low') ? "text-emerald-500" : "text-yellow-500"
-                  )}>{activeStream.latency}</span>
                 </div>
               </div>
             </div>

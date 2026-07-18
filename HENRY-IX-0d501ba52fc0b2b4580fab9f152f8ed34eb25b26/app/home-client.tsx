@@ -79,7 +79,6 @@ const HeroNode = React.memo(function HeroNode({
         style={styleFloatLeft}
       >
         <span>SYS_STATUS: ACTIVE</span>
-        <span>LATENCY: 0.00ms</span>
         <span>REFRESH: 144HZ</span>
       </motion.div>
 

@@ -152,8 +152,7 @@ body::-webkit-scrollbar {
 }
 */
 
-/* ─── GLITCH TEXT EFFECT (Disabled for Rework) ─────────────────────── */
-/*
+/* ─── GLITCH TEXT EFFECT ───────────────────────────────────────────── */
 .glitch {
   position: relative;
 }
@@ -244,7 +243,6 @@ body::-webkit-scrollbar {
 
   100% { opacity: 0; }
 }
-*/
 
 
 /* ─── GPU ACCELERATED DJ CONTROLLER ROTATIONS ──────────────────── */
