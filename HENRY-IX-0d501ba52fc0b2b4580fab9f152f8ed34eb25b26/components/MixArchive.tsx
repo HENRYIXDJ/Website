@@ -1539,7 +1539,7 @@ export default function MixArchive({
                       transition={{ type: "spring", bounce: 0.2, duration: 0.5 }}
                     />
                   )}
-                  <span className="relative z-10">{view === 'cdj' ? 'DECK VIEW' : 'TRACKLIST VIEW'}</span>
+                  <span className="glitch relative z-10" data-text={view === 'cdj' ? 'DECK VIEW' : 'TRACKLIST VIEW'}>{view === 'cdj' ? 'DECK VIEW' : 'TRACKLIST VIEW'}</span>
                 </button>
               ))}
             </div>

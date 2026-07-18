@@ -468,7 +468,7 @@ function ExpandedBookView({
                           : "bg-black border-zinc-900 text-zinc-400 hover:text-zinc-200"
                       )}
                     >
-                      <span>0{idx + 1} // {chap.name}</span>
+                      <span className="glitch" data-text={`0${idx + 1} // ${chap.name}`}>0{idx + 1} // {chap.name}</span>
                       <span className="text-[7.5px] opacity-80">({chap.images.length})</span>
                     </button>
                   ))}
@@ -695,7 +695,7 @@ export default function GalleryClient() {
                     transition={{ type: "spring", bounce: 0.15, duration: 0.4 }}
                   />
                 )}
-                <span className="relative z-10">{tab.label}</span>
+                <span className="glitch relative z-10" data-text={tab.label}>{tab.label}</span>
               </button>
             ))}
           </div>

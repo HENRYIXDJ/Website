@@ -120,6 +120,7 @@ export default function LiveClient({ initialSettings, history }: LiveClientProps
   const [activeStream, setActiveStream] = useState(initialSettings);
   const [preCountdownSecs, setPreCountdownSecs] = useState<number | null>(null);
   const [postCountdownSecs, setPostCountdownSecs] = useState<number | null>(null);
+  const [forceOnline, setForceOnline] = useState(false);
 
   useEffect(() => {
     let timer: NodeJS.Timeout;
@@ -271,12 +272,25 @@ export default function LiveClient({ initialSettings, history }: LiveClientProps
                   </>
                 )}
               </span>
-              <span className="font-bold text-primary">PORT_3000 // DECODER_ENGAGED</span>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setForceOnline(!forceOnline)}
+                  className={cn(
+                    "text-[7px] border px-2 py-0.5 rounded cursor-pointer font-black tracking-widest transition-all",
+                    forceOnline 
+                      ? "border-primary/45 text-primary bg-primary/5 shadow-[0_0_5px_rgba(216,22,63,0.25)] animate-pulse" 
+                      : "border-zinc-800 text-zinc-500 hover:text-zinc-300 bg-zinc-900/30"
+                  )}
+                >
+                  {forceOnline ? "[ BYPASS SYSTEM: ON ]" : "[ BYPASS SYSTEM: OFF ]"}
+                </button>
+                <span className="font-bold text-primary">PORT_3000 // DECODER_ENGAGED</span>
+              </div>
             </div>
 
             {/* Mux Player element */}
             <div className="relative w-full aspect-video rounded-2xl overflow-hidden border border-zinc-900 bg-zinc-950 z-10 shadow-[inset_0_0_40px_rgba(0,0,0,0.85)] flex flex-col items-center justify-center">
-              {activeStream.status === 'live' || activeStream.status === 'archived' ? (
+              {activeStream.status === 'live' || activeStream.status === 'archived' || forceOnline ? (
                 (() => {
                   const ytId = getYouTubeEmbedId(activeStream.playbackId);
                   const twitchChannel = getTwitchChannel(activeStream.playbackId);
