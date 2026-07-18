@@ -47,6 +47,7 @@ export interface DeckState {
   slipEnabled: boolean;
   pitchBend?: number;
   artworkUrl?: string;
+  tracklist?: string;
 }
 
 export interface AudioStoreState {

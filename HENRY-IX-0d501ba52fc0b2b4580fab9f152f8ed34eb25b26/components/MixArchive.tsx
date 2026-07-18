@@ -76,6 +76,8 @@ export default function MixArchive({
   const [isMobile, setIsMobile] = useState(false);
   const [isPortrait, setIsPortrait] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isCDJMenuOpen, setIsCDJMenuOpen] = useState(false);
+  const [activeTracklistDeckId, setActiveTracklistDeckId] = useState<number | null>(null);
   const activeDeckIds = (deckCount === 2 ? [1, 2] : [3, 1, 2, 4]) as readonly (1 | 2 | 3 | 4)[];
 
   const isStacked = useAudioStore(s => s.isStacked);
@@ -356,6 +358,46 @@ export default function MixArchive({
           }
           if (el) {
             el.style.transform = `rotate(${state.platterAngle}rad)`;
+          }
+        }
+
+        // 1.5 Continuous Phase-Locked Loop (PLL) for Perfect Phase Alignment
+        if (!deck.scMode && audio) {
+          const basePlaybackRate = 1 + (deck.pitch || 0) / 100;
+          let pllApplied = false;
+
+          if (deck.syncEnabled && !audio.paused && deck.syncMode !== 'BPM') {
+            const masterId = [1, 2, 3, 4].find(
+              id => id !== deckId && decksRef.current[id]?.isPlaying && !decksRef.current[id]?.scMode
+            );
+            if (masterId) {
+              const masterDeck = decksRef.current[masterId];
+              const masterAudio = audioElementsRef?.current?.[masterId];
+              if (masterDeck && masterAudio && !masterAudio.paused) {
+                const activeBpmA = masterDeck.bpm * (1 + (masterDeck.pitch || 0) / 100);
+                const beatInterval = 60 / activeBpmA;
+                
+                const elapsedA = Math.max(0, masterAudio.currentTime - (masterDeck.firstBeatOffset || 0));
+                const elapsedB = Math.max(0, audio.currentTime - (deck.firstBeatOffset || 0));
+                
+                const phaseA = elapsedA % beatInterval;
+                const phaseB = elapsedB % beatInterval;
+                
+                let error = phaseA - phaseB;
+                if (error > beatInterval / 2) error -= beatInterval;
+                if (error < -beatInterval / 2) error += beatInterval;
+                
+                if (Math.abs(error) > 0.003) {
+                  const nudge = Math.max(-0.015, Math.min(0.015, error * 1.2));
+                  audio.playbackRate = basePlaybackRate + nudge;
+                  pllApplied = true;
+                }
+              }
+            }
+          }
+
+          if (!pllApplied && audio.playbackRate !== basePlaybackRate) {
+            audio.playbackRate = basePlaybackRate;
           }
         }
 
@@ -1211,10 +1253,6 @@ export default function MixArchive({
   const renderMobileCDJ = () => {
     const deck1 = decks[1];
     const deck2 = decks[2];
-    
-    // Rotation based on progress: 33 rpm is approx 0.55 revs per second, so progress * duration * 360 * 0.55
-    const deck1Rotation = deck1.isPlaying ? (deck1.progress * (deck1.duration || 180) * 360 * 0.55) % 360 : 0;
-    const deck2Rotation = deck2.isPlaying ? (deck2.progress * (deck2.duration || 180) * 360 * 0.55) % 360 : 0;
 
     const getBpmString = (deck: any) => {
       const pitch = deck.pitch || 0;
@@ -1321,11 +1359,11 @@ export default function MixArchive({
         `}} />
 
         {/* Floating Mobile Menu Button (Top Left Corner) */}
-        <div className="absolute top-1 left-1 z-50">
+        <div className="absolute top-2 left-2 z-50">
           <button
             onClick={() => {
               playClick(800, 'sine', 0.02);
-              setIsMobileMenuOpen(!isMobileMenuOpen);
+              setIsCDJMenuOpen(!isCDJMenuOpen);
             }}
             className="flex items-center justify-center px-1.5 py-0.5 rounded bg-zinc-950/90 border border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700 font-mono text-[6.5px] font-black tracking-widest uppercase transition-all duration-150 select-none cursor-pointer"
           >
@@ -1334,25 +1372,25 @@ export default function MixArchive({
 
           {/* Dropdown navigation list */}
           <AnimatePresence>
-            {isMobileMenuOpen && (
+            {isCDJMenuOpen && (
               <>
                 <motion.div 
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 0.5 }}
                   exit={{ opacity: 0 }}
                   className="fixed inset-0 bg-black/60 z-40"
-                  onClick={() => setIsMobileMenuOpen(false)}
+                  onClick={() => setIsCDJMenuOpen(false)}
                 />
                 <motion.div
                   initial={{ opacity: 0, scale: 0.95, y: -5 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.95, y: -5 }}
                   transition={{ duration: 0.15 }}
-                  className="absolute left-0 top-6 w-36 bg-zinc-950 border border-zinc-800 rounded shadow-lg z-50 py-1 font-mono text-[7px]"
+                  className="absolute left-0 top-[22px] w-36 bg-zinc-950 border border-zinc-800 rounded shadow-lg z-50 py-1 font-mono text-[7px]"
                 >
                   <Link
                     href="/"
-                    onClick={() => setIsMobileMenuOpen(false)}
+                    onClick={() => setIsCDJMenuOpen(false)}
                     className="block px-3 py-1.5 text-zinc-400 hover:text-white hover:bg-zinc-900 border-b border-zinc-900/60 uppercase tracking-widest font-black text-[6.5px] leading-tight"
                   >
                     ← BACK TO HOME
@@ -1367,7 +1405,7 @@ export default function MixArchive({
                     <Link
                       key={link.href}
                       href={link.href}
-                      onClick={() => setIsMobileMenuOpen(false)}
+                      onClick={() => setIsCDJMenuOpen(false)}
                       className="block px-3 py-1.5 text-zinc-400 hover:text-white hover:bg-zinc-900 uppercase tracking-widest leading-normal"
                     >
                       {link.name}
@@ -1490,21 +1528,48 @@ export default function MixArchive({
             {/* Platter Center */}
             <div className="flex-grow flex items-center justify-center min-w-0">
               <div 
-                className="relative rounded-full aspect-square border-2 border-emerald-500 bg-zinc-950 flex items-center justify-center shadow-[0_0_12px_rgba(16,185,129,0.3)] transition-all select-none cursor-pointer"
+                className="relative rounded-full aspect-square border border-zinc-800 bg-zinc-950 flex items-center justify-center shadow-[0_0_12px_rgba(0,0,0,0.8)] transition-all select-none cursor-pointer"
                 style={{
-                  height: 'min(96px, 100%)',
-                  width: 'min(96px, 100%)',
-                  transform: `rotate(${deck1Rotation}deg)`,
+                  height: '118px',
+                  width: '118px',
+                  backgroundImage: 'radial-gradient(circle, #27272a 35%, #18181b 36%, #18181b 50%, #09090b 51%, #09090b 70%, #27272a 71%)'
+                }}
+                onClick={() => {
+                  playClick(800, 'sine', 0.02);
+                  setActiveTracklistDeckId(1);
                 }}
               >
-                <div className="absolute inset-1 rounded-full border border-dashed border-zinc-800/40" />
-                <div className="absolute inset-2 rounded-full border border-dashed border-zinc-800/40" />
-                <div className="absolute inset-4 rounded-full border border-dashed border-zinc-850" />
-                <div className="absolute inset-6 rounded-full border border-dashed border-zinc-850" />
-                <div className="w-8 h-8 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-center overflow-hidden">
-                  <span className="text-[6px] font-black text-emerald-400/80 leading-none tracking-tighter uppercase">H9IX</span>
+                {/* Grooves & Position Stripes */}
+                <div className="absolute inset-3 border border-dashed border-zinc-900/40 rounded-full pointer-events-none" />
+                <div className="absolute inset-6.5 border border-zinc-900/25 rounded-full pointer-events-none" />
+                <div className="absolute inset-10 border border-dashed border-zinc-900/40 rounded-full pointer-events-none" />
+
+                {/* Platter Marker Needle Ring */}
+                <div 
+                  className="absolute top-0 w-0.5 h-3.5 pointer-events-none z-20"
+                  style={{ backgroundColor: '#10b981' }}
+                />
+
+                {/* Inner Platter (Spinning artwork) */}
+                <div 
+                  className={cn(
+                    "rounded-full border border-black overflow-hidden relative shadow-inner bg-cover bg-center select-none pointer-events-none z-10 flex items-center justify-center",
+                    (deck1.isPlaying && !deck1.isCueStuttering) && "animate-[spin_1.8s_linear_infinite]"
+                  )}
+                  style={{ 
+                    width: '66px',
+                    height: '66px',
+                    backgroundImage: `url(${getSessionImage(deck1.title, deck1.artworkUrl)})`
+                  }}
+                >
+                  {/* Glossy Overlay */}
+                  <div className="absolute inset-0 bg-gradient-to-tr from-white/10 via-transparent to-black/30" />
+                  
+                  {/* Center Spindle Hole */}
+                  <div className="w-2.5 h-2.5 rounded-full bg-zinc-950 border border-zinc-800 shadow z-10 flex items-center justify-center">
+                    <div className="w-0.5 h-0.5 rounded-full bg-zinc-900" />
+                  </div>
                 </div>
-                <div className="absolute top-0 w-0.5 h-2.5 bg-white/90 rounded-sm" />
               </div>
             </div>
           </div>
@@ -1551,21 +1616,48 @@ export default function MixArchive({
             {/* Platter Center */}
             <div className="flex-grow flex items-center justify-center min-w-0">
               <div 
-                className="relative rounded-full aspect-square border-2 border-rose-500 bg-zinc-950 flex items-center justify-center shadow-[0_0_12px_rgba(244,63,94,0.3)] transition-all select-none cursor-pointer"
+                className="relative rounded-full aspect-square border border-zinc-800 bg-zinc-950 flex items-center justify-center shadow-[0_0_12px_rgba(0,0,0,0.8)] transition-all select-none cursor-pointer"
                 style={{
-                  height: 'min(96px, 100%)',
-                  width: 'min(96px, 100%)',
-                  transform: `rotate(${deck2Rotation}deg)`,
+                  height: '118px',
+                  width: '118px',
+                  backgroundImage: 'radial-gradient(circle, #27272a 35%, #18181b 36%, #18181b 50%, #09090b 51%, #09090b 70%, #27272a 71%)'
+                }}
+                onClick={() => {
+                  playClick(800, 'sine', 0.02);
+                  setActiveTracklistDeckId(2);
                 }}
               >
-                <div className="absolute inset-1 rounded-full border border-dashed border-zinc-800/40" />
-                <div className="absolute inset-2 rounded-full border border-dashed border-zinc-800/40" />
-                <div className="absolute inset-4 rounded-full border border-dashed border-zinc-850" />
-                <div className="absolute inset-6 rounded-full border border-dashed border-zinc-850" />
-                <div className="w-8 h-8 rounded-full bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-center overflow-hidden">
-                  <span className="text-[6px] font-black text-rose-400/80 leading-none tracking-tighter uppercase">H9IX</span>
+                {/* Grooves & Position Stripes */}
+                <div className="absolute inset-3 border border-dashed border-zinc-900/40 rounded-full pointer-events-none" />
+                <div className="absolute inset-6.5 border border-zinc-900/25 rounded-full pointer-events-none" />
+                <div className="absolute inset-10 border border-dashed border-zinc-900/40 rounded-full pointer-events-none" />
+
+                {/* Platter Marker Needle Ring */}
+                <div 
+                  className="absolute top-0 w-0.5 h-3.5 pointer-events-none z-20"
+                  style={{ backgroundColor: '#f43f5e' }}
+                />
+
+                {/* Inner Platter (Spinning artwork) */}
+                <div 
+                  className={cn(
+                    "rounded-full border border-black overflow-hidden relative shadow-inner bg-cover bg-center select-none pointer-events-none z-10 flex items-center justify-center",
+                    (deck2.isPlaying && !deck2.isCueStuttering) && "animate-[spin_1.8s_linear_infinite]"
+                  )}
+                  style={{ 
+                    width: '66px',
+                    height: '66px',
+                    backgroundImage: `url(${getSessionImage(deck2.title, deck2.artworkUrl)})`
+                  }}
+                >
+                  {/* Glossy Overlay */}
+                  <div className="absolute inset-0 bg-gradient-to-tr from-white/10 via-transparent to-black/30" />
+                  
+                  {/* Center Spindle Hole */}
+                  <div className="w-2.5 h-2.5 rounded-full bg-zinc-950 border border-zinc-800 shadow z-10 flex items-center justify-center">
+                    <div className="w-0.5 h-0.5 rounded-full bg-zinc-900" />
+                  </div>
                 </div>
-                <div className="absolute top-0 w-0.5 h-2.5 bg-white/90 rounded-sm" />
               </div>
             </div>
 
@@ -1755,7 +1847,7 @@ export default function MixArchive({
         </AnimatePresence>
 
         {/* Mobile Hamburger Menu Toggle */}
-        {isMobile && (
+        {isMobile && activeView === 'tracklist' && (
           <button 
             onClick={() => setIsMobileMenuOpen(true)}
             className="absolute top-4 left-4 z-40 p-2 bg-zinc-950/80 border border-zinc-900 rounded-md text-zinc-400 hover:text-white backdrop-blur shadow-xl"
@@ -1766,7 +1858,7 @@ export default function MixArchive({
 
         {/* Mobile Slide-out Menu */}
         <AnimatePresence>
-          {isMobile && isMobileMenuOpen && (
+          {isMobile && activeView === 'tracklist' && isMobileMenuOpen && (
             <>
               <motion.div 
                 initial={{ opacity: 0 }}
@@ -2273,6 +2365,67 @@ export default function MixArchive({
 
             </div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Mobile Tracklist Overlay Modal */}
+      <AnimatePresence>
+        {activeTracklistDeckId !== null && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setActiveTracklistDeckId(null)}
+              className="fixed inset-0 bg-black/85 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="relative w-full max-w-sm border border-zinc-900 bg-zinc-950/95 rounded-xl p-4 shadow-2xl font-mono text-zinc-300 z-10 select-none max-h-[75vh] flex flex-col"
+            >
+              {/* Close Button */}
+              <button
+                onClick={() => setActiveTracklistDeckId(null)}
+                className="absolute top-3 right-3 text-zinc-500 hover:text-white transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+
+              <h3 className="text-primary text-[8px] font-black tracking-[0.25em] uppercase border-b border-zinc-900 pb-2 mb-3 truncate pr-8">
+                📋 TRACKLIST // DECK {activeTracklistDeckId} // {decks[activeTracklistDeckId]?.title || 'LOADED MIX'}
+              </h3>
+
+              <div className="flex-grow overflow-y-auto custom-scrollbar flex flex-col gap-1.5 pr-1">
+                {decks[activeTracklistDeckId]?.tracklist ? (
+                  parseTracklist(decks[activeTracklistDeckId].tracklist || '').map((item, idx) => (
+                    <div key={idx} className="text-[10px] text-zinc-400 font-mono flex gap-2.5 items-center leading-normal">
+                      {item.isTimestamp ? (
+                        <button
+                          onClick={() => {
+                            playClick(1000, 'sine', 0.02);
+                            if (seekDeckToTime) {
+                              seekDeckToTime(activeTracklistDeckId, item.seconds);
+                            }
+                            setActiveTracklistDeckId(null);
+                          }}
+                          className="text-primary hover:text-red-400 cursor-pointer font-bold select-none hover:underline shrink-0"
+                        >
+                          {item.timestampText}
+                        </button>
+                      ) : null}
+                      <span className="truncate select-text text-left">{item.text}</span>
+                    </div>
+                  ))
+                ) : (
+                  <span className="text-[9px] text-zinc-600 uppercase tracking-wider py-4 text-center">
+                    No tracklist data loaded for this mix.
+                  </span>
+                )}
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
     </section>

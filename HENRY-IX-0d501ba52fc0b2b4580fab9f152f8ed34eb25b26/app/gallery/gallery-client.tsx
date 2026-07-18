@@ -564,7 +564,8 @@ export default function GalleryClient() {
         { src: proxyUrl(getStorageUrl('/gallery/Me/img_2255.jpg')), title: 'DECK CONTROLS' },
         { src: proxyUrl(getStorageUrl('/gallery/Me/img_3540.jpg')), title: 'BOOTH MONITOR' },
         { src: proxyUrl(getStorageUrl('/gallery/Me/img_0495.jpg')), title: 'ROYAL COURT S1' },
-        { src: proxyUrl(getStorageUrl('/gallery/Me/img_4564.jpg')), title: 'CROWD WAVE' }
+        { src: proxyUrl(getStorageUrl('/gallery/Me/img_4564.jpg')), title: 'CROWD WAVE' },
+        { src: proxyUrl(getStorageUrl('/gallery/Me/img_0899.jpg')), title: 'RED PORTRAIT' }
       ]
     }
   ]);

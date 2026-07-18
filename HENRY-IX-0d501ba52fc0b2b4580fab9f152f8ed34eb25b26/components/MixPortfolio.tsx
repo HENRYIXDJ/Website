@@ -148,7 +148,8 @@ export default function MixPortfolio({
                 link: kc1.link,
                 bpm: kc1.bpm,
                 cuePoints: kc1.cuePoints,
-                artworkUrl: kc1.artworkUrl
+                artworkUrl: kc1.artworkUrl,
+                tracklist: kc1.tracklist
               };
             }
             const kc2 = allMixes.find(m => m.title.includes('Knight Club') && m.title.includes('Session 2'));
@@ -161,7 +162,8 @@ export default function MixPortfolio({
                 link: kc2.link,
                 bpm: kc2.bpm,
                 cuePoints: kc2.cuePoints,
-                artworkUrl: kc2.artworkUrl
+                artworkUrl: kc2.artworkUrl,
+                tracklist: kc2.tracklist
               };
             }
             const kc3 = allMixes.find(m => m.title.includes('Knight Club') && m.title.includes('Session 3'));
@@ -174,7 +176,8 @@ export default function MixPortfolio({
                 link: kc3.link,
                 bpm: kc3.bpm,
                 cuePoints: kc3.cuePoints,
-                artworkUrl: kc3.artworkUrl
+                artworkUrl: kc3.artworkUrl,
+                tracklist: kc3.tracklist
               };
             }
             const kc4 = allMixes.find(m => m.title.includes('Knight Club') && m.title.includes('Session 4'));
@@ -187,7 +190,8 @@ export default function MixPortfolio({
                 link: kc4.link,
                 bpm: kc4.bpm,
                 cuePoints: kc4.cuePoints,
-                artworkUrl: kc4.artworkUrl
+                artworkUrl: kc4.artworkUrl,
+                tracklist: kc4.tracklist
               };
             }
             return updated;
