@@ -295,6 +295,7 @@ function StorybookAlbum({
                     alt=""
                     fill
                     sizes="120px"
+                    unoptimized={img.src.includes('/api/assets')}
                     className="object-cover filter grayscale contrast-125 brightness-90"
                   />
                 </div>
@@ -520,6 +521,7 @@ function ExpandedBookView({
                       alt={img.title}
                       fill
                       sizes="(max-width: 768px) 100vw, 25vw"
+                      unoptimized={img.src.includes('/api/assets')}
                       className="object-cover filter grayscale group-hover:grayscale-0 contrast-125 group-hover:scale-[1.03] transition-all duration-500"
                     />
                     
@@ -561,11 +563,11 @@ export default function GalleryClient() {
       title: 'ME',
       description: 'Candid deck captures, crowd wave highlights, studio sessions, and headshots of HENRY IX.',
       images: [
-        { src: proxyUrl(getStorageUrl('/gallery/Me/img_2255.jpg')), title: 'DECK CONTROLS' },
-        { src: proxyUrl(getStorageUrl('/gallery/Me/img_3540.jpg')), title: 'BOOTH MONITOR' },
-        { src: proxyUrl(getStorageUrl('/gallery/Me/img_0495.jpg')), title: 'ROYAL COURT S1' },
-        { src: proxyUrl(getStorageUrl('/gallery/Me/img_4564.jpg')), title: 'CROWD WAVE' },
-        { src: proxyUrl(getStorageUrl('/gallery/Me/img_0899.jpg')), title: 'RED PORTRAIT' }
+        { src: '/gallery/Me/img_2255.jpg', title: 'DECK CONTROLS' },
+        { src: '/gallery/Me/img_3540.jpg', title: 'BOOTH MONITOR' },
+        { src: '/gallery/Me/img_0495.jpg', title: 'ROYAL COURT S1' },
+        { src: '/gallery/Me/img_4564.jpg', title: 'CROWD WAVE' },
+        { src: '/gallery/Me/img_0899.jpg', title: 'RED PORTRAIT' }
       ]
     }
   ]);
