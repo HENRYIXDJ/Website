@@ -16,7 +16,12 @@ export default function MixPortfolio({
   activeView?: 'cdj' | 'tracklist'; 
 }) {
   const [activeView, setActiveView] = useState<'cdj' | 'tracklist'>(initialActiveView);
-  const [mixGroups, setMixGroups] = useState<any[]>(STATIC_MIX_GROUPS);
+  const [mixGroups, setMixGroups] = useState<any[]>(() => {
+    return STATIC_MIX_GROUPS.map(group => ({
+      ...group,
+      mixes: (group.mixes || []).filter(mix => mix.url || mix.link)
+    })).filter(group => group.mixes.length > 0);
+  });
 
   // Reactive deck state from Zustand — granular subscriptions, no cascade
   const decks = useAudioStore(s => s.decks);
@@ -117,19 +122,26 @@ export default function MixPortfolio({
         }`);
 
         if (data && data.length > 0) {
-          const formatted = data.map(group => ({
-            title: group.title,
-            mixes: (group.mixes || []).map((mix: any) => ({
-              id: mix._id,
-              title: mix.title,
-              url: mix.audioFile ? proxyUrl(getStorageUrl(mix.audioFile)) : mix.soundcloudLink || '',
-              link: mix.soundcloudLink || '',
-              bpm: mix.bpm || 120,
-              cuePoints: mix.cuePoints || [],
-              tracklist: mix.tracklist || '',
-              artworkUrl: mix.artworkFile ? proxyUrl(getStorageUrl(mix.artworkFile)) : undefined
-            }))
-          }));
+          const formatted = data
+            .map(group => {
+              const filteredMixes = (group.mixes || [])
+                .filter((mix: any) => mix.audioFile || mix.soundcloudLink)
+                .map((mix: any) => ({
+                  id: mix._id,
+                  title: mix.title,
+                  url: mix.audioFile ? proxyUrl(getStorageUrl(mix.audioFile)) : mix.soundcloudLink || '',
+                  link: mix.soundcloudLink || '',
+                  bpm: mix.bpm || 120,
+                  cuePoints: mix.cuePoints || [],
+                  tracklist: mix.tracklist || '',
+                  artworkUrl: mix.artworkFile ? proxyUrl(getStorageUrl(mix.artworkFile)) : undefined
+                }));
+              return {
+                title: group.title,
+                mixes: filteredMixes
+              };
+            })
+            .filter(group => group.mixes.length > 0);
 
           setMixGroups(formatted);
 

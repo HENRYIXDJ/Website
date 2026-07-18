@@ -7,6 +7,7 @@ import { playClick } from '@/lib/audioUtils';
 import { cn } from '@/lib/utils';
 import { getStorageUrl } from '@/lib/storage';
 import { Play, Pause } from 'lucide-react';
+import { getSessionImage } from '@/lib/mixes';
 
 const proxyUrl = (url: string) => `/api/assets?url=${encodeURIComponent(url)}`;
 
@@ -497,16 +498,7 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
   };
 
   // --- Session Artwork and Spinning calculations ---
-  const getSessionImage = (title: string) => {
-    if (!title) return proxyUrl(getStorageUrl('/Mixes/Knight%20Club/Mix%20Artwork/Session%201.jpg'));
-    if (title.includes('Knight Club') && title.includes('Session 1')) return proxyUrl(getStorageUrl('/Mixes/Knight%20Club/Mix%20Artwork/Session%201.jpg'));
-    if (title.includes('Knight Club') && title.includes('Session 2')) return proxyUrl(getStorageUrl('/Mixes/Knight%20Club/Mix%20Artwork/Session%202.jpg'));
-    if (title.includes('Knight Club') && title.includes('Session 3')) return proxyUrl(getStorageUrl('/Mixes/Knight%20Club/Mix%20Artwork/Session%203.jpg'));
-    if (title.includes('Knight Club') && title.includes('Session 4')) return proxyUrl(getStorageUrl('/Mixes/Knight%20Club/Mix%20Artwork/Session%204.jpg'));
-    return proxyUrl(getStorageUrl('/Mixes/Knight%20Club/Mix%20Artwork/Session%201.jpg'));
-  };
-
-  const sessionImg = getSessionImage(deck?.title || '');
+  const sessionImg = getSessionImage(deck?.title || '', deck?.artworkUrl);
 
   return (
     <div ref={containerRef} className={cn("w-full h-full flex flex-col justify-between relative select-none bg-zinc-900 border border-zinc-800 rounded-2xl shadow-[0_4px_30px_rgba(0,0,0,0.8)]", (cdjWidth < 260 || cdjHeight < 220) ? "p-1.5 gap-1.5" : "p-3 gap-3")}>
