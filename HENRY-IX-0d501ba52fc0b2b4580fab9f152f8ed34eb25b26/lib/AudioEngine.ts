@@ -449,19 +449,15 @@ export class AudioEngine {
       const offsetA = deckA.firstBeatOffset || 0;
       const offsetB = deckB.firstBeatOffset || 0;
       
-      const phraseInterval = activeBeatInterval * 16;
       const elapsedA = Math.max(0, audioA.currentTime - offsetA);
-      const phaseA = elapsedA % phraseInterval;
+      const phaseA = elapsedA % activeBeatInterval;
       
       const durationB = audioB.duration || deckB.duration || 0;
       const elapsedB = audioB.currentTime - offsetB;
-      let targetTimeB = offsetB + Math.round(elapsedB / phraseInterval) * phraseInterval + phaseA;
       
-      if (targetTimeB < 0 || (durationB && targetTimeB > durationB)) {
-        const barInterval = activeBeatInterval * 4;
-        const barPhaseA = elapsedA % barInterval;
-        targetTimeB = offsetB + Math.round(elapsedB / barInterval) * barInterval + barPhaseA;
-      }
+      // Snap directly to the nearest beat boundary to align phases
+      const nearestBeatIndex = Math.round(elapsedB / activeBeatInterval);
+      let targetTimeB = offsetB + nearestBeatIndex * activeBeatInterval + phaseA;
 
       if (targetTimeB < 0) targetTimeB = 0;
       if (durationB && targetTimeB > durationB) targetTimeB = durationB;
@@ -583,18 +579,16 @@ export class AudioEngine {
         }
       } else {
         useAudioStore.getState().setDeck(deckId, { isPlaying: false });
+        audio.pause();
         const nodes = this.deckNodes[deckId];
         if (nodes && this.audioCtx) {
           nodes.gainNode.gain.cancelScheduledValues(this.audioCtx.currentTime);
-          nodes.gainNode.gain.setTargetAtTime(0, this.audioCtx.currentTime, 0.35);
+          nodes.gainNode.gain.setValueAtTime(0, this.audioCtx.currentTime);
         }
-        setTimeout(() => {
-          audio.pause();
-          const freshState = useAudioStore.getState();
-          const freshDeck = freshState.decks[deckId];
-          const cfMult = this.computeCrossfaderGain(freshDeck.crossfaderAssign, freshState.crossfader);
-          this.setGain(deckId, freshDeck.volume, cfMult, freshState.isMuted, 0.005);
-        }, 1500);
+        const freshState = useAudioStore.getState();
+        const freshDeck = freshState.decks[deckId];
+        const cfMult = this.computeCrossfaderGain(freshDeck.crossfaderAssign, freshState.crossfader);
+        this.setGain(deckId, freshDeck.volume, cfMult, freshState.isMuted, 0.002);
       }
     };
 
