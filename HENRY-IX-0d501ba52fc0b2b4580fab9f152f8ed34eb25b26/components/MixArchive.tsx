@@ -70,9 +70,6 @@ export default function MixArchive({
   const mouseX = useMotionValue(0);
   const mouseY = useMotionValue(0);
   const [deckCount, setDeckCount] = useState<2 | 4>(4);
-  const [collapsedBrowsers, setCollapsedBrowsers] = useState<Record<number, boolean>>({
-    1: false, 2: false, 3: false, 4: false
-  });
   const [isMobile, setIsMobile] = useState(false);
   const [isPortrait, setIsPortrait] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -628,7 +625,6 @@ export default function MixArchive({
     const deck = decks[deckId];
     const isLocked = deck?.id === 'locked';
     const activeFolder = browserFolders[deckId] || 'all';
-    const isCollapsed = collapsedBrowsers[deckId];
     
     const themeColor = 
       deckId === 1 ? 'rgba(211,15,49,1)' : // red
@@ -658,38 +654,19 @@ export default function MixArchive({
           <div className="flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: themeColor }} />
             <span>BROWSER // DECK {deckId}</span>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setCollapsedBrowsers(prev => ({ ...prev, [deckId]: !prev[deckId] }));
-                playClick(700, 'sine', 0.03);
-              }}
-              className="ml-2 px-1 hover:text-white transition-colors cursor-pointer text-[10px] leading-none text-zinc-500 hover:text-zinc-300 active:scale-95"
-              title={isCollapsed ? "Expand Browser" : "Collapse Browser"}
-            >
-              {isCollapsed ? '▼' : '▲'}
-            </button>
           </div>
           <span>USB1 // PLAYLISTS</span>
         </div>
 
         {/* Directory & Tracks Split Grid */}
         {isLocked ? (
-          <div className={cn(
-            "flex-grow flex flex-col justify-center items-center p-4 text-center",
-            isCollapsed ? "min-h-0 p-2" : "min-h-[120px]"
-          )}>
-            <span className={cn(
-              "text-yellow-500 font-bold tracking-widest uppercase",
-              isCollapsed ? "text-[8px]" : "text-[11px]"
-            )}>
+          <div className="flex-grow flex flex-col justify-center items-center p-4 text-center min-h-[120px]">
+            <span className="text-yellow-500 font-bold tracking-widest uppercase text-[11px]">
               DECK LOCKED // COMING SOON
             </span>
-            {!isCollapsed && (
-              <span className="text-zinc-600 text-[8px] mt-2 tracking-wider">
-                ACCESS_DENIED // REQUIRE_RELEASE
-              </span>
-            )}
+            <span className="text-zinc-600 text-[8px] mt-2 tracking-wider">
+              ACCESS_DENIED // REQUIRE_RELEASE
+            </span>
           </div>
         ) : (
           <div className="flex flex-1 min-h-0 w-full">
@@ -2061,7 +2038,6 @@ export default function MixArchive({
                 const isActive = isLeft ? (leftActiveDeck === id) : (rightActiveDeck === id);
                 const deck = decks[id];
                 const isLocked = deck?.id === 'locked';
-                const isCollapsed = collapsedBrowsers[id];
                 const themeColor = 
                   id === 1 ? 'rgba(211,15,49,1)' : // red
                   id === 2 ? 'rgba(34,211,238,1)' : // cyan
@@ -2080,9 +2056,7 @@ export default function MixArchive({
                     {/* Browser */}
                     <div className={cn(
                       "transition-all duration-300 min-h-0",
-                      isCollapsed 
-                        ? (isMobile ? "h-[28px] shrink-0" : "h-[104px] shrink-0") 
-                        : (isMobile ? "h-[100px] shrink-0" : "h-[144px] shrink-0")
+                      isMobile ? "h-[100px] shrink-0" : "h-[144px] shrink-0"
                     )}>
                       {renderDeckBrowser(id)}
                     </div>
