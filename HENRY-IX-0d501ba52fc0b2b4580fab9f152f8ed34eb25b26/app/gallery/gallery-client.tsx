@@ -559,10 +559,10 @@ export default function GalleryClient() {
       title: 'ME',
       description: 'Candid deck captures, crowd wave highlights, studio sessions, and headshots of HENRY IX.',
       images: [
-        { src: proxyUrl(getStorageUrl('/gallery/img_2255.jpg')), title: 'DECK CONTROLS' },
-        { src: proxyUrl(getStorageUrl('/gallery/img_3540.jpg')), title: 'BOOTH MONITOR' },
-        { src: proxyUrl(getStorageUrl('/gallery/img_0495.jpg')), title: 'ROYAL COURT S1' },
-        { src: proxyUrl(getStorageUrl('/gallery/img_4564.jpg')), title: 'CROWD WAVE' }
+        { src: proxyUrl(getStorageUrl('/gallery/Me/img_2255.jpg')), title: 'DECK CONTROLS' },
+        { src: proxyUrl(getStorageUrl('/gallery/Me/img_3540.jpg')), title: 'BOOTH MONITOR' },
+        { src: proxyUrl(getStorageUrl('/gallery/Me/img_0495.jpg')), title: 'ROYAL COURT S1' },
+        { src: proxyUrl(getStorageUrl('/gallery/Me/img_4564.jpg')), title: 'CROWD WAVE' }
       ]
     }
   ]);

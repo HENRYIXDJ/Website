@@ -422,7 +422,7 @@ export default function LiveClient({ initialSettings, history }: LiveClientProps
             {/* Bottom Info deck */}
             <div className="bg-black/50 border border-zinc-900/60 p-3.5 rounded-xl z-10 text-left">
               <span className="text-[7px] text-zinc-500 uppercase tracking-widest font-bold">STREAM DIAGNOSTICS</span>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-2 text-[8px] text-zinc-400 font-bold uppercase tracking-wider">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-2 text-[8px] text-zinc-400 font-bold uppercase tracking-wider">
                 <div className="flex flex-col gap-0.5">
                   <span className="text-[6.5px] text-zinc-600">RESOLUTION</span>
                   <span className="text-primary font-black">{activeStream.resolution}</span>
@@ -434,13 +434,6 @@ export default function LiveClient({ initialSettings, history }: LiveClientProps
                 <div className="flex flex-col gap-0.5">
                   <span className="text-[6.5px] text-zinc-600">TARGET BITRATE</span>
                   <span className="text-white">6800 KBPS</span>
-                </div>
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-[6.5px] text-zinc-600">LATENCY MODE</span>
-                  <span className={cn(
-                    "font-black",
-                    activeStream.latency.toLowerCase().includes('low') ? "text-emerald-500" : "text-yellow-500"
-                  )}>{activeStream.latency}</span>
                 </div>
               </div>
             </div>

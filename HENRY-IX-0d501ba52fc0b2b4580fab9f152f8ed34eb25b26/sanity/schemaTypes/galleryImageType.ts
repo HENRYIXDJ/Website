@@ -27,7 +27,7 @@ export const galleryImageType = defineType({
       name: 'imageFile',
       title: 'Image File path (R2 relative)',
       type: 'string',
-      description: 'The path to the image file in your Cloudflare R2 bucket',
+      description: 'The path to the image file in your R2 bucket. For pictures of yourself, upload them to the "gallery/Me/" folder and set this path (e.g., "/gallery/Me/your-photo.jpg").',
     }),
     defineField({
       name: 'gridClass',
