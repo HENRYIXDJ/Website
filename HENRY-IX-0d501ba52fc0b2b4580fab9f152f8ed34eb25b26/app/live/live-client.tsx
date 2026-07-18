@@ -109,6 +109,7 @@ interface LiveClientProps {
     viewerUserId: string;
     status: string;
     scheduledTime: string | null;
+    endedAt: string | null;
     resolution: string;
     latency: string;
   };
@@ -117,6 +118,56 @@ interface LiveClientProps {
 
 export default function LiveClient({ initialSettings, history }: LiveClientProps) {
   const [activeStream, setActiveStream] = useState(initialSettings);
+  const [preCountdownSecs, setPreCountdownSecs] = useState<number | null>(null);
+  const [postCountdownSecs, setPostCountdownSecs] = useState<number | null>(null);
+
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    
+    const updateTimers = () => {
+      const now = Date.now();
+
+      // 1. Pre-show countdown: if status is 'upcoming' and scheduledTime is set
+      if (activeStream.status === 'upcoming' && activeStream.scheduledTime) {
+        const diff = Math.floor((new Date(activeStream.scheduledTime).getTime() - now) / 1000);
+        if (diff > 0) {
+          setPreCountdownSecs(diff);
+        } else {
+          setPreCountdownSecs(null);
+          // Countdown finished -> dynamically switch local stream view status to live!
+          setActiveStream(prev => ({ ...prev, status: 'live' }));
+        }
+      } else {
+        setPreCountdownSecs(null);
+      }
+
+      // 2. Post-show countdown: if status is 'ended' and endedAt is set
+      if (activeStream.status === 'ended' && activeStream.endedAt) {
+        const diff = Math.floor((new Date(activeStream.endedAt).getTime() + 30 * 60 * 1000 - now) / 1000);
+        if (diff > 0) {
+          setPostCountdownSecs(diff);
+        } else {
+          setPostCountdownSecs(null);
+          // 30 minute grace period expired -> switch back to standby / offline!
+          setActiveStream(prev => ({ ...prev, status: 'standby' }));
+        }
+      } else {
+        setPostCountdownSecs(null);
+      }
+    };
+
+    updateTimers();
+    timer = setInterval(updateTimers, 1000);
+
+    return () => clearInterval(timer);
+  }, [activeStream.status, activeStream.scheduledTime, activeStream.endedAt]);
+
+  const formatCountdown = (secs: number) => {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
+
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
     { id: '1', user: 'System', text: 'ESTABLISHING PORT TRANSMISSION ON COORD_51.5074...', time: '16:00' },
     { id: '2', user: 'System', text: 'DECODING AUDIO LAYER // AUDIO_RATE: 320KBPS...', time: '16:00' },
@@ -204,6 +255,13 @@ export default function LiveClient({ initialSettings, history }: LiveClientProps
                     </span>
                     UPCOMING TRANSMISSION SCHEDULED
                   </>
+                ) : activeStream.status === 'ended' ? (
+                  <>
+                    <span className="relative flex h-2 w-2">
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-red-400"></span>
+                    </span>
+                    TRANSMISSION CONCLUDED
+                  </>
                 ) : (
                   <>
                     <span className="relative flex h-2 w-2">
@@ -267,20 +325,29 @@ export default function LiveClient({ initialSettings, history }: LiveClientProps
                     <span className="text-[14px] md:text-[18px] font-sans font-bold text-zinc-200 tracking-wider max-w-sm uppercase">
                       {activeStream.title}
                     </span>
-                    {activeStream.scheduledTime && (
-                      <div className="flex flex-col gap-1.5 mt-2 bg-zinc-900/50 border border-zinc-800 rounded px-4 py-2 font-mono">
-                        <span className="text-[10px] text-zinc-500 tracking-widest uppercase">Scheduled Start Time:</span>
-                        <span className="text-xs text-primary font-bold">
-                          {new Date(activeStream.scheduledTime).toLocaleString('en-GB', {
-                            day: 'numeric',
-                            month: 'short',
-                            year: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                            timeZoneName: 'short'
-                          })}
+                    {preCountdownSecs !== null ? (
+                      <div className="flex flex-col gap-1.5 mt-2 bg-zinc-900/50 border border-zinc-800 rounded px-6 py-2 font-mono items-center">
+                        <span className="text-[10px] text-zinc-500 tracking-widest uppercase">TRANSMISSION EN ROUTE:</span>
+                        <span className="text-lg text-primary font-black tracking-widest animate-pulse">
+                          {formatCountdown(preCountdownSecs)}
                         </span>
                       </div>
+                    ) : (
+                      activeStream.scheduledTime && (
+                        <div className="flex flex-col gap-1.5 mt-2 bg-zinc-900/50 border border-zinc-800 rounded px-4 py-2 font-mono">
+                          <span className="text-[10px] text-zinc-500 tracking-widest uppercase">Scheduled Start Time:</span>
+                          <span className="text-xs text-primary font-bold">
+                            {new Date(activeStream.scheduledTime).toLocaleString('en-GB', {
+                              day: 'numeric',
+                              month: 'short',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              timeZoneName: 'short'
+                            })}
+                          </span>
+                        </div>
+                      )
                     )}
                   </div>
 
@@ -288,6 +355,32 @@ export default function LiveClient({ initialSettings, history }: LiveClientProps
                   <div className="absolute bottom-4 left-4 right-4 flex justify-between text-[7px] text-zinc-600 uppercase font-black tracking-widest border-t border-zinc-900/60 pt-2.5">
                     <span>SYS_MODE: SCHEDULED</span>
                     <span>SIGNAL: READY_FOR_CARRIER</span>
+                    <span>TARGET: {activeStream.title}</span>
+                  </div>
+                </div>
+              ) : activeStream.status === 'ended' && postCountdownSecs !== null ? (
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/95 p-6 text-center select-none overflow-hidden">
+                  <div className="absolute inset-0 bg-[linear-gradient(rgba(18,18,18,0)_95%,rgba(216,22,63,0.1)_95%)] bg-[size:100%_6px] pointer-events-none z-20 opacity-30 animate-pulse" />
+                  
+                  <div className="flex flex-col gap-4 relative z-10 items-center">
+                    <span className="text-primary font-black text-xs md:text-sm tracking-[0.3em] uppercase animate-pulse">
+                      [ TRANSMISSION_CONCLUDED ]
+                    </span>
+                    <span className="text-[11px] md:text-[13px] font-sans font-bold text-zinc-300 tracking-wider max-w-sm uppercase leading-relaxed">
+                      THE LIVE BROADCAST HAS ENDED. THANK YOU FOR TUNING IN.
+                    </span>
+                    <div className="flex flex-col gap-1.5 mt-2 bg-zinc-900/50 border border-zinc-800 rounded px-6 py-2 font-mono items-center">
+                      <span className="text-[10px] text-zinc-500 tracking-widest uppercase">System Standby In:</span>
+                      <span className="text-sm text-primary font-black tracking-widest">
+                        {formatCountdown(postCountdownSecs)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Diagnostic details */}
+                  <div className="absolute bottom-4 left-4 right-4 flex justify-between text-[7px] text-zinc-600 uppercase font-black tracking-widest border-t border-zinc-900/60 pt-2.5">
+                    <span>SYS_MODE: STANDBY_COUNTDOWN</span>
+                    <span>SIGNAL: TERM_CARRIER</span>
                     <span>TARGET: {activeStream.title}</span>
                   </div>
                 </div>

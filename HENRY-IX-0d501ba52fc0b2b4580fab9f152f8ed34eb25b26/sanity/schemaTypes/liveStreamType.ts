@@ -30,6 +30,7 @@ export const liveStreamType = defineType({
         list: [
           { title: 'Upcoming Show Scheduled', value: 'upcoming' },
           { title: 'Live Broadcast Active', value: 'live' },
+          { title: 'Concluded Grace Period', value: 'ended' },
           { title: 'Archived VOD Broadcast', value: 'archived' }
         ]
       },
@@ -40,6 +41,12 @@ export const liveStreamType = defineType({
       title: 'Scheduled Time',
       type: 'datetime',
       description: 'The date and time when the upcoming stream is scheduled to start.',
+    }),
+    defineField({
+      name: 'endedAt',
+      title: 'Ended At Time',
+      type: 'datetime',
+      description: 'Timestamp when the active broadcast concluded.',
     }),
     defineField({
       name: 'diagnosticsResolution',

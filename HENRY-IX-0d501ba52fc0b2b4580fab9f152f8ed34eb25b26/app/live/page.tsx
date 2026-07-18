@@ -28,6 +28,7 @@ export default async function Page() {
       viewerUserId,
       status,
       scheduledTime,
+      endedAt,
       diagnosticsResolution,
       diagnosticsLatency,
       _createdAt
@@ -39,6 +40,7 @@ export default async function Page() {
   const activeStream = 
     streams.find((s: any) => s.status === 'live') || 
     streams.find((s: any) => s.status === 'upcoming') || 
+    streams.find((s: any) => s.status === 'ended') || 
     streams[0];
   
   const initialSettings = {
@@ -47,6 +49,7 @@ export default async function Page() {
     viewerUserId: activeStream?.viewerUserId || "user-id-007",
     status: activeStream?.status || "standby",
     scheduledTime: activeStream?.scheduledTime || null,
+    endedAt: activeStream?.endedAt || null,
     resolution: activeStream?.diagnosticsResolution || "1080P60 HD",
     latency: activeStream?.diagnosticsLatency || "Low Latency"
   };
