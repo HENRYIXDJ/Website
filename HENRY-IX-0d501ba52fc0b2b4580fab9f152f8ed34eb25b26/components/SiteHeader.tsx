@@ -71,7 +71,7 @@ export default function SiteHeader() {
   }, []);
 
   return (
-    <header className="fixed top-0 left-0 w-full h-24 z-50 bg-transparent flex items-center justify-between px-6 md:px-8 pointer-events-none">
+    <header className="fixed top-0 left-0 w-full h-12 md:h-24 z-50 bg-transparent flex items-center justify-between px-6 md:px-8 pointer-events-none">
       {/* Left: Social Links (Hidden below xl to prevent overlap) */}
       <div className="hidden xl:flex w-auto items-center gap-4 md:gap-5 select-none pointer-events-auto -translate-y-1">
         <SocialLink href="https://www.facebook.com/HenryIXDJ/" icon={<SiFacebook />} />
@@ -174,9 +174,41 @@ export default function SiteHeader() {
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -8, scale: 0.96 }}
                 transition={{ duration: 0.15, ease: 'easeOut' }}
-                className="absolute right-0 top-[2.5rem] w-48 bg-black/95 backdrop-blur-md border border-zinc-800/80 rounded-md overflow-hidden z-50 shadow-[0_10px_30px_rgba(0,0,0,0.9),_0_0_20px_rgba(216,22,63,0.05)]"
+                className="absolute right-0 top-[2.5rem] w-48 max-h-[75vh] overflow-y-auto custom-scrollbar bg-black/95 backdrop-blur-md border border-zinc-800/80 rounded-md z-50 shadow-[0_10px_30px_rgba(0,0,0,0.9),_0_0_20px_rgba(216,22,63,0.05)]"
               >
                 <div className="flex flex-col py-1 font-mono">
+                  {/* Integrated Social Links inside the Mobile Dropdown (At Top) */}
+                  <div className="flex items-center justify-center gap-3 border-b border-zinc-900/80 pb-2.5 pt-1.5 px-3 mb-1.5">
+                    <SocialLink href="https://www.facebook.com/HenryIXDJ/" icon={<SiFacebook />} className="text-[13px]" />
+                    <SocialLink href="https://x.com/HenryIXDJ" icon={<SiX className="scale-[0.9]" />} className="text-[13px]" />
+                    <SocialLink href="https://www.instagram.com/henryixdj/" icon={<SiInstagram />} className="text-[13px]" />
+                    <SocialLink href="https://www.tiktok.com/@henryixdj" icon={<SiTiktok />} className="text-[13px]" />
+                    <SocialLink href="https://www.youtube.com/@HenryIXDJ" icon={<SiYoutube className="scale-[1.05]" />} className="text-[13px]" />
+                    <SocialLink href="https://www.twitch.tv/henryixdj" icon={<SiTwitch />} className="text-[13px]" />
+                    <SocialLink href="https://soundcloud.com/henryixdj" icon={<SiSoundcloud className="scale-[1.2] origin-center" />} className="text-[13px]" />
+                    <SocialLink href="https://www.mixcloud.com/HenryIXDJ/" icon={<SiMixcloud className="scale-[1.5] origin-center" />} className="text-[13px] ml-0.5" />
+                  </div>
+
+                  {/* Standalone Back to Homepage Link */}
+                  <Link
+                    href="/"
+                    onClick={() => {
+                      playNavSwoosh();
+                      setIsOpen(false);
+                    }}
+                    onMouseEnter={() => playTick()}
+                    className={`px-4 py-2.5 text-[9px] tracking-widest uppercase transition-all duration-150 border-l-2 flex items-center justify-between ${
+                      pathname === '/'
+                        ? 'border-primary text-primary bg-zinc-900/30 font-bold'
+                        : 'border-transparent text-zinc-400 hover:text-white hover:border-zinc-700'
+                    }`}
+                  >
+                    <span>BACK TO HOMEPAGE</span>
+                    {pathname === '/' && (
+                      <span className="w-1 h-1 rounded-full bg-primary shadow-[0_0_6px_#d8163f]" />
+                    )}
+                  </Link>
+
                   {navLinks.map((link) => (
                     <Link
                       key={link.href}
@@ -198,18 +230,6 @@ export default function SiteHeader() {
                       )}
                     </Link>
                   ))}
-                  
-                  {/* Integrated Social Links inside the Mobile Dropdown (Below xl) */}
-                  <div className="flex items-center justify-center gap-3 border-t border-zinc-900/80 mt-1.5 pt-2.5 pb-1 px-3">
-                    <SocialLink href="https://www.facebook.com/HenryIXDJ/" icon={<SiFacebook />} className="text-[13px]" />
-                    <SocialLink href="https://x.com/HenryIXDJ" icon={<SiX className="scale-[0.9]" />} className="text-[13px]" />
-                    <SocialLink href="https://www.instagram.com/henryixdj/" icon={<SiInstagram />} className="text-[13px]" />
-                    <SocialLink href="https://www.tiktok.com/@henryixdj" icon={<SiTiktok />} className="text-[13px]" />
-                    <SocialLink href="https://www.youtube.com/@HenryIXDJ" icon={<SiYoutube className="scale-[1.05]" />} className="text-[13px]" />
-                    <SocialLink href="https://www.twitch.tv/henryixdj" icon={<SiTwitch />} className="text-[13px]" />
-                    <SocialLink href="https://soundcloud.com/henryixdj" icon={<SiSoundcloud className="scale-[1.2] origin-center" />} className="text-[13px]" />
-                    <SocialLink href="https://www.mixcloud.com/HenryIXDJ/" icon={<SiMixcloud className="scale-[1.5] origin-center" />} className="text-[13px] ml-0.5" />
-                  </div>
                 </div>
               </motion.div>
             )}

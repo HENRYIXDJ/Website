@@ -171,7 +171,7 @@ export function SingleDeckWaveform({
 
       // Phase sync calculation (Deck A vs Deck B / Left vs Right active deck)
       let isSyncGlow = false;
-      const otherActiveDeckId = (deckId === 1 || deckId === 2) ? rightActiveDeckRef.current : leftActiveDeckRef.current;
+      const otherActiveDeckId = (deckId === 1 || deckId === 3) ? rightActiveDeckRef.current : leftActiveDeckRef.current;
       const otherDeck = allDecksRef.current[otherActiveDeckId];
       if (otherDeck && otherDeck.id !== 'locked' && currentDeck.id !== 'locked') {
         const bpmCurrent = currentDeck.bpm * (1 + (currentDeck.pitch || 0) / 100);

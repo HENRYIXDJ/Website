@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 
+export const dynamic = 'force-dynamic';
+export const fetchCache = 'force-no-store';
+
 
 const accountId = process.env.R2_ACCOUNT_ID;
 const accessKeyId = process.env.R2_ACCESS_KEY_ID;
@@ -52,10 +55,8 @@ async function handleAssetRequest(request: Request) {
   const storageBaseUrl = process.env.NEXT_PUBLIC_STORAGE_BASE_URL;
   const allowedHosts = [
     'tegbbmt42xpyzcnx.private.blob.vercel-storage.com',
-    'vercel-storage.com',
     'pub-930b5248e181432aa6e2f5a31832fd8d.r2.dev',
-    'pub-c7c5ff43a8ae174ad91e2668de0ad7f0.r2.dev',
-    'r2.dev'
+    'pub-c7c5ff43a8ae174ad91e2668de0ad7f0.r2.dev'
   ];
   if (r2PublicDomain) {
     try { allowedHosts.push(new URL(r2PublicDomain).host.toLowerCase()); } catch(_) {}
@@ -109,7 +110,7 @@ async function handleAssetRequest(request: Request) {
         }
         
         let statusCode = 200;
-        if (rangeHeader && object.size) {
+        if (rangeHeader && range && object.size) {
           statusCode = 206;
           const start = range.offset;
           const end = range.length ? (start + range.length - 1) : (object.size - 1);
@@ -145,6 +146,7 @@ async function handleAssetRequest(request: Request) {
       const response = await fetch(targetUrl, {
         headers: fetchHeaders,
         method: request.method,
+        cache: 'no-store',
       });
       
       const headers = new Headers();

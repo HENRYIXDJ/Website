@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, startTransition } from 'react';
+import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import PageShell from '@/components/PageShell';
@@ -25,6 +25,7 @@ interface Broadcast {
 
 const proxyUrl = (url: string) => `/api/assets?url=${encodeURIComponent(url)}`;
 
+/*
 const ME_IMAGES: GalleryItem[] = [
   {
     src: proxyUrl(getStorageUrl('/gallery/img_2255.jpg')),
@@ -47,6 +48,7 @@ const ME_IMAGES: GalleryItem[] = [
     gridClass: 'col-span-1 md:col-span-2 aspect-square md:aspect-[2/1]',
   },
 ];
+*/
 
 const ARTWORK_IMAGES: GalleryItem[] = [
   {
@@ -726,7 +728,7 @@ export default function GalleryClient() {
                 </motion.div>
               ) : (
                 expandedAlbum && (
-                  <ExpandedAlbumView
+                  <ExpandedBookView
                     key={expandedAlbum.id}
                     album={expandedAlbum}
                     prevAlbum={prevAlbum}
@@ -736,7 +738,7 @@ export default function GalleryClient() {
                       setExpandedAlbumId(null);
                     }}
                     onNavigate={navigateToAlbum}
-                    onPhotoClick={(idx) => {
+                    onPhotoClick={(idx: number) => {
                       playClick(900, 'sine', 0.03);
                       setLightboxIndex(idx);
                     }}

@@ -100,6 +100,7 @@ interface HistoryItem {
   playbackId: string;
   date: string;
   resolution: string;
+  endedAt?: string | null;
 }
 
 interface LiveClientProps {
@@ -526,6 +527,7 @@ export default function LiveClient({ initialSettings, history }: LiveClientProps
                         viewerUserId: "user-id-007",
                         status: "archived",
                         scheduledTime: null,
+                        endedAt: item.endedAt || null,
                         resolution: item.resolution,
                         latency: "Standard Latency"
                       });

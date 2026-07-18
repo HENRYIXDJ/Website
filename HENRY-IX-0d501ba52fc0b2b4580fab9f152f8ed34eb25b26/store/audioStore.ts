@@ -55,26 +55,30 @@ export interface AudioStoreState {
 
   // Mixer
   crossfader: number;
-  leftActiveDeck: 1 | 2;
-  rightActiveDeck: 3 | 4;
+  leftActiveDeck: 1 | 3;
+  rightActiveDeck: 2 | 4;
 
   // UI / App state
   isMuted: boolean;
   preloaderComplete: boolean;
   audioDSPInitialized: boolean;
   isStacked: boolean;
+  isCDJView: boolean;
   visualLatencyOffset: number;
+  detectedBpms: Record<string, number>;
 
   // ---------- Actions ----------
   setDeck: (id: number, patch: Partial<DeckState>) => void;
   setCrossfader: (val: number) => void;
-  setLeftActiveDeck: (val: 1 | 2) => void;
-  setRightActiveDeck: (val: 3 | 4) => void;
+  setLeftActiveDeck: (val: 1 | 3) => void;
+  setRightActiveDeck: (val: 2 | 4) => void;
   setIsMuted: (val: boolean) => void;
   setPreloaderComplete: (val: boolean) => void;
   setAudioDSPInitialized: (val: boolean) => void;
   setStacked: (val: boolean) => void;
+  setIsCDJView: (val: boolean) => void;
   setVisualLatencyOffset: (val: number) => void;
+  setDetectedBpm: (trackId: string, bpm: number) => void;
 
   // Legacy-compat: full decks setter (accepts updater fn or object)
   setDecks: (updater: Record<number, DeckState> | ((prev: Record<number, DeckState>) => Record<number, DeckState>)) => void;
@@ -224,7 +228,7 @@ const INITIAL_DECKS: Record<number, DeckState> = {
   },
   4: {
     id: 'kc-4', title: 'Knight Club: Session 4',
-    url: proxyUrl(getStorageUrl('/Mixes/Knight%20Club/Mix%20Audio/Knight%20Club%20Session%204%20-%20Remastered.mp3')),
+    url: proxyUrl(getStorageUrl('/Mixes/Knight%20Club/Mix%20Audio/Knight%20Club%20Session%204%20MP3.mp3')),
     link: 'https://soundcloud.com/henryixdj/33baa30a-4980-40da-94c2-41085314ec43',
     bpm: 155, isPlaying: false, isReady: false, scMode: false, pitch: 0,
     progress: 0, duration: 0, volume: 80, eqHi: 50, eqMid: 50, eqLow: 50,
@@ -252,12 +256,14 @@ export const useAudioStore = create<AudioStoreState>()(
     decks: INITIAL_DECKS,
     crossfader: 50,
     leftActiveDeck: 1,
-    rightActiveDeck: 3,
+    rightActiveDeck: 2,
     isMuted: false,
     preloaderComplete: false,
     audioDSPInitialized: false,
     isStacked: false,
+    isCDJView: false,
     visualLatencyOffset: 45,
+    detectedBpms: {},
 
     // Atomic deck patch — only touches the specified deck
     setDeck: (id, patch) =>
@@ -275,7 +281,15 @@ export const useAudioStore = create<AudioStoreState>()(
     setPreloaderComplete: val => set({ preloaderComplete: val }),
     setAudioDSPInitialized: val => set({ audioDSPInitialized: val }),
     setStacked: val => set({ isStacked: val }),
+    setIsCDJView: val => set({ isCDJView: val }),
     setVisualLatencyOffset: val => set({ visualLatencyOffset: val }),
+    setDetectedBpm: (trackId, bpm) =>
+      set(s => ({
+        detectedBpms: {
+          ...s.detectedBpms,
+          [trackId]: bpm
+        }
+      })),
 
     // Legacy-compat: accepts an updater function or a plain object
     setDecks: updater => {

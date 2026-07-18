@@ -10,6 +10,7 @@ interface VolumeFaderProps {
   channelColor: string;
   onChange: (val: number) => void;
   onLockout: () => void;
+  isPlaying?: boolean;
 }
 
 export function VolumeFader({
@@ -18,7 +19,8 @@ export function VolumeFader({
   isLocked,
   channelColor,
   onChange,
-  onLockout
+  onLockout,
+  isPlaying = false
 }: VolumeFaderProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const lastUpdateRef = useRef({ time: 0, value: volume });
@@ -124,11 +126,12 @@ export function VolumeFader({
       />
 
       <div 
-        className="absolute bottom-0 w-full"
+        className="absolute bottom-0 w-full transition-all duration-300"
         style={{ 
           height: `${volume}%`,
           backgroundColor: channelColor,
-          opacity: 0.15
+          opacity: isPlaying ? 0.50 : 0.15,
+          boxShadow: isPlaying ? `0 0 10px ${channelColor}` : undefined
         }}
       />
 

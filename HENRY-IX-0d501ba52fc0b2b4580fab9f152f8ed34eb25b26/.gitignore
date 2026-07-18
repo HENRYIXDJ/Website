@@ -4,3 +4,11 @@
 /.next/
 /.vercel/
 /.open-next/
+
+# Local env files
+.env
+.env*.local
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local

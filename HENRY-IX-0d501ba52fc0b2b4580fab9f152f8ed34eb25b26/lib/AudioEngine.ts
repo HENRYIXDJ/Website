@@ -625,10 +625,10 @@ export class AudioEngine {
       else if (track.id.startsWith('cnc-')) deckId = 3;
     }
 
-    if (deckId === 1 || deckId === 2) {
-      useAudioStore.getState().setLeftActiveDeck(deckId as 1 | 2);
+    if (deckId === 1 || deckId === 3) {
+      useAudioStore.getState().setLeftActiveDeck(deckId as 1 | 3);
     } else {
-      useAudioStore.getState().setRightActiveDeck(deckId as 3 | 4);
+      useAudioStore.getState().setRightActiveDeck(deckId as 2 | 4);
     }
 
     playClick(1000, 'sine', 0.04);
@@ -703,6 +703,9 @@ export class AudioEngine {
     if (audio) audio.pause();
     if (widget) { try { widget.pause(); } catch (e) {} }
 
+    const detectedBpm = state.detectedBpms?.[track.id];
+    const initialBpm = detectedBpm || track.bpm || 120;
+
     if (isLocal) {
       const firstBeatOffset = track.firstBeatOffset || 0.0;
       if (audio) {
@@ -714,22 +717,62 @@ export class AudioEngine {
           audio.src = absoluteUrl;
           audio.load();
         }
-        this.seekToFirstBeatOneOfBar(deckId, firstBeatOffset, track.bpm);
+        this.seekToFirstBeatOneOfBar(deckId, firstBeatOffset, initialBpm);
       }
       useAudioStore.getState().setDeck(deckId, {
         id: track.id, title: track.title, url: track.url, link: track.link,
-        bpm: track.bpm, isPlaying: false, progress: audio ? audio.currentTime : 0, scMode: false, isReady: false,
+        bpm: initialBpm, isPlaying: false, progress: audio ? audio.currentTime : 0, scMode: false, isReady: false,
         waveformPeaks: this.dynamicWaveforms[track.id] || generateStaticPeaks(500),
         cuePoints: track.cuePoints,
         firstBeatOffset: firstBeatOffset,
         artworkUrl: track.artworkUrl,
       });
+
+      // Trigger background BPM analysis for remote files if not already detected
+      if (!detectedBpm && track.url && !track.url.startsWith('blob:')) {
+        const fileKey = track.id;
+        const absoluteUrl = track.url.startsWith('http')
+          ? track.url
+          : new URL(track.url, window.location.origin).href;
+        fetch(absoluteUrl, { headers: { Range: 'bytes=0-4194304' } })
+          .then(res => { 
+            if (res.ok || res.status === 206) return res.arrayBuffer(); 
+            else throw new Error('Range fetch failed'); 
+          })
+          .then(async buffer => {
+            if (!this.analysisWorker) {
+              this.analysisWorker = new Worker('/workers/audioAnalysis.worker.js');
+              this.analysisWorker.onmessage = (e: MessageEvent) => {
+                const { bpm, peaks, firstBeatOffset: fbo, fileKey: fk, error } = e.data;
+                const cb = this.workerCallbacks[fk];
+                if (cb) { cb({ bpm, peaks, firstBeatOffset: fbo, error }); delete this.workerCallbacks[fk]; }
+              };
+            }
+            this.workerCallbacks[fileKey] = ({ bpm, peaks, firstBeatOffset: fbo, error }: any) => {
+              if (error) { console.error('BPM background analysis worker error:', error); return; }
+              console.log(`[BACKGROUND ANALYSIS] Auto-detected BPM for ${track.title}: ${bpm}`);
+              
+              // Save to Zustand
+              useAudioStore.getState().setDetectedBpm(track.id, bpm);
+              
+              // If this track is still loaded on the target deck, update its BPM dynamically
+              const currentDeck = useAudioStore.getState().decks[deckId];
+              if (currentDeck && currentDeck.id === track.id) {
+                useAudioStore.getState().setDeck(deckId, { bpm });
+              }
+            };
+            this.analysisWorker.postMessage({ buffer, fileKey, numPeaks: 500 });
+          })
+          .catch(err => {
+            console.warn('Failed to fetch range for background BPM analysis:', err);
+          });
+      }
     } else {
       // SoundCloud mode
       const firstBeatOffset = track.firstBeatOffset || 0.0;
       useAudioStore.getState().setDeck(deckId, {
         id: track.id, title: track.title, url: track.url, link: track.link,
-        bpm: track.bpm, isPlaying: false, progress: 0, scMode: true, isReady: false,
+        bpm: initialBpm, isPlaying: false, progress: 0, scMode: true, isReady: false,
         waveformPeaks: this.dynamicWaveforms[track.id] || generateStaticPeaks(500),
         cuePoints: track.cuePoints,
         firstBeatOffset: firstBeatOffset,
@@ -775,6 +818,7 @@ export class AudioEngine {
       const cached = await getCachedWaveform(fileKey);
       if (cached) {
         useAudioStore.getState().setDeck(deckId, { bpm: cached.bpm, waveformPeaks: cached.peaks, firstBeatOffset: cached.firstBeatOffset });
+        useAudioStore.getState().setDetectedBpm(fileKey, cached.bpm);
         this.seekToFirstBeatOneOfBar(deckId, cached.firstBeatOffset || 0, cached.bpm);
         playClick(1100, 'sine', 0.1);
         return;
@@ -796,6 +840,7 @@ export class AudioEngine {
       this.workerCallbacks[fileKey] = async ({ bpm, peaks, firstBeatOffset, error }: any) => {
         if (error) { console.error('Analysis worker error:', error); return; }
         useAudioStore.getState().setDeck(deckId, { bpm, waveformPeaks: peaks, firstBeatOffset });
+        useAudioStore.getState().setDetectedBpm(fileKey, bpm);
         this.seekToFirstBeatOneOfBar(deckId, firstBeatOffset || 0, bpm);
         await cacheWaveform(fileKey, { bpm, peaks, firstBeatOffset });
       };

@@ -36,6 +36,7 @@ export default function ClientLayoutWrappers() {
   const pathname = usePathname();
   const preloaderComplete = useAudioStore(s => s.preloaderComplete);
   const setPreloaderComplete = useAudioStore(s => s.setPreloaderComplete);
+  const isCDJView = useAudioStore(s => s.isCDJView);
 
   useIsomorphicLayoutEffect(() => {
     if (typeof window !== 'undefined') {
@@ -57,7 +58,7 @@ export default function ClientLayoutWrappers() {
         <Preloader onComplete={() => setPreloaderComplete(true)} />
       )}
       <CRTOverlay />
-      <SiteHeader />
+      {!isCDJView && <SiteHeader />}
     </>
   );
 }
