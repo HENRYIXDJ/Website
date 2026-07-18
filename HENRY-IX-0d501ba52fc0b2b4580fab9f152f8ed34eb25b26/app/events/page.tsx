@@ -31,70 +31,135 @@ export const metadata: Metadata = {
   },
 };
 
+function parseICSDate(dateStr: string): Date {
+  const cleanStr = dateStr.replace(/[^0-9TZ]/g, '');
+  const year = parseInt(cleanStr.substring(0, 4), 10);
+  const month = parseInt(cleanStr.substring(4, 6), 10) - 1;
+  const day = parseInt(cleanStr.substring(6, 8), 10);
+
+  if (cleanStr.includes('T')) {
+    const hour = parseInt(cleanStr.substring(9, 11), 10);
+    const min = parseInt(cleanStr.substring(11, 13), 10);
+    const sec = parseInt(cleanStr.substring(13, 15), 10);
+    
+    if (cleanStr.endsWith('Z')) {
+      return new Date(Date.UTC(year, month, day, hour, min, sec));
+    }
+    return new Date(year, month, day, hour, min, sec);
+  }
+  
+  return new Date(year, month, day);
+}
+
 async function fetchCalendarEvents() {
   const calendarId = process.env.GOOGLE_CALENDAR_ID;
-  const apiKey = process.env.GOOGLE_CALENDAR_API_KEY;
 
-  if (!calendarId || !apiKey) {
+  if (!calendarId) {
+    console.warn('GOOGLE_CALENDAR_ID is not configured');
     return null;
   }
 
   try {
-    const now = new Date().toISOString();
-    const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(
-      calendarId
-    )}/events?key=${apiKey}&timeMin=${now}&singleEvents=true&orderBy=startTime&maxResults=10`;
+    const url = `https://calendar.google.com/calendar/ical/${encodeURIComponent(calendarId)}/public/basic.ics`;
 
     const res = await fetch(url, {
       next: { revalidate: 3600 },
     });
 
     if (!res.ok) {
-      throw new Error(`Calendar API status: ${res.status}`);
+      throw new Error(`Calendar fetch status: ${res.status}`);
     }
 
-    const data = await res.json();
-    const items = data.items || [];
-    
-    const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
-    
-    return items.map((event: any) => {
-      const startDateStr = event.start?.dateTime || event.start?.date || '';
-      const startDate = startDateStr ? new Date(startDateStr) : new Date();
-      const location = event.location || 'TBA';
-      const parts = location.split(',');
-      const venue = parts[0]?.trim() || 'TBA';
-      const city = parts.slice(1).join(',')?.trim() || 'London, UK';
+    const icsText = await res.text();
+    const parsedEvents: any[] = [];
+    const lines = icsText.split(/\r?\n/);
+    let currentEvent: any = null;
 
-      const desc = event.description || '';
-      let link = 'https://ra.co';
-      let status = 'TICKETS';
+    for (let i = 0; i < lines.length; i++) {
+      let line = lines[i];
+      
+      // Handle folded lines
+      while (i + 1 < lines.length && (lines[i+1].startsWith(' ') || lines[i+1].startsWith('\t'))) {
+        line += lines[i+1].substring(1);
+        i++;
+      }
 
-      if (desc.includes('http')) {
-        const match = desc.match(/https?:\/\/[^\s]+/);
+      if (line.startsWith('BEGIN:VEVENT')) {
+        currentEvent = {};
+      } else if (line.startsWith('END:VEVENT') && currentEvent) {
+        parsedEvents.push(currentEvent);
+        currentEvent = null;
+      } else if (currentEvent) {
+        const match = line.match(/^([^;:]+)(?:;[^:]+)?:(.*)$/);
         if (match) {
-          link = match[0];
+          const key = match[1].trim();
+          const value = match[2].trim();
+          
+          if (key === 'SUMMARY') {
+            currentEvent.summary = value;
+          } else if (key === 'LOCATION') {
+            currentEvent.location = value;
+          } else if (key === 'DESCRIPTION') {
+            currentEvent.description = value;
+          } else if (key === 'DTSTART') {
+            currentEvent.start = value;
+          } else if (key === 'UID') {
+            currentEvent.uid = value;
+          }
         }
       }
-      if (desc.toLowerCase().includes('sold out')) {
-        status = 'SOLD OUT';
-      } else if (desc.toLowerCase().includes('free')) {
-        status = 'FREE';
-      }
+    }
 
-      return {
-        id: event.id,
-        date: startDate.getDate().toString().padStart(2, '0'),
-        month: MONTHS[startDate.getMonth()],
-        year: startDate.getFullYear().toString(),
-        city,
-        venue,
-        status,
-        link,
-      };
-    });
+    const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+
+    const formattedEvents = parsedEvents
+      .map((event: any) => {
+        const startDate = event.start ? parseICSDate(event.start) : new Date();
+        const location = event.location || 'TBA';
+        const cleanLocation = location.replace(/\\,/g, ',').replace(/\\;/g, ';');
+        const parts = cleanLocation.split(',');
+        const venue = parts[0]?.trim() || 'TBA';
+        const city = parts.slice(1).join(',')?.trim() || 'London, UK';
+
+        const rawDesc = event.description || '';
+        const desc = rawDesc.replace(/\\n/g, '\n').replace(/\\,/g, ',').replace(/\\;/g, ';');
+        
+        let link = 'https://ra.co';
+        let status = 'TICKETS';
+
+        if (desc.includes('http')) {
+          const match = desc.match(/https?:\/\/[^\s]+/);
+          if (match) {
+            link = match[0];
+          }
+        }
+        if (desc.toLowerCase().includes('sold out')) {
+          status = 'SOLD OUT';
+        } else if (desc.toLowerCase().includes('free')) {
+          status = 'FREE';
+        }
+
+        return {
+          id: event.uid || Math.random().toString(),
+          date: startDate.getDate().toString().padStart(2, '0'),
+          month: MONTHS[startDate.getMonth()],
+          year: startDate.getFullYear().toString(),
+          city,
+          venue,
+          status,
+          link,
+          rawDate: startDate,
+        };
+      })
+      .filter((e: any) => e.rawDate >= now)
+      .sort((a: any, b: any) => a.rawDate.getTime() - b.rawDate.getTime())
+      .slice(0, 10);
+
+    return formattedEvents;
   } catch (error) {
-    console.error('Error fetching calendar events:', error);
+    console.error('Error fetching/parsing calendar events:', error);
     return null;
   }
 }

@@ -112,8 +112,7 @@ export default function MixPortfolio({
             audioFile,
             artworkFile,
             tracklist,
-            cuePoints,
-            "muxPlaybackId": muxVideo.asset->playbackId
+            cuePoints
           }
         }`);
 
@@ -123,9 +122,7 @@ export default function MixPortfolio({
             mixes: (group.mixes || []).map((mix: any) => ({
               id: mix._id,
               title: mix.title,
-              url: mix.muxPlaybackId
-                ? `https://stream.mux.com/${mix.muxPlaybackId}/audio.m4a`
-                : (mix.audioFile ? proxyUrl(getStorageUrl(mix.audioFile)) : mix.soundcloudLink || ''),
+              url: mix.audioFile ? proxyUrl(getStorageUrl(mix.audioFile)) : mix.soundcloudLink || '',
               link: mix.soundcloudLink || '',
               bpm: mix.bpm || 120,
               cuePoints: mix.cuePoints || [],

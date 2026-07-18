@@ -1,7 +1,6 @@
 import { defineConfig } from 'sanity'
 import { structureTool } from 'sanity/structure'
 import { visionTool } from '@sanity/vision'
-import { muxInput } from 'sanity-plugin-mux-input'
 import { schema } from '@/sanity/schemaTypes'
 
 export default defineConfig({
@@ -12,7 +11,7 @@ export default defineConfig({
   dataset: 'production',
   basePath: '/studio', // Prefix route for embedded NextStudio
 
-  plugins: [structureTool(), visionTool(), muxInput()],
+  plugins: [structureTool(), visionTool()],
 
   schema: schema,
 })

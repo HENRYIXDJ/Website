@@ -54,6 +54,7 @@ async function handleAssetRequest(request: Request) {
     'tegbbmt42xpyzcnx.private.blob.vercel-storage.com',
     'vercel-storage.com',
     'pub-930b5248e181432aa6e2f5a31832fd8d.r2.dev',
+    'pub-c7c5ff43a8ae174ad91e2668de0ad7f0.r2.dev',
     'r2.dev'
   ];
   if (r2PublicDomain) {
@@ -72,7 +73,13 @@ async function handleAssetRequest(request: Request) {
   }
 
   // Use native Cloudflare R2 binding if running inside Worker context
-  const binding = (process.env.R2_BUCKET as any) || (globalThis as any).R2_BUCKET;
+  let binding: any = null;
+  try {
+    const cfContext = eval("require")('@opennextjs/cloudflare');
+    binding = cfContext.getCloudflareContext().env.R2_BUCKET;
+  } catch (err) {
+    binding = (process.env.R2_BUCKET as any) || (globalThis as any).R2_BUCKET;
+  }
   if (binding && typeof binding.get === 'function') {
     try {
       const rangeHeader = request.headers.get('Range');

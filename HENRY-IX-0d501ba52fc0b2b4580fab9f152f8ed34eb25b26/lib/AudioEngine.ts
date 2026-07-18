@@ -113,6 +113,11 @@ export class AudioEngine {
       });
       this.audioCtx = ctx;
       useAudioStore.getState().setAudioDSPInitialized(true);
+
+      // Auto-detect and set latency offset in store (combining baseLatency and outputLatency)
+      const detectedLatency = Math.round(((ctx.outputLatency || 0) + (ctx.baseLatency || 0)) * 1000) || 45;
+      useAudioStore.getState().setVisualLatencyOffset(detectedLatency);
+
       if (ctx.state === 'suspended') ctx.resume().catch(() => {});
 
       const masterAnalyser = ctx.createAnalyser();
@@ -921,6 +926,15 @@ export class AudioEngine {
       const now = performance.now();
       if (now - lastUpdate >= 100) {
         lastUpdate = now;
+
+        // Auto-audit latency changes (e.g. plugging in Bluetooth or external device mid-session)
+        if (this.audioCtx) {
+          const currentLatency = Math.round(((this.audioCtx.outputLatency || 0) + (this.audioCtx.baseLatency || 0)) * 1000) || 45;
+          if (useAudioStore.getState().visualLatencyOffset !== currentLatency) {
+            useAudioStore.getState().setVisualLatencyOffset(currentLatency);
+          }
+        }
+
         [1, 2, 3, 4].forEach(deckId => {
           const audio = this.audioElements[deckId];
           if (audio && audio.src) {

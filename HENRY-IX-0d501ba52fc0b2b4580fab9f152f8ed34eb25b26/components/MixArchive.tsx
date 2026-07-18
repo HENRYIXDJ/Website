@@ -804,22 +804,8 @@ export default function MixArchive({
       'rgba(234,179,8,1)'; // yellow
 
     if (isLocked) {
-      return (
-        <div 
-          className="rounded-xl border border-zinc-900 bg-zinc-950 p-4 font-mono select-none flex flex-col justify-center items-center h-full min-h-[160px] text-center"
-          style={{ borderTop: `2px solid ${themeColor}` }}
-        >
-          <span className="text-yellow-500 font-bold tracking-widest text-[11px] uppercase">
-            DECK LOCKED // COMING SOON
-          </span>
-          <span className="text-zinc-600 text-[8px] mt-2 tracking-wider">
-            ACCESS_DENIED // REQUIRE_RELEASE
-          </span>
-        </div>
-      );
+      // We still get tracks for when it's not locked, but let's define folderMixGroups and tracks
     }
-
-    // Get list of tracks for the active folder
     const folderMixGroups = mixGroups || [];
     let tracks: any[] = [];
     if (activeFolder === 'all') {
@@ -831,7 +817,10 @@ export default function MixArchive({
 
     return (
       <div 
-        className="rounded-xl border border-zinc-900 bg-zinc-950/90 flex flex-col text-zinc-300 font-mono text-[9px] select-none h-full min-h-[180px] overflow-hidden shadow-2xl relative transition-all duration-300"
+        className={cn(
+          "rounded-xl border border-zinc-900 bg-zinc-950/90 flex flex-col text-zinc-300 font-mono text-[9px] select-none h-full overflow-hidden shadow-2xl relative transition-all duration-300",
+          isBrowserCollapsed ? "min-h-0" : "min-h-[180px]"
+        )}
         style={{ borderTop: `2px solid ${themeColor}` }}
       >
         {/* Rekordbox Playlist Browser Header */}
@@ -839,124 +828,148 @@ export default function MixArchive({
           <div className="flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: themeColor }} />
             <span>BROWSER // DECK {deckId}</span>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsBrowserCollapsed(!isBrowserCollapsed);
+                playClick(700, 'sine', 0.03);
+              }}
+              className="ml-2 px-1 hover:text-white transition-colors cursor-pointer text-[10px] leading-none text-zinc-500 hover:text-zinc-300 active:scale-95"
+              title={isBrowserCollapsed ? "Expand Browser" : "Collapse Browser"}
+            >
+              {isBrowserCollapsed ? '▼' : '▲'}
+            </button>
           </div>
           <span>USB1 // PLAYLISTS</span>
         </div>
 
         {/* Directory & Tracks Split Grid */}
-        <div className="flex flex-1 min-h-0 w-full">
-          {/* Left Column: Playlist Folders Tree */}
-          <div className="w-[35%] border-r border-zinc-900 bg-black/25 flex flex-col p-1.5 gap-1 shrink-0 overflow-y-auto custom-scrollbar min-w-0">
-            <span className="text-[6.5px] text-zinc-600 uppercase font-black tracking-widest px-1 mb-1">Source</span>
-            <button
-              onClick={() => {
-                setBrowserFolders(prev => ({ ...prev, [deckId]: 'all' }));
-                playClick(800, 'sine', 0.02);
-              }}
-              className={cn(
-                "w-full text-left py-1 px-1.5 rounded transition-all text-ellipsis overflow-hidden whitespace-nowrap cursor-pointer hover:bg-zinc-900/40 text-[8.5px] uppercase font-bold",
-                activeFolder === 'all' ? "bg-zinc-900 text-white border-l-2" : "text-zinc-500 hover:text-zinc-300"
-              )}
-              style={{ borderLeftColor: activeFolder === 'all' ? themeColor : 'transparent' }}
-            >
-              📂 ALL MIXES
-            </button>
-            {folderMixGroups.map(group => (
-              <button
-                key={group.title}
-                onClick={() => {
-                  setBrowserFolders(prev => ({ ...prev, [deckId]: group.title }));
-                  playClick(800, 'sine', 0.02);
-                }}
-                className={cn(
-                  "w-full text-left py-1 px-1.5 rounded transition-all text-ellipsis overflow-hidden whitespace-nowrap cursor-pointer hover:bg-zinc-900/40 text-[8.5px] uppercase font-bold",
-                  activeFolder === group.title ? "bg-zinc-900 text-white border-l-2" : "text-zinc-500 hover:text-zinc-300"
-                )}
-                style={{ borderLeftColor: activeFolder === group.title ? themeColor : 'transparent' }}
-              >
-                📂 {group.title}
-              </button>
-            ))}
-            
-            {/* Custom upload helper in sidebar */}
-            <div className="mt-auto border-t border-zinc-900/60 pt-1.5">
-              <button
-                onClick={() => {
-                  const fileInput = fileInputRefs.current[deckId];
-                  if (fileInput) fileInput.click();
-                }}
-                className="w-full text-center py-1 bg-zinc-900 hover:bg-zinc-800 rounded border border-zinc-800 text-[7px] tracking-widest font-black transition-colors uppercase cursor-pointer"
-              >
-                📁 CUSTOM LOAD
-              </button>
-              <input
-                type="file"
-                ref={el => { fileInputRefs.current[deckId] = el; }}
-                accept="audio/*"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file && loadLocalFile) {
-                    loadLocalFile(deckId, file);
-                  }
-                }}
-                className="hidden"
-              />
+        {!isBrowserCollapsed && (
+          isLocked ? (
+            <div className="flex-grow flex flex-col justify-center items-center p-4 text-center min-h-[120px]">
+              <span className="text-yellow-500 font-bold tracking-widest text-[11px] uppercase">
+                DECK LOCKED // COMING SOON
+              </span>
+              <span className="text-zinc-600 text-[8px] mt-2 tracking-wider">
+                ACCESS_DENIED // REQUIRE_RELEASE
+              </span>
             </div>
-          </div>
-
-          {/* Right Column: Track Table List */}
-          <div className="flex-1 flex flex-col min-w-0 bg-black/10 overflow-hidden">
-            {/* Table Headers */}
-            <div className="grid grid-cols-[12%_63%_25%] border-b border-zinc-900/80 px-2 py-1 text-[7.5px] text-zinc-600 font-bold uppercase tracking-widest bg-black/30 shrink-0">
-              <span>#</span>
-              <span>Track Title</span>
-              <span className="text-right">BPM</span>
-            </div>
-
-            {/* Table Rows */}
-            <div className="flex-1 overflow-y-auto custom-scrollbar p-1 flex flex-col gap-0.5 min-h-0">
-              {tracks.length === 0 ? (
-                <div className="flex-grow flex items-center justify-center text-zinc-600 text-[8px] italic py-4">
-                  No tracks available
+          ) : (
+            <div className="flex flex-1 min-h-0 w-full">
+              {/* Left Column: Playlist Folders Tree */}
+              <div className="w-[35%] border-r border-zinc-900 bg-black/25 flex flex-col p-1.5 gap-1 shrink-0 overflow-y-auto custom-scrollbar min-w-0">
+                <span className="text-[6.5px] text-zinc-600 uppercase font-black tracking-widest px-1 mb-1">Source</span>
+                <button
+                  onClick={() => {
+                    setBrowserFolders(prev => ({ ...prev, [deckId]: 'all' }));
+                    playClick(800, 'sine', 0.02);
+                  }}
+                  className={cn(
+                    "w-full text-left py-1 px-1.5 rounded transition-all text-ellipsis overflow-hidden whitespace-nowrap cursor-pointer hover:bg-zinc-900/40 text-[8.5px] uppercase font-bold",
+                    activeFolder === 'all' ? "bg-zinc-900 text-white border-l-2" : "text-zinc-500 hover:text-zinc-300"
+                  )}
+                  style={{ borderLeftColor: activeFolder === 'all' ? themeColor : 'transparent' }}
+                >
+                  📂 ALL MIXES
+                </button>
+                {folderMixGroups.map(group => (
+                  <button
+                    key={group.title}
+                    onClick={() => {
+                      setBrowserFolders(prev => ({ ...prev, [deckId]: group.title }));
+                      playClick(800, 'sine', 0.02);
+                    }}
+                    className={cn(
+                      "w-full text-left py-1 px-1.5 rounded transition-all text-ellipsis overflow-hidden whitespace-nowrap cursor-pointer hover:bg-zinc-900/40 text-[8.5px] uppercase font-bold",
+                      activeFolder === group.title ? "bg-zinc-900 text-white border-l-2" : "text-zinc-500 hover:text-zinc-300"
+                    )}
+                    style={{ borderLeftColor: activeFolder === group.title ? themeColor : 'transparent' }}
+                  >
+                    📂 {group.title}
+                  </button>
+                ))}
+                
+                {/* Custom upload helper in sidebar */}
+                <div className="mt-auto border-t border-zinc-900/60 pt-1.5">
+                  <button
+                    onClick={() => {
+                      const fileInput = fileInputRefs.current[deckId];
+                      if (fileInput) fileInput.click();
+                    }}
+                    className="w-full text-center py-1 bg-zinc-900 hover:bg-zinc-800 rounded border border-zinc-800 text-[7px] tracking-widest font-black transition-colors uppercase cursor-pointer"
+                  >
+                    📁 CUSTOM LOAD
+                  </button>
+                  <input
+                    type="file"
+                    ref={el => { fileInputRefs.current[deckId] = el; }}
+                    accept="audio/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file && loadLocalFile) {
+                        loadLocalFile(deckId, file);
+                      }
+                    }}
+                    className="hidden"
+                  />
                 </div>
-              ) : (
-                tracks.map((mix, index) => {
-                  const isLoaded = deck.id === mix.id;
-                  const idxStr = (index + 1).toString().padStart(3, '0');
-                  
-                  return (
-                    <div 
-                      key={mix.id}
-                      onClick={() => {
-                        playTrack(mix, deckId);
-                      }}
-                      className={cn(
-                        "grid grid-cols-[12%_63%_25%] items-center px-1.5 py-1.5 rounded cursor-pointer transition-colors duration-200 hover:bg-zinc-900/30 select-none group border border-transparent",
-                        isLoaded 
-                          ? "bg-zinc-900 text-white font-black" 
-                          : "text-zinc-400 hover:text-zinc-200"
-                      )}
-                      style={{ 
-                        borderColor: isLoaded ? `${themeColor}20` : 'transparent',
-                        color: isLoaded ? themeColor : undefined 
-                      }}
-                    >
-                      <span className={cn("text-[7.5px]", isLoaded ? "text-white" : "text-zinc-600 font-bold")}>
-                        {idxStr}
-                      </span>
-                      <span className="truncate pr-1 uppercase tracking-wide text-[8.5px]">
-                        🎵 {mix.title}
-                      </span>
-                      <span className="text-right text-[8.5px] font-bold text-zinc-500 font-mono">
-                        {mix.bpm || 120}
-                      </span>
+              </div>
+
+              {/* Right Column: Track Table List */}
+              <div className="flex-1 flex flex-col min-w-0 bg-black/10 overflow-hidden">
+                {/* Table Headers */}
+                <div className="grid grid-cols-[12%_63%_25%] border-b border-zinc-900/80 px-2 py-1 text-[7.5px] text-zinc-600 font-bold uppercase tracking-widest bg-black/30 shrink-0">
+                  <span>#</span>
+                  <span>Track Title</span>
+                  <span className="text-right">BPM</span>
+                </div>
+
+                {/* Table Rows */}
+                <div className="flex-1 overflow-y-auto custom-scrollbar p-1 flex flex-col gap-0.5 min-h-0">
+                  {tracks.length === 0 ? (
+                    <div className="flex-grow flex items-center justify-center text-zinc-600 text-[8px] italic py-4">
+                      No tracks available
                     </div>
-                  );
-                })
-              )}
+                  ) : (
+                    tracks.map((mix, index) => {
+                      const isLoaded = deck.id === mix.id;
+                      const idxStr = (index + 1).toString().padStart(3, '0');
+                      
+                      return (
+                        <div 
+                          key={mix.id}
+                          onClick={() => {
+                            playTrack(mix, deckId);
+                          }}
+                          className={cn(
+                            "grid grid-cols-[12%_63%_25%] items-center px-1.5 py-1.5 rounded cursor-pointer transition-colors duration-200 hover:bg-zinc-900/30 select-none group border border-transparent",
+                            isLoaded 
+                              ? "bg-zinc-900 text-white font-black" 
+                              : "text-zinc-400 hover:text-zinc-200"
+                          )}
+                          style={{ 
+                            borderColor: isLoaded ? `${themeColor}20` : 'transparent',
+                            color: isLoaded ? themeColor : undefined 
+                          }}
+                        >
+                          <span className={cn("text-[7.5px]", isLoaded ? "text-white" : "text-zinc-600 font-bold")}>
+                            {idxStr}
+                          </span>
+                          <span className="truncate pr-1 uppercase tracking-wide text-[8.5px]">
+                            🎵 {mix.title}
+                          </span>
+                          <span className="text-right text-[8.5px] font-bold text-zinc-500 font-mono">
+                            {mix.bpm || 120}
+                          </span>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
+          )
+        )}
       </div>
     );
   };
@@ -1566,26 +1579,12 @@ export default function MixArchive({
                 </>
               )}
 
-              {/* Visual Latency Calibration */}
+              {/* Visual Latency Calibration - Auto Audited */}
               {activeView === 'cdj' && (
-                <div className="flex items-center gap-1.5 border border-zinc-900 bg-zinc-950/80 px-2 py-0.5 rounded-md backdrop-blur-md">
-                  <span className="text-[7px] md:text-[8px] text-zinc-500 font-bold uppercase tracking-wider select-none font-mono">
-                    LATENCY:
-                  </span>
-                  <input 
-                    type="range"
-                    min="0"
-                    max="200"
-                    step="5"
-                    value={visualLatencyOffset}
-                    onChange={(e) => {
-                      const val = parseInt(e.target.value);
-                      setVisualLatencyOffset(val);
-                    }}
-                    className="w-16 md:w-20 h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-primary"
-                    title="Calibrate visual latency (0ms to 200ms)"
-                  />
-                  <span className="text-[7.5px] md:text-[8px] font-mono text-zinc-400 font-bold w-9 text-right shrink-0">
+                <div className="flex items-center gap-1.5 border border-zinc-900 bg-zinc-950/80 px-2.5 py-1 rounded-md backdrop-blur-md font-mono text-[7.5px] md:text-[8px] text-zinc-500 uppercase font-bold tracking-wider select-none">
+                  <span>LATENCY:</span>
+                  <span className="text-primary font-black animate-pulse">AUTO</span>
+                  <span className="text-zinc-400 font-bold bg-zinc-900 px-1 py-0.5 rounded ml-0.5">
                     {visualLatencyOffset}ms
                   </span>
                 </div>
@@ -1604,20 +1603,7 @@ export default function MixArchive({
                     <span>⌨️</span> KEYBOARD
                   </button>
 
-                  <button
-                    onClick={() => {
-                      setIsBrowserCollapsed(!isBrowserCollapsed);
-                      playClick(700, 'sine', 0.03);
-                    }}
-                    className={cn(
-                      "px-2 py-1 border rounded-md transition-all cursor-pointer flex items-center gap-1 active:scale-95 text-[7.5px] md:text-[8px] font-bold select-none",
-                      isBrowserCollapsed 
-                        ? "bg-primary/20 border-primary text-primary hover:bg-primary/30" 
-                        : "bg-zinc-900/60 hover:bg-zinc-900 border-zinc-900 hover:border-zinc-800 text-zinc-400 hover:text-zinc-200"
-                    )}
-                  >
-                    <span>📁</span> {isBrowserCollapsed ? "EXPAND BROWSER" : "COLLAPSE BROWSER"}
-                  </button>
+
                 </div>
               )}
             </div>
@@ -1638,9 +1624,10 @@ export default function MixArchive({
               @media (max-width: 1023px) {
                 .dj-grid-container {
                   gap: 4px;
-                  grid-template-columns: ${isBrowserCollapsed ? '1fr 60px 1fr' : '2fr 1.5fr 2fr'};
-                  grid-template-rows: ${isBrowserCollapsed ? '1fr 2fr' : 'auto auto 1fr'};
+                  grid-template-columns: ${isBrowserCollapsed ? '1fr 1.2fr 1fr' : '2fr 1.5fr 2fr'};
+                  grid-template-rows: ${isBrowserCollapsed ? 'auto 1fr 2fr' : 'auto auto 1fr'};
                   grid-template-areas: ${isBrowserCollapsed ? `
+                    "browserL mixer browserR"
                     "waveL     mixer waveR"
                     "controlL   mixer controlR"
                   ` : `
@@ -1656,8 +1643,9 @@ export default function MixArchive({
                 .dj-grid-container {
                   gap: 12px;
                   grid-template-columns: ${isBrowserCollapsed ? '1fr 1.2fr 1fr' : '2fr 1.8fr 2fr'};
-                  grid-template-rows: ${isBrowserCollapsed ? '1.5fr 2.5fr' : 'auto auto 1fr'};
+                  grid-template-rows: ${isBrowserCollapsed ? 'auto 1.5fr 2.5fr' : 'auto auto 1fr'};
                   grid-template-areas: ${isBrowserCollapsed ? `
+                    "browserL mixer browserR"
                     "waveL     mixer waveR"
                     "controlL   mixer controlR"
                   ` : `
@@ -1673,26 +1661,18 @@ export default function MixArchive({
                 .dj-grid-container {
                   ${deckCount === 2 ? `
                     grid-template-columns: ${isBrowserCollapsed ? '1.8fr minmax(280px, 1.2fr) 1.8fr' : 'minmax(0, 1.8fr) minmax(280px, 1.2fr) minmax(0, 1.8fr)'};
-                    grid-template-rows: ${isBrowserCollapsed ? '50px 220px' : 'minmax(130px, 1.2fr) minmax(50px, auto) minmax(220px, 2fr)'};
-                    grid-template-areas: ${isBrowserCollapsed ? `
-                      "wave1    mixer wave2"
-                      "control1 mixer control2"
-                    ` : `
+                    grid-template-rows: ${isBrowserCollapsed ? 'auto' : 'minmax(130px, 1.2fr)'} minmax(50px, auto) minmax(220px, 2fr);
+                    grid-template-areas: 
                       "browser1 mixer browser2"
                       "wave1    mixer wave2"
-                      "control1 mixer control2"
-                    `};
+                      "control1 mixer control2";
                   ` : `
                     grid-template-columns: ${isBrowserCollapsed ? '1fr 1fr minmax(280px, 1.2fr) 1fr 1fr' : 'minmax(0, 1fr) minmax(0, 1fr) minmax(280px, 1.2fr) minmax(0, 1fr) minmax(0, 1fr)'};
-                    grid-template-rows: ${isBrowserCollapsed ? '50px 220px' : 'minmax(130px, 1.2fr) minmax(50px, auto) minmax(220px, 2fr)'};
-                    grid-template-areas: ${isBrowserCollapsed ? `
-                      "wave3    wave1    mixer wave2    wave4"
-                      "control3 control1 mixer control2 control4"
-                    ` : `
+                    grid-template-rows: ${isBrowserCollapsed ? 'auto' : 'minmax(130px, 1.2fr)'} minmax(50px, auto) minmax(220px, 2fr);
+                    grid-template-areas: 
                       "browser3 browser1 mixer browser2 browser4"
                       "wave3    wave1    mixer wave2    wave4"
-                      "control3 control1 mixer control2 control4"
-                    `};
+                      "control3 control1 mixer control2 control4";
                   `}
                 }
               }
@@ -1710,7 +1690,7 @@ export default function MixArchive({
                     style={{ gridArea: getBrowserArea(id) }} 
                     className={cn(
                       "browser-module min-h-0 h-full", 
-                      ((isActive || !isStacked) && !isBrowserCollapsed) ? "block" : "hidden"
+                      (isActive || !isStacked) ? "block" : "hidden"
                     )}
                   >
                     {renderDeckBrowser(id)}
