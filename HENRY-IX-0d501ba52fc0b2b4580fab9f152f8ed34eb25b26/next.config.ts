@@ -40,7 +40,27 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  transpilePackages: ['motion'],
+  async headers() {
+    return [
+      {
+        source: '/(.*)',
+        headers: [
+          {
+            key: 'X-Content-Type-Options',
+            value: 'nosniff',
+          },
+          {
+            key: 'X-Frame-Options',
+            value: 'DENY',
+          },
+          {
+            key: 'Referrer-Policy',
+            value: 'origin-when-cross-origin',
+          },
+        ],
+      },
+    ];
+  },
   webpack: (config, {dev, webpack, nextRuntime, isServer}) => {
     if (!isServer) {
       if (config.resolve.alias) {

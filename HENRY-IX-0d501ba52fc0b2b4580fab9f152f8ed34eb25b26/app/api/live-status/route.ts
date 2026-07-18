@@ -1,6 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from 'next-sanity';
 
+function safeCompare(a: string, b: string): boolean {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  let result = 0;
+  const length = Math.max(a.length, b.length);
+  for (let i = 0; i < length; i++) {
+    const charA = a.charCodeAt(i) || 0;
+    const charB = b.charCodeAt(i) || 0;
+    result |= (charA ^ charB);
+  }
+  return result === 0 && a.length === b.length;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
@@ -9,13 +21,13 @@ export async function POST(req: NextRequest) {
     const configuredSecret = process.env.LIVE_STATUS_SECRET;
     const isProduction = process.env.NODE_ENV === 'production';
 
-    // Verify secret
+    // Verify secret using secure timing-safe comparison
     if (isProduction || configuredSecret) {
       if (!configuredSecret) {
         console.error('LIVE_STATUS_SECRET is missing in production environment');
         return NextResponse.json({ error: 'Server secret not configured' }, { status: 500 });
       }
-      if (secret !== configuredSecret) {
+      if (!safeCompare(secret, configuredSecret)) {
         console.warn('Unauthorized attempt to trigger live status API');
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
       }
