@@ -1672,7 +1672,7 @@ export default function MixArchive({
               @media (min-width: 1536px) {
                 .dj-grid-container {
                   ${deckCount === 2 ? `
-                    grid-template-columns: ${isBrowserCollapsed ? '1.8fr minmax(280px, 1.2fr) 1.8fr' : 'minmax(0, 1.8fr) minmax(280px, 1.2fr) minmax(0, 1.8fr)'};
+                    grid-template-columns: minmax(0, 1.8fr) minmax(280px, 1.2fr) minmax(0, 1.8fr);
                     grid-template-rows: ${isBrowserCollapsed ? '50px 220px' : 'minmax(130px, 1.2fr) minmax(50px, auto) minmax(220px, 2fr)'};
                     grid-template-areas: ${isBrowserCollapsed ? `
                       "wave1    mixer wave2"
@@ -1683,7 +1683,7 @@ export default function MixArchive({
                       "control1 mixer control2"
                     `};
                   ` : `
-                    grid-template-columns: ${isBrowserCollapsed ? '1fr 1fr minmax(280px, 1.2fr) 1fr 1fr' : 'minmax(0, 1fr) minmax(0, 1fr) minmax(280px, 1.2fr) minmax(0, 1fr) minmax(0, 1fr)'};
+                    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(280px, 1.2fr) minmax(0, 1fr) minmax(0, 1fr);
                     grid-template-rows: ${isBrowserCollapsed ? '50px 220px' : 'minmax(130px, 1.2fr) minmax(50px, auto) minmax(220px, 2fr)'};
                     grid-template-areas: ${isBrowserCollapsed ? `
                       "wave3    wave1    mixer wave2    wave4"
@@ -1709,7 +1709,7 @@ export default function MixArchive({
                     key={`browser-container-${id}`}
                     style={{ gridArea: getBrowserArea(id) }} 
                     className={cn(
-                      "browser-module min-h-0 h-full", 
+                      "browser-module min-w-0 min-h-0 h-full", 
                       ((isActive || !isStacked) && !isBrowserCollapsed) ? "block" : "hidden"
                     )}
                   >
@@ -1735,7 +1735,7 @@ export default function MixArchive({
                     key={`wave-container-${id}`}
                     style={{ gridArea: getWaveArea(id) }} 
                     className={cn(
-                      "wave-module min-h-0 h-full flex flex-col justify-center", 
+                      "wave-module min-w-0 min-h-0 h-full flex flex-col justify-center", 
                       (isActive || !isStacked) ? "block" : "hidden"
                     )}
                   >
@@ -1817,7 +1817,7 @@ export default function MixArchive({
                     key={`control-container-${id}`}
                     style={{ gridArea: getControlArea(id) }} 
                     className={cn(
-                      "control-module min-h-0 h-full", 
+                      "control-module min-w-0 min-h-0 h-full", 
                       (isActive || !isStacked) ? "block" : "hidden"
                     )}
                   >

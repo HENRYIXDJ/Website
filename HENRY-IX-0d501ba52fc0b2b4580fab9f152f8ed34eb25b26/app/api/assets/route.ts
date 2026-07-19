@@ -102,7 +102,7 @@ async function handleAssetRequest(request: Request) {
         }
         
         let statusCode = 200;
-        if (rangeHeader && object.size) {
+        if (range && object.size) {
           statusCode = 206;
           const start = range.offset;
           const end = range.length ? (start + range.length - 1) : (object.size - 1);
