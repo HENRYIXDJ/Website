@@ -618,7 +618,7 @@ export function SingleDeckWaveform({
   };
 
   return (
-    <div className="relative w-full h-full min-h-[48px] max-h-[100px] bg-black rounded border border-zinc-900 overflow-hidden shadow-inner flex items-center justify-center mb-1 select-none shrink-0 z-10">
+    <div className="relative w-full h-full min-h-[20px] md:min-h-[48px] max-h-[100px] bg-black rounded border border-zinc-900 overflow-hidden shadow-inner flex items-center justify-center select-none shrink-0 z-10">
       <canvas 
         ref={canvasRef} 
         className={cn("w-full h-full block touch-none", dragState ? 'cursor-grabbing' : 'cursor-grab')} 

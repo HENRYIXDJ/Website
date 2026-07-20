@@ -5,11 +5,8 @@ import { useAudioStore } from '@/store/audioStore';
 import { useAudio } from '@/components/AudioProvider';
 import { playClick } from '@/lib/audioUtils';
 import { cn } from '@/lib/utils';
-import { getStorageUrl } from '@/lib/storage';
-import { Play, Pause } from 'lucide-react';
 import { getSessionImage } from '@/lib/mixes';
-
-const proxyUrl = (url: string) => `/api/assets?url=${encodeURIComponent(url)}`;
+import { Play, Pause } from 'lucide-react';
 
 interface CDJHardwareProps {
   deckId: 1 | 2 | 3 | 4;
