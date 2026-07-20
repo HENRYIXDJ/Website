@@ -1,7 +1,6 @@
 import MixesClient from './mixes-client';
 import { Metadata } from 'next';
 import { getStorageUrl } from '@/lib/storage';
-import { proxyUrl } from '@/lib/mixes';
 
 export const metadata: Metadata = {
   title: 'Interactive CDJS & Mix Archive | HENRY IX',
@@ -36,10 +35,10 @@ export const metadata: Metadata = {
 export default function Page() {
   return (
     <>
-      <link rel="preload" as="image" href={getStorageUrl('/Mixes/Knight%20Club/Mix%20Artwork/Session%201.jpg')} />
-      <link rel="preload" as="image" href={getStorageUrl('/Mixes/Knight%20Club/Mix%20Artwork/Session%202.jpg')} />
-      <link rel="preload" as="image" href={getStorageUrl('/Mixes/Knight%20Club/Mix%20Artwork/Session%203.jpg')} />
-      <link rel="preload" as="image" href={getStorageUrl('/Mixes/Knight%20Club/Mix%20Artwork/Session%204.jpg')} />
+      <link rel="preload" as="image" href={getStorageUrl('/Mixes/Knight%20Club/Mix%20Artwork/Knight%20Club%20Track%20Artwork%20Session%201.jpg')} />
+      <link rel="preload" as="image" href={getStorageUrl('/Mixes/Knight%20Club/Mix%20Artwork/Knight%20Club%20Track%20Artwork%20Session%202.jpg')} />
+      <link rel="preload" as="image" href={getStorageUrl('/Mixes/Knight%20Club/Mix%20Artwork/Knight%20Club%20Track%20Artwork%20Session%203.jpg')} />
+      <link rel="preload" as="image" href={getStorageUrl('/Mixes/Knight%20Club/Mix%20Artwork/Knight%20Club%20Track%20Artwork%20Session%204.jpg')} />
       <MixesClient />
     </>
   );
