@@ -31,15 +31,18 @@ const HeroNode = React.memo(function HeroNode({
       const width = window.innerWidth;
       const height = window.innerHeight;
       
-      // The hero text uses text-[clamp(2rem,15vw,15vw)]
-      // clamp(32px, 15vw, 15vw)
-      const initialSize = Math.max(32, width * 0.15);
+      // Match the mobile and desktop font-size clamps
+      const initialSize = width < 768 
+        ? Math.max(51.2, Math.min(height * 0.15, width * 0.18)) 
+        : Math.max(80, Math.min(height * 0.22, width * 0.24));
       
       // The header text uses text-2xl (24px) on mobile, text-3xl (30px) on desktop
       const targetSize = width < 768 ? 24 : 30;
       
-      // Header is 96px tall (h-24) at the top of the screen. Its center is 48px from the top.
-      const targetY = -(height / 2) + 48;
+      // Mobile header is 48px tall (h-12) -> center is 24px. Desktop header is 96px tall (h-24) -> center is 48px.
+      const targetY = width < 768 
+        ? -(height / 2) + 24 
+        : -(height / 2) + 48;
 
       setTargetDims({ scale: targetSize / initialSize, y: targetY, range: height });
     };
@@ -98,7 +101,7 @@ const HeroNode = React.memo(function HeroNode({
         style={styleText}
       >
         <motion.h1 
-          className="glitch font-sans text-[clamp(5rem,22vh,24vw)] w-full font-bold tracking-wider leading-none text-center select-none text-primary whitespace-nowrap magnetic-snap cursor-pointer pointer-events-auto"
+          className="glitch font-sans text-[clamp(3.2rem,15vh,18vw)] md:text-[clamp(5rem,22vh,24vw)] w-full font-bold tracking-wider leading-none text-center select-none text-primary whitespace-nowrap magnetic-snap cursor-pointer pointer-events-auto"
           onClick={() => {
             if (isBigText) {
               window.scrollTo({ top: window.innerHeight, behavior: 'smooth' });
