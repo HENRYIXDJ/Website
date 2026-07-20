@@ -31,15 +31,18 @@ const HeroNode = React.memo(function HeroNode({
       const width = window.innerWidth;
       const height = window.innerHeight;
       
-      // The hero text uses text-[clamp(2rem,15vw,15vw)]
-      // clamp(32px, 15vw, 15vw)
-      const initialSize = Math.max(32, width * 0.15);
+      // Match the mobile and desktop font-size clamps
+      const initialSize = width < 768 
+        ? Math.max(51.2, Math.min(height * 0.15, width * 0.18)) 
+        : Math.max(80, Math.min(height * 0.22, width * 0.24));
       
       // The header text uses text-2xl (24px) on mobile, text-3xl (30px) on desktop
       const targetSize = width < 768 ? 24 : 30;
       
-      // Header is 96px tall (h-24) at the top of the screen. Its center is 48px from the top.
-      const targetY = -(height / 2) + 48;
+      // Mobile header is 48px tall (h-12) -> center is 24px. Desktop header is 96px tall (h-24) -> center is 48px.
+      const targetY = width < 768 
+        ? -(height / 2) + 24 
+        : -(height / 2) + 48;
 
       setTargetDims({ scale: targetSize / initialSize, y: targetY, range: height });
     };
@@ -98,7 +101,7 @@ const HeroNode = React.memo(function HeroNode({
         style={styleText}
       >
         <motion.h1 
-          className="glitch font-sans text-[clamp(5rem,22vh,24vw)] w-full font-bold tracking-wider leading-none text-center select-none text-primary whitespace-nowrap magnetic-snap cursor-pointer pointer-events-auto"
+          className="glitch font-sans text-[clamp(3.2rem,15vh,18vw)] md:text-[clamp(5rem,22vh,24vw)] w-full font-bold tracking-wider leading-none text-center select-none text-primary whitespace-nowrap magnetic-snap cursor-pointer pointer-events-auto"
           onClick={() => {
             if (isBigText) {
               window.scrollTo({ top: window.innerHeight, behavior: 'smooth' });
@@ -220,6 +223,7 @@ export default function HomeClient() {
     
     let isAnimating = false;
     let currentSection = 0; // 0 = Hero, 1 = Tabs
+    let activeAnimation: any = null;
 
     // Keep track of scroll position to sync if the user scrolls using scrollbar or keyboard
     const syncSection = () => {
@@ -231,13 +235,18 @@ export default function HomeClient() {
 
     const scrollToSection = (sectionIndex: number) => {
       if (sectionIndex < 0 || sectionIndex > 1) return;
+      
+      if (activeAnimation) {
+        activeAnimation.stop();
+      }
+      
       isAnimating = true;
       currentSection = sectionIndex;
       
       const targetY = sectionIndex * window.innerHeight;
       
       // Animate scroll position using Framer Motion's optimized spring solver
-      const controls = animate(window.scrollY, targetY, {
+      activeAnimation = animate(window.scrollY, targetY, {
         type: "spring",
         stiffness: 90,
         damping: 17,
@@ -247,10 +256,11 @@ export default function HomeClient() {
         },
         onComplete: () => {
           isAnimating = false;
+          activeAnimation = null;
         }
       });
 
-      return controls;
+      return activeAnimation;
     };
 
     const handleWheel = (e: WheelEvent) => {
@@ -309,13 +319,17 @@ export default function HomeClient() {
     };
 
     const handleResize = () => {
+      if (activeAnimation) {
+        activeAnimation.stop();
+        activeAnimation = null;
+      }
+      isAnimating = false;
+      
       const currentScroll = window.scrollY;
       const height = window.innerHeight;
       const target = currentScroll > height / 2 ? height : 0;
-      window.scrollTo({
-        top: target,
-        behavior: 'auto'
-      });
+      currentSection = target > 0 ? 1 : 0;
+      window.scrollTo(0, target);
     };
 
     window.addEventListener('wheel', handleWheel, { passive: false });
@@ -325,6 +339,9 @@ export default function HomeClient() {
     window.addEventListener('resize', handleResize);
 
     return () => {
+      if (activeAnimation) {
+        activeAnimation.stop();
+      }
       window.removeEventListener('scroll', syncSection);
       window.removeEventListener('wheel', handleWheel);
       window.removeEventListener('touchstart', handleTouchStart);

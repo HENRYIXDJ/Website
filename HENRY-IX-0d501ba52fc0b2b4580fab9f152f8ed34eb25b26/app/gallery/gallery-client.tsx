@@ -23,7 +23,7 @@ interface Broadcast {
   duration: string;
 }
 
-const proxyUrl = (url: string) => `/api/assets?url=${encodeURIComponent(url)}`;
+const proxyUrl = (url: string) => url;
 
 /*
 const ME_IMAGES: GalleryItem[] = [

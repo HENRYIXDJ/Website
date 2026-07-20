@@ -134,7 +134,7 @@ export default function MixPortfolio({
                   bpm: mix.bpm || 120,
                   cuePoints: mix.cuePoints || [],
                   tracklist: mix.tracklist || '',
-                  artworkUrl: mix.artworkFile ? proxyUrl(getStorageUrl(mix.artworkFile)) : undefined
+                  artworkUrl: mix.artworkFile ? getStorageUrl(mix.artworkFile) : undefined
                 }));
               return {
                 title: group.title,
