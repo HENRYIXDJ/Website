@@ -36,10 +36,10 @@ export const metadata: Metadata = {
 export default function Page() {
   return (
     <>
-      <link rel="preload" as="image" href={proxyUrl(getStorageUrl('/Mixes/Knight%20Club/Mix%20Artwork/Session%201.jpg'))} />
-      <link rel="preload" as="image" href={proxyUrl(getStorageUrl('/Mixes/Knight%20Club/Mix%20Artwork/Session%202.jpg'))} />
-      <link rel="preload" as="image" href={proxyUrl(getStorageUrl('/Mixes/Knight%20Club/Mix%20Artwork/Session%203.jpg'))} />
-      <link rel="preload" as="image" href={proxyUrl(getStorageUrl('/Mixes/Knight%20Club/Mix%20Artwork/Session%204.jpg'))} />
+      <link rel="preload" as="image" href={getStorageUrl('/Mixes/Knight%20Club/Mix%20Artwork/Session%201.jpg')} />
+      <link rel="preload" as="image" href={getStorageUrl('/Mixes/Knight%20Club/Mix%20Artwork/Session%202.jpg')} />
+      <link rel="preload" as="image" href={getStorageUrl('/Mixes/Knight%20Club/Mix%20Artwork/Session%203.jpg')} />
+      <link rel="preload" as="image" href={getStorageUrl('/Mixes/Knight%20Club/Mix%20Artwork/Session%204.jpg')} />
       <MixesClient />
     </>
   );

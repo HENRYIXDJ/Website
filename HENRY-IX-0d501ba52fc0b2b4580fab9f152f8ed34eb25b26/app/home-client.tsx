@@ -223,6 +223,7 @@ export default function HomeClient() {
     
     let isAnimating = false;
     let currentSection = 0; // 0 = Hero, 1 = Tabs
+    let activeAnimation: any = null;
 
     // Keep track of scroll position to sync if the user scrolls using scrollbar or keyboard
     const syncSection = () => {
@@ -234,13 +235,18 @@ export default function HomeClient() {
 
     const scrollToSection = (sectionIndex: number) => {
       if (sectionIndex < 0 || sectionIndex > 1) return;
+      
+      if (activeAnimation) {
+        activeAnimation.stop();
+      }
+      
       isAnimating = true;
       currentSection = sectionIndex;
       
       const targetY = sectionIndex * window.innerHeight;
       
       // Animate scroll position using Framer Motion's optimized spring solver
-      const controls = animate(window.scrollY, targetY, {
+      activeAnimation = animate(window.scrollY, targetY, {
         type: "spring",
         stiffness: 90,
         damping: 17,
@@ -250,10 +256,11 @@ export default function HomeClient() {
         },
         onComplete: () => {
           isAnimating = false;
+          activeAnimation = null;
         }
       });
 
-      return controls;
+      return activeAnimation;
     };
 
     const handleWheel = (e: WheelEvent) => {
@@ -312,13 +319,17 @@ export default function HomeClient() {
     };
 
     const handleResize = () => {
+      if (activeAnimation) {
+        activeAnimation.stop();
+        activeAnimation = null;
+      }
+      isAnimating = false;
+      
       const currentScroll = window.scrollY;
       const height = window.innerHeight;
       const target = currentScroll > height / 2 ? height : 0;
-      window.scrollTo({
-        top: target,
-        behavior: 'auto'
-      });
+      currentSection = target > 0 ? 1 : 0;
+      window.scrollTo(0, target);
     };
 
     window.addEventListener('wheel', handleWheel, { passive: false });
@@ -328,6 +339,9 @@ export default function HomeClient() {
     window.addEventListener('resize', handleResize);
 
     return () => {
+      if (activeAnimation) {
+        activeAnimation.stop();
+      }
       window.removeEventListener('scroll', syncSection);
       window.removeEventListener('wheel', handleWheel);
       window.removeEventListener('touchstart', handleTouchStart);
