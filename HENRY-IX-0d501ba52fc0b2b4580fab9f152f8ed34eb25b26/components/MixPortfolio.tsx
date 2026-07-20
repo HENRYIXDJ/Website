@@ -24,9 +24,8 @@ export default function MixPortfolio({
   });
 
   // Reactive deck state from Zustand — granular subscriptions, no cascade
-  const decks = useAudioStore(s => s.decks);
   const leftActiveDeck = useAudioStore(s => s.leftActiveDeck);
-  const { setDecks } = useAudioStore();
+  const setDecks = useAudioStore(s => s.setDecks);
 
   // Reference directly from the audioEngine singleton
   const togglePlayGlobal = audioEngine.togglePlayGlobal.bind(audioEngine);
@@ -35,7 +34,7 @@ export default function MixPortfolio({
   const widgetRefs = { current: audioEngine.widgetRefs };
 
   const seekDeckToTime = React.useCallback((deckId: number, seekPosSec: number) => {
-    const deck = decks[deckId];
+    const deck = useAudioStore.getState().decks[deckId];
     if (!deck) return;
     const widget = widgetRefs.current[deckId];
     if (deck.scMode && widget) {
@@ -56,7 +55,7 @@ export default function MixPortfolio({
         [deckId]: { ...prev[deckId], progress: seekPosSec }
       }));
     }
-  }, [decks, widgetRefs, seekLocalBuffer, setDecks]);
+  }, [widgetRefs, seekLocalBuffer, setDecks]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -70,7 +69,7 @@ export default function MixPortfolio({
       }
 
       const activeDeckId = leftActiveDeck;
-      const deck = decks[activeDeckId];
+      const deck = useAudioStore.getState().decks[activeDeckId];
       if (!deck) return;
 
       if (e.code === 'Space') {
@@ -99,7 +98,7 @@ export default function MixPortfolio({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [leftActiveDeck, decks, seekDeckToTime, togglePlayGlobal, setDecks]);
+  }, [leftActiveDeck, seekDeckToTime, togglePlayGlobal, setDecks]);
 
   useEffect(() => {
     async function loadDynamicMixes() {

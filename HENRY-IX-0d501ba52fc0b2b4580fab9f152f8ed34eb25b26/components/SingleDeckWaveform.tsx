@@ -28,22 +28,19 @@ export function SingleDeckWaveform({
   const lastDrawnDeckStateRef = useRef<string>('');
 
   // Subscribe to Zustand state for real-time phase sync calculations
-  const allDecks = useAudioStore(s => s.decks);
   const leftActiveDeck = useAudioStore(s => s.leftActiveDeck);
   const rightActiveDeck = useAudioStore(s => s.rightActiveDeck);
   const visualLatencyOffset = useAudioStore(s => s.visualLatencyOffset);
 
-  const allDecksRef = useRef(allDecks);
   const leftActiveDeckRef = useRef(leftActiveDeck);
   const rightActiveDeckRef = useRef(rightActiveDeck);
   const visualLatencyOffsetRef = useRef(visualLatencyOffset);
 
   useEffect(() => {
-    allDecksRef.current = allDecks;
     leftActiveDeckRef.current = leftActiveDeck;
     rightActiveDeckRef.current = rightActiveDeck;
     visualLatencyOffsetRef.current = visualLatencyOffset;
-  }, [allDecks, leftActiveDeck, rightActiveDeck, visualLatencyOffset]);
+  }, [leftActiveDeck, rightActiveDeck, visualLatencyOffset]);
 
   const [dragState, setDragState] = useState<{
     startX: number;
@@ -172,7 +169,7 @@ export function SingleDeckWaveform({
       // Phase sync calculation (Deck A vs Deck B / Left vs Right active deck)
       let isSyncGlow = false;
       const otherActiveDeckId = (deckId === 1 || deckId === 3) ? rightActiveDeckRef.current : leftActiveDeckRef.current;
-      const otherDeck = allDecksRef.current[otherActiveDeckId];
+      const otherDeck = useAudioStore.getState().decks[otherActiveDeckId];
       if (otherDeck && otherDeck.id !== 'locked' && currentDeck.id !== 'locked') {
         const bpmCurrent = currentDeck.bpm * (1 + (currentDeck.pitch || 0) / 100);
         const bpmOther = otherDeck.bpm * (1 + (otherDeck.pitch || 0) / 100);

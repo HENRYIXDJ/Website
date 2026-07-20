@@ -52,27 +52,27 @@ const ME_IMAGES: GalleryItem[] = [
 
 const ARTWORK_IMAGES: GalleryItem[] = [
   {
-    src: proxyUrl(getStorageUrl('/Mixes/Knight%20Club/Mix%20Artwork/Session%201.jpg')),
+    src: proxyUrl(getStorageUrl('/Mixes/Knight%20Club/Mix%20Artwork/Knight%20Club%20Track%20Artwork%20Session%201.jpg')),
     title: 'KNIGHT CLUB: SESSION 1',
     gridClass: 'col-span-1 aspect-square',
   },
   {
-    src: proxyUrl(getStorageUrl('/Mixes/Knight%20Club/Mix%20Artwork/Session%202.jpg')),
+    src: proxyUrl(getStorageUrl('/Mixes/Knight%20Club/Mix%20Artwork/Knight%20Club%20Track%20Artwork%20Session%202.jpg')),
     title: 'KNIGHT CLUB: SESSION 2',
     gridClass: 'col-span-1 aspect-square',
   },
   {
-    src: proxyUrl(getStorageUrl('/Mixes/Knight%20Club/Mix%20Artwork/Session%203.jpg')),
+    src: proxyUrl(getStorageUrl('/Mixes/Knight%20Club/Mix%20Artwork/Knight%20Club%20Track%20Artwork%20Session%203.jpg')),
     title: 'KNIGHT CLUB: SESSION 3',
     gridClass: 'col-span-1 aspect-square',
   },
   {
-    src: proxyUrl(getStorageUrl('/Mixes/Knight%20Club/Mix%20Artwork/Session%204.jpg')),
+    src: proxyUrl(getStorageUrl('/Mixes/Knight%20Club/Mix%20Artwork/Knight%20Club%20Track%20Artwork%20Session%204.jpg')),
     title: 'KNIGHT CLUB: SESSION 4',
     gridClass: 'col-span-1 aspect-square',
   },
   {
-    src: proxyUrl(getStorageUrl('/Mixes/Knight%20Club/Mix%20Artwork/Session%205.jpg')),
+    src: proxyUrl(getStorageUrl('/Mixes/Knight%20Club/Mix%20Artwork/Knight%20Club%20Track%20Artwork%20Session%205.jpg')),
     title: 'KNIGHT CLUB: SESSION 5',
     gridClass: 'col-span-1 aspect-square',
   },

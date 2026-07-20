@@ -1,12 +1,15 @@
 import { google } from 'googleapis';
-import { S3Client, HeadObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, HeadObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
 import { createClient } from '@sanity/client';
 import * as dotenv from 'dotenv';
 import * as stream from 'stream';
 
 // Load environment variables for local run
-dotenv.config();
+dotenv.config({ path: '.env.local' });
+if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
+  dotenv.config();
+}
 
 const dryRun = process.argv.includes('--dry-run');
 
@@ -49,20 +52,49 @@ const s3Client = new S3Client({
   },
 });
 
-async function fileExistsInR2(key: string): Promise<boolean> {
+interface R2FileInfo {
+  exists: boolean;
+  size?: number;
+  gdId?: string;
+  gdMd5?: string;
+}
+
+async function getR2FileInfo(key: string): Promise<R2FileInfo> {
   try {
     const command = new HeadObjectCommand({
       Bucket: process.env.R2_BUCKET_NAME || '',
       Key: key,
     });
-    await s3Client.send(command);
-    return true;
+    const res = await s3Client.send(command);
+    return {
+      exists: true,
+      size: res.ContentLength,
+      gdId: res.Metadata?.['gd-id'],
+      gdMd5: res.Metadata?.['gd-md5'],
+    };
   } catch (error: any) {
     if (error.name === 'NotFound' || error.$metadata?.httpStatusCode === 404) {
-      return false;
+      return { exists: false };
     }
     console.warn(`Warning checking R2 object ${key}:`, error.message);
-    return false;
+    return { exists: false };
+  }
+}
+
+async function deleteFromR2(key: string) {
+  console.log(`Deleting object from R2: ${key}...`);
+  if (dryRun) {
+    console.log(`[DRY RUN] Would delete ${key} from R2`);
+    return;
+  }
+  try {
+    const command = new DeleteObjectCommand({
+      Bucket: process.env.R2_BUCKET_NAME || '',
+      Key: key,
+    });
+    await s3Client.send(command);
+  } catch (err: any) {
+    console.error(`Failed to delete R2 object ${key}:`, err.message);
   }
 }
 
@@ -93,12 +125,21 @@ async function findFolderId(name: string, parentId?: string): Promise<string | n
   return res.data.files?.[0]?.id || null;
 }
 
+interface DriveFileInfo {
+  id: string;
+  name: string;
+  parentName?: string;
+  size?: string;
+  md5Checksum?: string;
+  modifiedTime?: string;
+}
+
 async function getAllFilesRecursively(
   parentFolderId: string,
   mimeTypes: string[],
   parentFolderName?: string
-): Promise<{ id: string; name: string; parentName?: string }[]> {
-  const files: { id: string; name: string; parentName?: string }[] = [];
+): Promise<DriveFileInfo[]> {
+  const files: DriveFileInfo[] = [];
 
   try {
     const mimeQuery = mimeTypes.map(m => `mimeType = '${m}'`).join(' or ');
@@ -106,14 +147,21 @@ async function getAllFilesRecursively(
 
     const filesRes = await drive.files.list({
       q: fileQuery,
-      fields: 'files(id, name)',
+      fields: 'files(id, name, size, md5Checksum, modifiedTime)',
       pageSize: 1000,
     });
 
     if (filesRes.data.files) {
       for (const f of filesRes.data.files) {
         if (f.id && f.name) {
-          files.push({ id: f.id, name: f.name, parentName: parentFolderName });
+          files.push({
+            id: f.id,
+            name: f.name,
+            parentName: parentFolderName,
+            size: f.size || undefined,
+            md5Checksum: f.md5Checksum || undefined,
+            modifiedTime: f.modifiedTime || undefined,
+          });
         }
       }
     }
@@ -160,7 +208,7 @@ function cleanMixTitle(fileName: string, mixType: string): string {
   return `${mixType}: ${nameWithoutExt}`;
 }
 
-function matchArtworkFile(mixName: string, mixType: string, files: { id: string; name: string; parentName?: string }[]): { id: string; name: string; parentName?: string } | null {
+function matchArtworkFile(mixName: string, mixType: string, files: DriveFileInfo[]): DriveFileInfo | null {
   const normalizedMixType = mixType.toLowerCase().trim();
   const eligibleFiles = files.filter(f => !f.parentName || f.parentName.toLowerCase().trim() === normalizedMixType);
   
@@ -229,7 +277,7 @@ function matchArtworkFile(mixName: string, mixType: string, files: { id: string;
   return null;
 }
 
-function matchTracklistFile(mixName: string, mixType: string, files: { id: string; name: string; parentName?: string }[]): { id: string; name: string; parentName?: string } | null {
+function matchTracklistFile(mixName: string, mixType: string, files: DriveFileInfo[]): DriveFileInfo | null {
   const normalizedMixType = mixType.toLowerCase().trim();
   const eligibleFiles = files.filter(f => !f.parentName || f.parentName.toLowerCase().trim() === normalizedMixType);
   
@@ -255,7 +303,7 @@ async function downloadFileText(fileId: string): Promise<string> {
   return response.data as string;
 }
 
-async function uploadToR2(fileId: string, key: string, contentType: string) {
+async function uploadToR2(fileId: string, key: string, contentType: string, md5Checksum?: string | null) {
   console.log(`Streaming file ID ${fileId} from Drive to R2 at key: ${key}...`);
   
   const response = await drive.files.get(
@@ -273,6 +321,10 @@ async function uploadToR2(fileId: string, key: string, contentType: string) {
       Key: key,
       Body: passThroughStream,
       ContentType: contentType,
+      Metadata: {
+        'gd-id': fileId,
+        'gd-md5': md5Checksum || '',
+      }
     },
   });
 
@@ -339,14 +391,14 @@ async function main() {
   if (!artworkFolderId) console.warn("Folder 'Mix Artwork' not found. Skipping cover art matching.");
 
   // Preload artwork files
-  let artworkFiles: { id: string; name: string; parentName?: string }[] = [];
+  let artworkFiles: DriveFileInfo[] = [];
   if (artworkFolderId) {
     artworkFiles = await getAllFilesRecursively(artworkFolderId, ['image/jpeg', 'image/png', 'image/webp']);
     console.log(`Preloaded ${artworkFiles.length} artwork files recursively from Google Drive.`);
   }
 
   // Preload tracklists
-  let tracklistFiles: { id: string; name: string; parentName?: string }[] = [];
+  let tracklistFiles: DriveFileInfo[] = [];
   if (tracklistsFolderId) {
     tracklistFiles = await getAllFilesRecursively(tracklistsFolderId, ['text/plain']);
     console.log(`Preloaded ${tracklistFiles.length} tracklist files recursively from Google Drive.`);
@@ -371,7 +423,7 @@ async function main() {
     // List all .mp3 files inside this folder
     const mp3sRes = await drive.files.list({
       q: `'${mixFolder.id}' in parents and mimeType = 'audio/mpeg' and trashed = false`,
-      fields: 'files(id, name, size)',
+      fields: 'files(id, name, size, md5Checksum, modifiedTime)',
     });
 
     const mp3Files = mp3sRes.data.files || [];
@@ -416,9 +468,42 @@ async function main() {
         { slug: cleanSlug, title: cleanTitle, audioFile: `/${audioR2Key}` }
       );
 
-      // Perform existence check in R2
-      const audioExists = await fileExistsInR2(audioR2Key);
-      const artworkExists = artworkR2Key ? await fileExistsInR2(artworkR2Key) : false;
+      // Perform existence & metadata checks in R2
+      const audioR2Info = await getR2FileInfo(audioR2Key);
+      const artworkR2Info = artworkR2Key ? await getR2FileInfo(artworkR2Key) : { exists: false };
+
+      // Check for content changes (size or MD5 mismatch)
+      const driveAudioSize = mp3.size ? parseInt(mp3.size, 10) : undefined;
+      const driveAudioMd5 = mp3.md5Checksum;
+      let audioChanged = false;
+      if (audioR2Info.exists) {
+        if (driveAudioSize !== undefined && audioR2Info.size !== undefined && driveAudioSize !== audioR2Info.size) {
+          console.log(`    Detected audio size mismatch for "${audioR2Key}": Drive size = ${driveAudioSize}, R2 size = ${audioR2Info.size}`);
+          audioChanged = true;
+        } else if (driveAudioMd5 && audioR2Info.gdMd5 && driveAudioMd5 !== audioR2Info.gdMd5) {
+          console.log(`    Detected audio MD5 mismatch for "${audioR2Key}": Drive MD5 = ${driveAudioMd5}, R2 MD5 = ${audioR2Info.gdMd5}`);
+          audioChanged = true;
+        } else if (mp3.id && audioR2Info.gdId && mp3.id !== audioR2Info.gdId) {
+          console.log(`    Detected audio ID mismatch for "${audioR2Key}": Drive ID = ${mp3.id}, R2 ID = ${audioR2Info.gdId}`);
+          audioChanged = true;
+        }
+      }
+
+      const driveArtworkSize = artworkFile?.size ? parseInt(artworkFile.size, 10) : undefined;
+      const driveArtworkMd5 = artworkFile?.md5Checksum;
+      let artworkChanged = false;
+      if (artworkR2Info.exists && artworkFile) {
+        if (driveArtworkSize !== undefined && artworkR2Info.size !== undefined && driveArtworkSize !== artworkR2Info.size) {
+          console.log(`    Detected artwork size mismatch for "${artworkR2Key}": Drive size = ${driveArtworkSize}, R2 size = ${artworkR2Info.size}`);
+          artworkChanged = true;
+        } else if (driveArtworkMd5 && artworkR2Info.gdMd5 && driveArtworkMd5 !== artworkR2Info.gdMd5) {
+          console.log(`    Detected artwork MD5 mismatch for "${artworkR2Key}": Drive MD5 = ${driveArtworkMd5}, R2 MD5 = ${artworkR2Info.gdMd5}`);
+          artworkChanged = true;
+        } else if (artworkFile.id && artworkR2Info.gdId && artworkFile.id !== artworkR2Info.gdId) {
+          console.log(`    Detected artwork ID mismatch for "${artworkR2Key}": Drive ID = ${artworkFile.id}, R2 ID = ${artworkR2Info.gdId}`);
+          artworkChanged = true;
+        }
+      }
 
       if (existing) {
         console.log(`  Mix document already exists in Sanity. Checking if updates are needed...`);
@@ -436,14 +521,23 @@ async function main() {
         // Audio path alignment & existence check
         const currentAudioFile = existing.audioFile;
         const expectedAudioFile = `/${audioR2Key}`;
-        if (currentAudioFile !== expectedAudioFile || !audioExists) {
-          if (!audioExists) {
+        if (currentAudioFile !== expectedAudioFile || !audioR2Info.exists || audioChanged) {
+          if (currentAudioFile && currentAudioFile !== expectedAudioFile) {
+            const oldKey = currentAudioFile.startsWith('/') ? currentAudioFile.slice(1) : currentAudioFile;
+            console.log(`    Audio path changed from ${currentAudioFile} to ${expectedAudioFile}. Deleting old asset from R2...`);
+            await deleteFromR2(oldKey);
+          }
+          if (audioChanged) {
+            console.log(`    Audio file content changed. Deleting old asset from R2 and re-uploading...`);
+            await deleteFromR2(audioR2Key);
+          }
+          if (!audioR2Info.exists && !audioChanged) {
             console.log(`    Audio file missing in R2: "${audioR2Key}". Uploading...`);
           } else {
-            console.log(`    Audio file path mismatch: current="${currentAudioFile}", expected="${expectedAudioFile}". Uploading/Updating...`);
+            console.log(`    Uploading updated audio to R2: "${audioR2Key}"...`);
           }
           if (!dryRun) {
-            await uploadToR2(mp3.id!, audioR2Key, 'audio/mpeg');
+            await uploadToR2(mp3.id!, audioR2Key, 'audio/mpeg', mp3.md5Checksum);
           }
           if (currentAudioFile !== expectedAudioFile) {
             patchData.audioFile = expectedAudioFile;
@@ -454,15 +548,24 @@ async function main() {
         // Artwork path alignment & existence check
         const currentArtworkFile = existing.artworkFile;
         const expectedArtworkFile = artworkR2Key ? `/${artworkR2Key}` : undefined;
-        if (artworkFile && (currentArtworkFile !== expectedArtworkFile || !artworkExists)) {
-          if (!artworkExists) {
+        if (artworkFile && (currentArtworkFile !== expectedArtworkFile || !artworkR2Info.exists || artworkChanged)) {
+          if (currentArtworkFile && currentArtworkFile !== expectedArtworkFile) {
+            const oldKey = currentArtworkFile.startsWith('/') ? currentArtworkFile.slice(1) : currentArtworkFile;
+            console.log(`    Artwork path changed from ${currentArtworkFile} to ${expectedArtworkFile}. Deleting old asset from R2...`);
+            await deleteFromR2(oldKey);
+          }
+          if (artworkChanged && artworkR2Key) {
+            console.log(`    Artwork file content changed. Deleting old asset from R2 and re-uploading...`);
+            await deleteFromR2(artworkR2Key);
+          }
+          if (!artworkR2Info.exists && !artworkChanged) {
             console.log(`    Artwork file missing in R2: "${artworkR2Key}". Uploading...`);
           } else {
-            console.log(`    Artwork file path mismatch: current="${currentArtworkFile}", expected="${expectedArtworkFile}". Uploading/Updating...`);
+            console.log(`    Uploading updated artwork to R2: "${artworkR2Key}"...`);
           }
           if (!dryRun) {
             const artworkContentType = artworkFile.name.endsWith('.png') ? 'image/png' : artworkFile.name.endsWith('.webp') ? 'image/webp' : 'image/jpeg';
-            await uploadToR2(artworkFile.id, artworkR2Key!, artworkContentType);
+            await uploadToR2(artworkFile.id, artworkR2Key!, artworkContentType, artworkFile.md5Checksum);
           }
           if (currentArtworkFile !== expectedArtworkFile) {
             patchData.artworkFile = expectedArtworkFile;
@@ -494,12 +597,12 @@ async function main() {
       
       if (!dryRun) {
         // Upload audio to R2
-        await uploadToR2(mp3.id!, audioR2Key, 'audio/mpeg');
+        await uploadToR2(mp3.id!, audioR2Key, 'audio/mpeg', mp3.md5Checksum);
 
         // Upload artwork to R2
         if (artworkFile && artworkR2Key) {
           const artworkContentType = artworkFile.name.endsWith('.png') ? 'image/png' : artworkFile.name.endsWith('.webp') ? 'image/webp' : 'image/jpeg';
-          await uploadToR2(artworkFile.id, artworkR2Key, artworkContentType);
+          await uploadToR2(artworkFile.id, artworkR2Key, artworkContentType, artworkFile.md5Checksum);
         }
 
         // Create Sanity Document
@@ -580,7 +683,23 @@ async function main() {
       { slug: cleanSlug, title: cleanTitle }
     );
     
-    const artworkExists = await fileExistsInR2(artworkR2Key);
+    const artworkR2Info = await getR2FileInfo(artworkR2Key);
+
+    const driveArtworkSize = artworkFile.size ? parseInt(artworkFile.size, 10) : undefined;
+    const driveArtworkMd5 = artworkFile.md5Checksum;
+    let artworkChanged = false;
+    if (artworkR2Info.exists) {
+      if (driveArtworkSize !== undefined && artworkR2Info.size !== undefined && driveArtworkSize !== artworkR2Info.size) {
+        console.log(`    Detected unmatched artwork size mismatch for "${artworkR2Key}": Drive size = ${driveArtworkSize}, R2 size = ${artworkR2Info.size}`);
+        artworkChanged = true;
+      } else if (driveArtworkMd5 && artworkR2Info.gdMd5 && driveArtworkMd5 !== artworkR2Info.gdMd5) {
+        console.log(`    Detected unmatched artwork MD5 mismatch for "${artworkR2Key}": Drive MD5 = ${driveArtworkMd5}, R2 MD5 = ${artworkR2Info.gdMd5}`);
+        artworkChanged = true;
+      } else if (artworkFile.id && artworkR2Info.gdId && artworkFile.id !== artworkR2Info.gdId) {
+        console.log(`    Detected unmatched artwork ID mismatch for "${artworkR2Key}": Drive ID = ${artworkFile.id}, R2 ID = ${artworkR2Info.gdId}`);
+        artworkChanged = true;
+      }
+    }
     
     if (existing) {
       console.log(`  Mix document already exists in Sanity. Checking if artwork updates are needed...`);
@@ -590,15 +709,24 @@ async function main() {
       const currentArtworkFile = existing.artworkFile;
       const expectedArtworkFile = `/${artworkR2Key}`;
       
-      if (currentArtworkFile !== expectedArtworkFile || !artworkExists) {
-        if (!artworkExists) {
+      if (currentArtworkFile !== expectedArtworkFile || !artworkR2Info.exists || artworkChanged) {
+        if (currentArtworkFile && currentArtworkFile !== expectedArtworkFile) {
+          const oldKey = currentArtworkFile.startsWith('/') ? currentArtworkFile.slice(1) : currentArtworkFile;
+          console.log(`    Artwork path changed from ${currentArtworkFile} to ${expectedArtworkFile}. Deleting old asset from R2...`);
+          await deleteFromR2(oldKey);
+        }
+        if (artworkChanged) {
+          console.log(`    Artwork file content changed. Deleting old asset from R2 and re-uploading...`);
+          await deleteFromR2(artworkR2Key);
+        }
+        if (!artworkR2Info.exists && !artworkChanged) {
           console.log(`    Artwork file missing in R2: "${artworkR2Key}". Uploading...`);
         } else {
-          console.log(`    Artwork file path mismatch: current="${currentArtworkFile}", expected="${expectedArtworkFile}". Uploading/Updating...`);
+          console.log(`    Uploading updated artwork to R2: "${artworkR2Key}"...`);
         }
         if (!dryRun) {
           const artworkContentType = artworkFile.name.endsWith('.png') ? 'image/png' : artworkFile.name.endsWith('.webp') ? 'image/webp' : 'image/jpeg';
-          await uploadToR2(artworkFile.id, artworkR2Key, artworkContentType);
+          await uploadToR2(artworkFile.id, artworkR2Key, artworkContentType, artworkFile.md5Checksum);
         }
         if (currentArtworkFile !== expectedArtworkFile) {
           patchData.artworkFile = expectedArtworkFile;
@@ -621,7 +749,7 @@ async function main() {
       if (!dryRun) {
         // Upload artwork to R2
         const artworkContentType = artworkFile.name.endsWith('.png') ? 'image/png' : artworkFile.name.endsWith('.webp') ? 'image/webp' : 'image/jpeg';
-        await uploadToR2(artworkFile.id, artworkR2Key, artworkContentType);
+        await uploadToR2(artworkFile.id, artworkR2Key, artworkContentType, artworkFile.md5Checksum);
         
         // Create Sanity Document (no audio file)
         const mixDoc = {

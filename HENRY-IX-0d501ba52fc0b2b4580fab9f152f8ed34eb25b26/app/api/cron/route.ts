@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { S3Client, HeadObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, HeadObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
 import { createClient } from '@sanity/client';
 
@@ -198,13 +198,26 @@ export async function GET(request: NextRequest) {
   let uploadCount = 0;
   const MAX_UPLOADS_PER_RUN = 2; // Prevent worker execution time/CPU limit timeout
 
-  async function fileExistsInR2(key: string): Promise<boolean> {
+  interface R2FileInfo {
+    exists: boolean;
+    size?: number;
+    gdId?: string;
+    gdMd5?: string;
+  }
+
+  async function getR2FileInfo(key: string): Promise<R2FileInfo> {
     if (r2Binding && typeof r2Binding.head === 'function') {
       try {
         const obj = await r2Binding.head(key);
-        return obj !== null;
+        if (!obj) return { exists: false };
+        return {
+          exists: true,
+          size: obj.size,
+          gdId: obj.customMetadata?.['gd-id'],
+          gdMd5: obj.customMetadata?.['gd-md5'],
+        };
       } catch (err) {
-        return false;
+        return { exists: false };
       }
     }
     try {
@@ -212,10 +225,32 @@ export async function GET(request: NextRequest) {
         Bucket: process.env.R2_BUCKET_NAME || '',
         Key: key,
       });
-      await s3Client.send(command);
-      return true;
+      const res = await s3Client.send(command);
+      return {
+        exists: true,
+        size: res.ContentLength,
+        gdId: res.Metadata?.['gd-id'],
+        gdMd5: res.Metadata?.['gd-md5'],
+      };
     } catch (error: any) {
-      return false;
+      return { exists: false };
+    }
+  }
+
+  async function deleteFromR2(key: string) {
+    console.log(`Deleting object from R2: ${key}...`);
+    try {
+      if (r2Binding && typeof r2Binding.delete === 'function') {
+        await r2Binding.delete(key);
+        return;
+      }
+      const command = new DeleteObjectCommand({
+        Bucket: process.env.R2_BUCKET_NAME || '',
+        Key: key,
+      });
+      await s3Client.send(command);
+    } catch (err: any) {
+      console.error(`Failed to delete R2 object ${key}:`, err.message);
     }
   }
 
@@ -243,19 +278,28 @@ export async function GET(request: NextRequest) {
     return data.files?.[0]?.id || null;
   }
 
+  interface DriveFileInfo {
+    id: string;
+    name: string;
+    parentName?: string;
+    size?: string;
+    md5Checksum?: string;
+    modifiedTime?: string;
+  }
+
   async function getAllFilesRecursively(
     parentFolderId: string,
     mimeTypes: string[],
     parentFolderName?: string
-  ): Promise<{ id: string; name: string; parentName?: string }[]> {
-    const files: { id: string; name: string; parentName?: string }[] = [];
+  ): Promise<DriveFileInfo[]> {
+    const files: DriveFileInfo[] = [];
     try {
       const mimeQuery = mimeTypes.map(m => `mimeType = '${m}'`).join(' or ');
       const fileQuery = `'${parentFolderId}' in parents and trashed = false and (${mimeQuery})`;
 
       const url = new URL('https://www.googleapis.com/drive/v3/files');
       url.searchParams.set('q', fileQuery);
-      url.searchParams.set('fields', 'files(id, name)');
+      url.searchParams.set('fields', 'files(id, name, size, md5Checksum, modifiedTime)');
       url.searchParams.set('pageSize', '1000');
 
       const filesRes = await fetch(url.toString(), {
@@ -267,7 +311,14 @@ export async function GET(request: NextRequest) {
         if (filesData.files) {
           for (const f of filesData.files) {
             if (f.id && f.name) {
-              files.push({ id: f.id, name: f.name, parentName: parentFolderName });
+              files.push({
+                id: f.id,
+                name: f.name,
+                parentName: parentFolderName,
+                size: f.size || undefined,
+                md5Checksum: f.md5Checksum || undefined,
+                modifiedTime: f.modifiedTime || undefined,
+              });
             }
           }
         }
@@ -300,7 +351,7 @@ export async function GET(request: NextRequest) {
     return files;
   }
 
-  async function uploadToR2(fileId: string, key: string, contentType: string) {
+  async function uploadToR2(fileId: string, key: string, contentType: string, md5Checksum?: string | null) {
     const driveRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
       headers: { Authorization: `Bearer ${googleAccessToken}` },
     });
@@ -317,7 +368,11 @@ export async function GET(request: NextRequest) {
     if (r2Binding && typeof r2Binding.put === 'function') {
       console.log(`Using native R2 binding.put for key: ${key}`);
       await r2Binding.put(key, driveRes.body, {
-        httpMetadata: { contentType }
+        httpMetadata: { contentType },
+        customMetadata: {
+          'gd-id': fileId,
+          'gd-md5': md5Checksum || '',
+        }
       });
       return;
     }
@@ -330,6 +385,10 @@ export async function GET(request: NextRequest) {
         Key: key,
         Body: driveRes.body,
         ContentType: contentType,
+        Metadata: {
+          'gd-id': fileId,
+          'gd-md5': md5Checksum || '',
+        }
       },
     });
 
@@ -431,6 +490,20 @@ export async function GET(request: NextRequest) {
     return driveRes.text();
   }
 
+  function detectMixType(fileName: string): string {
+    const norm = fileName.toLowerCase();
+    if (norm.includes('knight club') || norm.includes('kc ')) {
+      return 'Knight Club';
+    }
+    if (norm.includes('royal court') || norm.includes('rc ')) {
+      return 'Royal Court';
+    }
+    if (norm.includes('corner new cross') || norm.includes('cnc')) {
+      return 'Corner New Cross';
+    }
+    return 'Knight Club';
+  }
+
   async function runSync(): Promise<string[]> {
     const rootId = await findFolderId('Henry IX Website');
     if (!rootId) {
@@ -450,12 +523,12 @@ export async function GET(request: NextRequest) {
     const tracklistsFolderId = await findFolderId('Mix Tracklists', mixesId) || await findFolderId('Mix Track Lists', mixesId);
     const artworkFolderId = await findFolderId('Mix Artwork', mixesId);
 
-    let artworkFiles: any[] = [];
+    let artworkFiles: DriveFileInfo[] = [];
     if (artworkFolderId) {
       artworkFiles = await getAllFilesRecursively(artworkFolderId, ['image/jpeg', 'image/png', 'image/webp']);
     }
 
-    let tracklistFiles: any[] = [];
+    let tracklistFiles: DriveFileInfo[] = [];
     if (tracklistsFolderId) {
       tracklistFiles = await getAllFilesRecursively(tracklistsFolderId, ['text/plain']);
     }
@@ -481,7 +554,7 @@ export async function GET(request: NextRequest) {
       
       const mp3sUrl = new URL('https://www.googleapis.com/drive/v3/files');
       mp3sUrl.searchParams.set('q', `'${mixFolder.id}' in parents and mimeType = 'audio/mpeg' and trashed = false`);
-      mp3sUrl.searchParams.set('fields', 'files(id, name, size)');
+      mp3sUrl.searchParams.set('fields', 'files(id, name, size, md5Checksum, modifiedTime)');
       const mp3sRes = await fetch(mp3sUrl.toString(), {
         headers: { Authorization: `Bearer ${googleAccessToken}` },
       });
@@ -516,8 +589,42 @@ export async function GET(request: NextRequest) {
           { slug: cleanSlug, title: cleanTitle, audioFile: `/${audioR2Key}` }
         );
 
-        const audioExists = await fileExistsInR2(audioR2Key);
-        const artworkExists = artworkR2Key ? await fileExistsInR2(artworkR2Key) : false;
+        // Perform existence & metadata checks in R2
+        const audioR2Info = await getR2FileInfo(audioR2Key);
+        const artworkR2Info = artworkR2Key ? await getR2FileInfo(artworkR2Key) : { exists: false };
+
+        // Check for content changes (size or MD5 mismatch)
+        const driveAudioSize = mp3.size ? parseInt(mp3.size, 10) : undefined;
+        const driveAudioMd5 = mp3.md5Checksum;
+        let audioChanged = false;
+        if (audioR2Info.exists) {
+          if (driveAudioSize !== undefined && audioR2Info.size !== undefined && driveAudioSize !== audioR2Info.size) {
+            console.log(`    Detected audio size mismatch for "${audioR2Key}": Drive size = ${driveAudioSize}, R2 size = ${audioR2Info.size}`);
+            audioChanged = true;
+          } else if (driveAudioMd5 && audioR2Info.gdMd5 && driveAudioMd5 !== audioR2Info.gdMd5) {
+            console.log(`    Detected audio MD5 mismatch for "${audioR2Key}": Drive MD5 = ${driveAudioMd5}, R2 MD5 = ${audioR2Info.gdMd5}`);
+            audioChanged = true;
+          } else if (mp3.id && audioR2Info.gdId && mp3.id !== audioR2Info.gdId) {
+            console.log(`    Detected audio ID mismatch for "${audioR2Key}": Drive ID = ${mp3.id}, R2 ID = ${audioR2Info.gdId}`);
+            audioChanged = true;
+          }
+        }
+
+        const driveArtworkSize = artworkFile?.size ? parseInt(artworkFile.size, 10) : undefined;
+        const driveArtworkMd5 = artworkFile?.md5Checksum;
+        let artworkChanged = false;
+        if (artworkR2Info.exists && artworkFile) {
+          if (driveArtworkSize !== undefined && artworkR2Info.size !== undefined && driveArtworkSize !== artworkR2Info.size) {
+            console.log(`    Detected artwork size mismatch for "${artworkR2Key}": Drive size = ${driveArtworkSize}, R2 size = ${artworkR2Info.size}`);
+            artworkChanged = true;
+          } else if (driveArtworkMd5 && artworkR2Info.gdMd5 && driveArtworkMd5 !== artworkR2Info.gdMd5) {
+            console.log(`    Detected artwork MD5 mismatch for "${artworkR2Key}": Drive MD5 = ${driveArtworkMd5}, R2 MD5 = ${artworkR2Info.gdMd5}`);
+            artworkChanged = true;
+          } else if (artworkFile.id && artworkR2Info.gdId && artworkFile.id !== artworkR2Info.gdId) {
+            console.log(`    Detected artwork ID mismatch for "${artworkR2Key}": Drive ID = ${artworkFile.id}, R2 ID = ${artworkR2Info.gdId}`);
+            artworkChanged = true;
+          }
+        }
 
         if (existing) {
           let needsPatch = false;
@@ -531,13 +638,30 @@ export async function GET(request: NextRequest) {
 
           const currentAudioFile = existing.audioFile;
           const expectedAudioFile = `/${audioR2Key}`;
-          if (currentAudioFile !== expectedAudioFile || !audioExists) {
-            if (!audioExists) {
+          if (currentAudioFile !== expectedAudioFile || !audioR2Info.exists || audioChanged) {
+            if (currentAudioFile && currentAudioFile !== expectedAudioFile) {
+              const oldKey = currentAudioFile.startsWith('/') ? currentAudioFile.slice(1) : currentAudioFile;
+              console.log(`    Audio path changed from ${currentAudioFile} to ${expectedAudioFile}. Deleting old asset from R2...`);
+              await deleteFromR2(oldKey);
+            }
+            if (audioChanged) {
+              console.log(`    Audio file content changed. Deleting old asset from R2...`);
+              await deleteFromR2(audioR2Key);
+            }
+
+            if (!audioR2Info.exists && !audioChanged) {
               if (uploadCount >= MAX_UPLOADS_PER_RUN) {
                 console.log(`[CRON] Max uploads limit reached (${MAX_UPLOADS_PER_RUN}). Skipping audio sync for ${cleanTitle} until next run.`);
                 continue;
               }
-              await uploadToR2(mp3.id!, audioR2Key, 'audio/mpeg');
+              await uploadToR2(mp3.id!, audioR2Key, 'audio/mpeg', mp3.md5Checksum);
+              uploadCount++;
+            } else {
+              if (uploadCount >= MAX_UPLOADS_PER_RUN) {
+                console.log(`[CRON] Max uploads limit reached (${MAX_UPLOADS_PER_RUN}). Skipping updated audio sync for ${cleanTitle} until next run.`);
+                continue;
+              }
+              await uploadToR2(mp3.id!, audioR2Key, 'audio/mpeg', mp3.md5Checksum);
               uploadCount++;
             }
             if (currentAudioFile !== expectedAudioFile) {
@@ -548,14 +672,32 @@ export async function GET(request: NextRequest) {
 
           const currentArtworkFile = existing.artworkFile;
           const expectedArtworkFile = artworkR2Key ? `/${artworkR2Key}` : undefined;
-          if (artworkFile && (currentArtworkFile !== expectedArtworkFile || !artworkExists)) {
-            if (!artworkExists) {
+          if (artworkFile && (currentArtworkFile !== expectedArtworkFile || !artworkR2Info.exists || artworkChanged)) {
+            if (currentArtworkFile && currentArtworkFile !== expectedArtworkFile) {
+              const oldKey = currentArtworkFile.startsWith('/') ? currentArtworkFile.slice(1) : currentArtworkFile;
+              console.log(`    Artwork path changed from ${currentArtworkFile} to ${expectedArtworkFile}. Deleting old asset from R2...`);
+              await deleteFromR2(oldKey);
+            }
+            if (artworkChanged && artworkR2Key) {
+              console.log(`    Artwork file content changed. Deleting old asset from R2...`);
+              await deleteFromR2(artworkR2Key);
+            }
+
+            if (!artworkR2Info.exists && !artworkChanged) {
               if (uploadCount >= MAX_UPLOADS_PER_RUN) {
                 console.log(`[CRON] Max uploads limit reached (${MAX_UPLOADS_PER_RUN}). Skipping artwork sync for ${cleanTitle} until next run.`);
                 continue;
               }
               const artworkContentType = artworkFile.name.endsWith('.png') ? 'image/png' : artworkFile.name.endsWith('.webp') ? 'image/webp' : 'image/jpeg';
-              await uploadToR2(artworkFile.id, artworkR2Key!, artworkContentType);
+              await uploadToR2(artworkFile.id, artworkR2Key!, artworkContentType, artworkFile.md5Checksum);
+              uploadCount++;
+            } else {
+              if (uploadCount >= MAX_UPLOADS_PER_RUN) {
+                console.log(`[CRON] Max uploads limit reached (${MAX_UPLOADS_PER_RUN}). Skipping updated artwork sync for ${cleanTitle} until next run.`);
+                continue;
+              }
+              const artworkContentType = artworkFile.name.endsWith('.png') ? 'image/png' : artworkFile.name.endsWith('.webp') ? 'image/webp' : 'image/jpeg';
+              await uploadToR2(artworkFile.id, artworkR2Key!, artworkContentType, artworkFile.md5Checksum);
               uploadCount++;
             }
             if (currentArtworkFile !== expectedArtworkFile) {
@@ -582,7 +724,7 @@ export async function GET(request: NextRequest) {
           continue;
         }
 
-        await uploadToR2(mp3.id!, audioR2Key, 'audio/mpeg');
+        await uploadToR2(mp3.id!, audioR2Key, 'audio/mpeg', mp3.md5Checksum);
         uploadCount++;
 
         if (artworkFile && artworkR2Key) {
@@ -591,7 +733,7 @@ export async function GET(request: NextRequest) {
             continue;
           }
           const artworkContentType = artworkFile.name.endsWith('.png') ? 'image/png' : artworkFile.name.endsWith('.webp') ? 'image/webp' : 'image/jpeg';
-          await uploadToR2(artworkFile.id, artworkR2Key, artworkContentType);
+          await uploadToR2(artworkFile.id, artworkR2Key, artworkContentType, artworkFile.md5Checksum);
           uploadCount++;
         }
 
@@ -619,6 +761,139 @@ export async function GET(request: NextRequest) {
           { title: mixGroupTitle }
         );
 
+        if (existingGroup) {
+          await sanityClient
+            .patch(existingGroup._id)
+            .setIfMissing({ mixes: [] })
+            .append('mixes', [{ _type: 'reference', _ref: createdMix._id }])
+            .commit();
+        } else {
+          const newGroupDoc = {
+            _type: 'mixGroup',
+            title: mixGroupTitle,
+            slug: {
+              _type: 'slug',
+              current: mixGroupSlug,
+            },
+            description: `Auto-generated collection for ${mixGroupTitle} mixes`,
+            mixes: [{ _type: 'reference', _ref: createdMix._id }],
+          };
+          await sanityClient.create(newGroupDoc);
+        }
+      }
+    }
+
+    // Post-process unmatched artworks (for bulk uploading artworks without audio yet)
+    const unmatchedArtworks = artworkFiles.filter(a => !matchedArtworkIds.has(a.id));
+    console.log(`[CRON] Processing ${unmatchedArtworks.length} unmatched artwork files (bulk uploaded artworks)...`);
+    
+    for (const artworkFile of unmatchedArtworks) {
+      const mixType = artworkFile.parentName || detectMixType(artworkFile.name);
+      const cleanTitle = cleanMixTitle(artworkFile.name, mixType);
+      const cleanSlug = slugify(cleanTitle);
+      
+      const artworkR2Key = `Mixes/${mixType}/Mix Artwork/${artworkFile.name}`;
+      
+      const existing = await sanityClient.fetch(
+        `*[_type == "mix" && (slug.current == $slug || title == $title)][0]`,
+        { slug: cleanSlug, title: cleanTitle }
+      );
+      
+      const artworkR2Info = await getR2FileInfo(artworkR2Key);
+
+      const driveArtworkSize = artworkFile.size ? parseInt(artworkFile.size, 10) : undefined;
+      const driveArtworkMd5 = artworkFile.md5Checksum;
+      let artworkChanged = false;
+      if (artworkR2Info.exists) {
+        if (driveArtworkSize !== undefined && artworkR2Info.size !== undefined && driveArtworkSize !== artworkR2Info.size) {
+          console.log(`    Detected unmatched artwork size mismatch for "${artworkR2Key}": Drive size = ${driveArtworkSize}, R2 size = ${artworkR2Info.size}`);
+          artworkChanged = true;
+        } else if (driveArtworkMd5 && artworkR2Info.gdMd5 && driveArtworkMd5 !== artworkR2Info.gdMd5) {
+          console.log(`    Detected unmatched artwork MD5 mismatch for "${artworkR2Key}": Drive MD5 = ${driveArtworkMd5}, R2 MD5 = ${artworkR2Info.gdMd5}`);
+          artworkChanged = true;
+        } else if (artworkFile.id && artworkR2Info.gdId && artworkFile.id !== artworkR2Info.gdId) {
+          console.log(`    Detected unmatched artwork ID mismatch for "${artworkR2Key}": Drive ID = ${artworkFile.id}, R2 ID = ${artworkR2Info.gdId}`);
+          artworkChanged = true;
+        }
+      }
+      
+      if (existing) {
+        let needsPatch = false;
+        const patchData: any = {};
+        
+        const currentArtworkFile = existing.artworkFile;
+        const expectedArtworkFile = `/${artworkR2Key}`;
+        
+        if (currentArtworkFile !== expectedArtworkFile || !artworkR2Info.exists || artworkChanged) {
+          if (currentArtworkFile && currentArtworkFile !== expectedArtworkFile) {
+            const oldKey = currentArtworkFile.startsWith('/') ? currentArtworkFile.slice(1) : currentArtworkFile;
+            console.log(`    Artwork path changed from ${currentArtworkFile} to ${expectedArtworkFile}. Deleting old asset from R2...`);
+            await deleteFromR2(oldKey);
+          }
+          if (artworkChanged) {
+            console.log(`    Artwork file content changed. Deleting old asset from R2...`);
+            await deleteFromR2(artworkR2Key);
+          }
+          
+          if (!artworkR2Info.exists && !artworkChanged) {
+            if (uploadCount >= MAX_UPLOADS_PER_RUN) {
+              console.log(`[CRON] Max uploads limit reached (${MAX_UPLOADS_PER_RUN}). Skipping unmatched artwork sync for ${cleanTitle} until next run.`);
+              continue;
+            }
+            const artworkContentType = artworkFile.name.endsWith('.png') ? 'image/png' : artworkFile.name.endsWith('.webp') ? 'image/webp' : 'image/jpeg';
+            await uploadToR2(artworkFile.id, artworkR2Key, artworkContentType, artworkFile.md5Checksum);
+            uploadCount++;
+          } else {
+            if (uploadCount >= MAX_UPLOADS_PER_RUN) {
+              console.log(`[CRON] Max uploads limit reached (${MAX_UPLOADS_PER_RUN}). Skipping updated unmatched artwork sync for ${cleanTitle} until next run.`);
+              continue;
+            }
+            const artworkContentType = artworkFile.name.endsWith('.png') ? 'image/png' : artworkFile.name.endsWith('.webp') ? 'image/webp' : 'image/jpeg';
+            await uploadToR2(artworkFile.id, artworkR2Key, artworkContentType, artworkFile.md5Checksum);
+            uploadCount++;
+          }
+          if (currentArtworkFile !== expectedArtworkFile) {
+            patchData.artworkFile = expectedArtworkFile;
+            needsPatch = true;
+          }
+        }
+        
+        if (needsPatch) {
+          await sanityClient.patch(existing._id).set(patchData).commit();
+          syncResults.push(`Updated unmatched artwork for ${cleanTitle}`);
+        }
+      } else {
+        if (uploadCount >= MAX_UPLOADS_PER_RUN) {
+          console.log(`[CRON] Max uploads limit reached (${MAX_UPLOADS_PER_RUN}). Skipping new artwork-only mix for ${cleanTitle} until next run.`);
+          continue;
+        }
+        
+        const artworkContentType = artworkFile.name.endsWith('.png') ? 'image/png' : artworkFile.name.endsWith('.webp') ? 'image/webp' : 'image/jpeg';
+        await uploadToR2(artworkFile.id, artworkR2Key, artworkContentType, artworkFile.md5Checksum);
+        uploadCount++;
+        
+        const mixDoc = {
+          _type: 'mix',
+          title: cleanTitle,
+          slug: {
+            _type: 'slug',
+            current: cleanSlug,
+          },
+          artworkFile: `/${artworkR2Key}`,
+          bpm: 120,
+          cuePoints: [],
+        };
+        
+        const createdMix = await sanityClient.create(mixDoc);
+        syncResults.push(`Created artwork-only mix ${cleanTitle}`);
+        
+        const mixGroupTitle = mixType;
+        const mixGroupSlug = slugify(mixGroupTitle);
+        const existingGroup = await sanityClient.fetch(
+          `*[_type == "mixGroup" && title == $title][0]`,
+          { title: mixGroupTitle }
+        );
+        
         if (existingGroup) {
           await sanityClient
             .patch(existingGroup._id)
