@@ -104,6 +104,7 @@ async function handleAssetRequest(request: Request) {
         headers.set('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
         headers.set('Access-Control-Allow-Headers', '*');
         headers.set('Accept-Ranges', 'bytes');
+        headers.set('Cache-Control', 'public, max-age=31536000, immutable');
         
         if (object.httpMetadata?.etag) {
           headers.set('ETag', object.httpMetadata.etag);
@@ -170,6 +171,10 @@ async function handleAssetRequest(request: Request) {
         }
       });
       
+      if (!headers.has('cache-control')) {
+        headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+      }
+      
       return new NextResponse(response.body, {
         status: response.status,
         headers,
@@ -200,6 +205,7 @@ async function handleAssetRequest(request: Request) {
     headers.set('Access-Control-Allow-Origin', '*');
     headers.set('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
     headers.set('Access-Control-Allow-Headers', '*');
+    headers.set('Cache-Control', 'public, max-age=31536000, immutable');
     
     if (s3Response.ContentLength !== undefined) {
       headers.set('Content-Length', s3Response.ContentLength.toString());
@@ -316,6 +322,10 @@ async function handleAssetRequest(request: Request) {
               headers.set(h, val);
             }
           });
+          
+          if (!headers.has('cache-control')) {
+            headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+          }
           
           return new NextResponse(fallbackResponse.body, {
             status: fallbackResponse.status,

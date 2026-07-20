@@ -428,9 +428,14 @@ export class AudioEngine {
     const audioB = this.audioElements[targetDeckId];
     if (!deckB || !audioB) return;
 
-    const masterDeckId = [1, 2, 3, 4].find(
-      id => id !== targetDeckId && state.decks[id]?.isPlaying && !state.decks[id]?.scMode
+    let masterDeckId = [1, 2, 3, 4].find(
+      id => id !== targetDeckId && state.decks[id]?.isPlaying && state.decks[id]?.isMaster && !state.decks[id]?.scMode
     );
+    if (!masterDeckId) {
+      masterDeckId = [1, 2, 3, 4].find(
+        id => id !== targetDeckId && state.decks[id]?.isPlaying && !state.decks[id]?.scMode
+      );
+    }
     if (!masterDeckId) return;
 
     const deckA = state.decks[masterDeckId];

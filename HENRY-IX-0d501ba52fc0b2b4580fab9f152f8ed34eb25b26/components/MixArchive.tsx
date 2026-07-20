@@ -75,6 +75,7 @@ export default function MixArchive({
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isCDJMenuOpen, setIsCDJMenuOpen] = useState(false);
   const [activeTracklistDeckId, setActiveTracklistDeckId] = useState<number | null>(null);
+  const [mobileWaveformHeight, setMobileWaveformHeight] = useState(28);
   const activeDeckIds = (deckCount === 2 ? [1, 2] : [3, 1, 2, 4]) as readonly (1 | 2 | 3 | 4)[];
 
   const isStacked = useAudioStore(s => s.isStacked);
@@ -358,22 +359,40 @@ export default function MixArchive({
           }
         }
 
-        // 1.5 Continuous Phase-Locked Loop (PLL) for Perfect Phase Alignment
+        // 1.5 Continuous Phase-Locked Loop (PLL) and Pitch Tracking for Perfect Phase/BPM Alignment
         if (!deck.scMode && audio) {
-          const basePlaybackRate = 1 + (deck.pitch || 0) / 100;
+          let basePlaybackRate = 1 + (deck.pitch || 0) / 100;
           let pllApplied = false;
 
           if (deck.syncEnabled && !audio.paused && deck.syncMode !== 'BPM') {
-            const masterId = [1, 2, 3, 4].find(
-              id => id !== deckId && decksRef.current[id]?.isPlaying && !decksRef.current[id]?.scMode
+            // 1. Prefer explicit MASTER deck first, fallback to first other playing deck
+            let masterId = [1, 2, 3, 4].find(
+              id => id !== deckId && decksRef.current[id]?.isPlaying && decksRef.current[id]?.isMaster && !decksRef.current[id]?.scMode
             );
+            if (!masterId) {
+              masterId = [1, 2, 3, 4].find(
+                id => id !== deckId && decksRef.current[id]?.isPlaying && !decksRef.current[id]?.scMode
+              );
+            }
+
             if (masterId) {
               const masterDeck = decksRef.current[masterId];
               const masterAudio = audioElementsRef?.current?.[masterId];
               if (masterDeck && masterAudio && !masterAudio.paused) {
                 const activeBpmA = masterDeck.bpm * (1 + (masterDeck.pitch || 0) / 100);
+
+                // 2. Dynamic Pitch Tracking: Automatically calculate and update pitch to track the master BPM
+                if (deck.bpm && !isNaN(deck.bpm)) {
+                  const targetPitch = ((activeBpmA / deck.bpm) - 1) * 100;
+                  const clampedPitch = Math.max(-16, Math.min(16, targetPitch));
+                  
+                  if (Math.abs(deck.pitch - clampedPitch) > 0.005) {
+                    useAudioStore.getState().setDeck(deckId, { pitch: clampedPitch });
+                    basePlaybackRate = 1 + clampedPitch / 100;
+                  }
+                }
+
                 const beatInterval = 60 / activeBpmA;
-                
                 const elapsedA = Math.max(0, masterAudio.currentTime - (masterDeck.firstBeatOffset || 0));
                 const elapsedB = Math.max(0, audio.currentTime - (deck.firstBeatOffset || 0));
                 
@@ -384,8 +403,16 @@ export default function MixArchive({
                 if (error > beatInterval / 2) error -= beatInterval;
                 if (error < -beatInterval / 2) error += beatInterval;
                 
-                if (Math.abs(error) > 0.003) {
-                  const nudge = Math.max(-0.015, Math.min(0.015, error * 1.2));
+                if (Math.abs(error) > 0.05) {
+                  // Hard snap if phase drift is very large (e.g. after scratching, seeking, or cue stutter release)
+                  const targetTime = audio.currentTime + error;
+                  const duration = audio.duration || deck.duration || 0;
+                  if (isFinite(duration) && targetTime >= 0 && targetTime <= duration) {
+                    audio.currentTime = targetTime;
+                  }
+                } else if (Math.abs(error) > 0.003) {
+                  // Stronger nudge for fast, tight synchronization
+                  const nudge = Math.max(-0.03, Math.min(0.03, error * 1.8));
                   audio.playbackRate = basePlaybackRate + nudge;
                   pllApplied = true;
                 }
@@ -1233,8 +1260,9 @@ export default function MixArchive({
 
     const getBpmString = (deck: any) => {
       const pitch = deck.pitch || 0;
-      const bpm = deck.bpm || 130;
-      const currentBpm = bpm * (1 + pitch / 100);
+      const state = useAudioStore.getState();
+      const baseBpm = state.detectedBpms?.[deck.id] || deck.bpm || 130;
+      const currentBpm = baseBpm * (1 + pitch / 100);
       const sign = pitch >= 0 ? '+' : '';
       return `${currentBpm.toFixed(1)} ${sign}${pitch.toFixed(1)}%`;
     };
@@ -1323,6 +1351,63 @@ export default function MixArchive({
       }
     };
 
+    const handleHotCuePressMobile = (deckId: number, pad: string) => {
+      const deck = decks[deckId];
+      if (!deck || deck.id === 'locked') return;
+
+      const currentProgress = deck.progress || 0;
+      const savedTime = deck.hotCues?.[pad];
+
+      if (savedTime === null || savedTime === undefined) {
+        const bpm = deck.bpm || 120;
+        const pitch = deck.pitch || 0;
+        const currentBpm = bpm * (1 + pitch / 100);
+        const beatInterval = 60 / currentBpm;
+        const offset = deck.firstBeatOffset || 0;
+        const elapsed = currentProgress - offset;
+        const closestBeatIndex = Math.round(elapsed / beatInterval);
+        const snappedTime = Math.max(0, offset + closestBeatIndex * beatInterval);
+
+        playClick(880, 'sine', 0.02);
+        setDecks((prev: any) => ({
+          ...prev,
+          [deckId]: {
+            ...prev[deckId],
+            hotCues: {
+              ...prev[deckId].hotCues,
+              [pad]: snappedTime
+            }
+          }
+        }));
+      } else {
+        playClick(960, 'sine', 0.015);
+        if (seekLocalBuffer) {
+          seekLocalBuffer(deckId, savedTime);
+        }
+
+        const audioEl = audioElementsRef?.current?.[deckId];
+        if (audioEl) {
+          if (!deck.isPlaying) {
+            setDecks((prev: any) => ({
+              ...prev,
+              [deckId]: { ...prev[deckId], isPlaying: true }
+            }));
+            if (deck.syncEnabled && alignSyncPlayback) {
+              alignSyncPlayback(deckId);
+            }
+            audioEl.play().catch((err: any) => {
+              if (err.name !== 'AbortError') {
+                setDecks((prev: any) => ({
+                  ...prev,
+                  [deckId]: { ...prev[deckId], isPlaying: false }
+                }));
+              }
+            });
+          }
+        }
+      }
+    };
+
     return (
       <div className="w-full h-full flex flex-col justify-between bg-black text-white p-1.5 font-mono select-none overflow-hidden relative">
         <style dangerouslySetInnerHTML={{ __html: `
@@ -1352,11 +1437,11 @@ export default function MixArchive({
             {isCDJMenuOpen && (
               <>
                 <motion.div 
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 0.5 }}
-                  exit={{ opacity: 0 }}
-                  className="fixed inset-0 bg-black/60 z-40"
-                  onClick={() => setIsCDJMenuOpen(false)}
+                   initial={{ opacity: 0 }}
+                   animate={{ opacity: 0.5 }}
+                   exit={{ opacity: 0 }}
+                   className="fixed inset-0 bg-black/60 z-40"
+                   onClick={() => setIsCDJMenuOpen(false)}
                 />
                 <motion.div
                   initial={{ opacity: 0, scale: 0.95, y: -5 }}
@@ -1395,14 +1480,20 @@ export default function MixArchive({
         </div>
 
         {/* Top Row: Side-by-Side Waveforms */}
-        <div className="grid grid-cols-[1fr_80px_1fr] gap-2 items-center w-full h-[46px] shrink-0 border-b border-zinc-900 pb-1">
+        <div 
+          className="grid grid-cols-[1fr_80px_1fr] gap-2 items-center w-full shrink-0 border-b border-zinc-900 pb-1"
+          style={{ height: `${mobileWaveformHeight + 20}px` }}
+        >
           {/* Deck 1 Waveform display */}
           <div className="flex flex-col h-full justify-between">
             <div className="flex justify-between items-center text-[7px] text-zinc-500 uppercase tracking-widest leading-none pl-9">
               <span className="text-emerald-500 font-bold">1 // {deck1.title}</span>
               <span>REMAIN {formatPlayheadTime(Math.max(0, (deck1.duration || 0) - (deck1.progress || 0)))}</span>
             </div>
-            <div className="w-full flex-grow h-[26px] mt-0.5 rounded overflow-hidden bg-zinc-950/80 border border-zinc-900/60 relative">
+            <div 
+              className="w-full flex-grow mt-0.5 rounded overflow-hidden bg-zinc-950/80 border border-zinc-900/60 relative"
+              style={{ height: `${mobileWaveformHeight}px` }}
+            >
               <SingleDeckWaveform 
                 deckId={1} 
                 deck={deck1} 
@@ -1429,8 +1520,29 @@ export default function MixArchive({
                 <div className={cn("w-1 h-0.5 rounded-sm", deck2.isPlaying && deck2.volume > 0 ? "bg-emerald-500 shadow-[0_0_2px_#10b981]" : "bg-zinc-800")} />
               </div>
             </div>
-            <div className="text-[5.5px] border border-zinc-800 px-1 py-0.5 bg-zinc-950 rounded text-zinc-400 font-black leading-none tracking-tighter scale-90">
-              PHRASE SYNC
+            
+            {/* Height adjustment controls */}
+            <div className="flex gap-1 scale-90 mt-0.5">
+              <button 
+                onClick={() => {
+                  playClick(900, 'sine', 0.01);
+                  setMobileWaveformHeight(h => Math.min(60, h + 6));
+                }}
+                className="px-1 py-0.2 bg-zinc-900 border border-zinc-800 rounded text-[5px] font-black text-zinc-400 cursor-pointer active:scale-95 leading-none"
+                title="Increase Waveform Height"
+              >
+                H+
+              </button>
+              <button 
+                onClick={() => {
+                  playClick(850, 'sine', 0.01);
+                  setMobileWaveformHeight(h => Math.max(18, h - 6));
+                }}
+                className="px-1 py-0.2 bg-zinc-900 border border-zinc-800 rounded text-[5px] font-black text-zinc-400 cursor-pointer active:scale-95 leading-none"
+                title="Decrease Waveform Height"
+              >
+                H-
+              </button>
             </div>
           </div>
 
@@ -1440,7 +1552,10 @@ export default function MixArchive({
               <span>REMAIN {formatPlayheadTime(Math.max(0, (deck2.duration || 0) - (deck2.progress || 0)))}</span>
               <span className="text-rose-500 font-bold">{deck2.title} // 2</span>
             </div>
-            <div className="w-full flex-grow h-[26px] mt-0.5 rounded overflow-hidden bg-zinc-950/80 border border-zinc-900/60 relative">
+            <div 
+              className="w-full flex-grow mt-0.5 rounded overflow-hidden bg-zinc-950/80 border border-zinc-900/60 relative"
+              style={{ height: `${mobileWaveformHeight}px` }}
+            >
               <SingleDeckWaveform 
                 deckId={2} 
                 deck={deck2} 
@@ -1454,52 +1569,69 @@ export default function MixArchive({
         <div className="grid grid-cols-[1fr_80px_1fr] gap-3 items-center flex-grow min-h-0 w-full px-2 mt-1">
           {/* Deck 1 Platter & outer controls */}
           <div className="flex items-center justify-between w-full h-full">
-            {/* Outer Left: Pitch & Buttons */}
-            <div className="flex flex-col gap-1 items-start shrink-0">
-              <div className="bg-zinc-950 border border-zinc-900 rounded p-1 text-center font-mono text-[7px] leading-tight text-zinc-400">
-                <div className="text-[6px] text-zinc-600 font-bold">BPM</div>
-                <div className="font-bold text-white tracking-tighter">{getBpmString(deck1)}</div>
+            {/* Outer Left: Volume, Pitch & Buttons */}
+            <div className="flex gap-2 items-center shrink-0">
+              {/* Volume Slider */}
+              <div className="h-20 w-4 flex flex-col items-center select-none relative shrink-0">
+                <span className="text-[5px] text-zinc-500 font-mono font-bold leading-none uppercase mb-1">VOL</span>
+                <input 
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={deck1.volume}
+                  {...{ orient: "vertical" }}
+                  style={{ writingMode: 'bt-lr', WebkitAppearance: 'slider-vertical' } as any}
+                  onChange={(e) => handleVolumeChange(1, Number(e.target.value))}
+                  className="w-1.5 h-16 accent-emerald-500 bg-zinc-900 rounded-lg appearance-none cursor-pointer border border-zinc-800"
+                />
               </div>
-              <button 
-                onClick={() => {
-                  playClick(800, 'sine', 0.02);
-                  const active = deck1.isLoopActive;
-                  setDecks((prev: any) => ({
-                    ...prev,
-                    [1]: { 
-                      ...prev[1], 
-                      isLoopActive: !active,
-                      loopIn: !active ? deck1.progress : null,
-                      loopOut: !active ? deck1.progress + 4 * (60 / (deck1.bpm || 120)) : null
-                    }
-                  }));
-                }}
-                className={cn(
-                  "px-2 py-0.5 rounded text-[7px] font-bold border transition-all uppercase tracking-wider",
-                  deck1.isLoopActive 
-                    ? "bg-emerald-950 text-emerald-400 border-emerald-800 shadow-[0_0_6px_rgba(16,185,129,0.3)] animate-pulse" 
-                    : "bg-zinc-950 text-zinc-500 border-zinc-900"
-                )}
-              >
-                {deck1.isLoopActive ? "4B LOOP" : "LOOP OFF"}
-              </button>
-              <button 
-                onClick={() => {
-                  playClick(800, 'sine', 0.02);
-                  setDecks((prev: any) => ({
-                    ...prev,
-                    [1]: { ...prev[1], slipEnabled: !deck1.slipEnabled }
-                  }));
-                }}
-                className={cn(
-                  "px-2 py-0.5 rounded text-[7px] font-bold border transition-all uppercase tracking-wider",
-                  deck1.slipEnabled 
-                    ? "bg-primary/20 text-primary border-primary/40 shadow-[0_0_6px_rgba(216,22,63,0.3)]" 
-                    : "bg-zinc-950 text-zinc-500 border-zinc-900"
-                )}
-              >
-                SLIP
-              </button>
+
+              <div className="flex flex-col gap-1 items-start">
+                <div className="bg-zinc-950 border border-zinc-900 rounded p-1 text-center font-mono text-[7px] leading-tight text-zinc-400">
+                  <div className="text-[6px] text-zinc-600 font-bold">BPM</div>
+                  <div className="font-bold text-white tracking-tighter">{getBpmString(deck1)}</div>
+                </div>
+                <button 
+                  onClick={() => {
+                    playClick(800, 'sine', 0.02);
+                    const active = deck1.isLoopActive;
+                    setDecks((prev: any) => ({
+                      ...prev,
+                      [1]: { 
+                        ...prev[1], 
+                        isLoopActive: !active,
+                        loopIn: !active ? deck1.progress : null,
+                        loopOut: !active ? deck1.progress + 4 * (60 / (deck1.bpm || 120)) : null
+                      }
+                    }));
+                  }}
+                  className={cn(
+                    "px-2 py-0.5 rounded text-[7px] font-bold border transition-all uppercase tracking-wider",
+                    deck1.isLoopActive 
+                      ? "bg-emerald-950 text-emerald-400 border-emerald-800 shadow-[0_0_6px_rgba(16,185,129,0.3)] animate-pulse" 
+                      : "bg-zinc-950 text-zinc-500 border-zinc-900"
+                  )}
+                >
+                  {deck1.isLoopActive ? "4B LOOP" : "LOOP OFF"}
+                </button>
+                <button 
+                  onClick={() => {
+                    playClick(800, 'sine', 0.02);
+                    setDecks((prev: any) => ({
+                      ...prev,
+                      [1]: { ...prev[1], slipEnabled: !deck1.slipEnabled }
+                    }));
+                  }}
+                  className={cn(
+                    "px-2 py-0.5 rounded text-[7px] font-bold border transition-all uppercase tracking-wider",
+                    deck1.slipEnabled 
+                      ? "bg-primary/20 text-primary border-primary/40 shadow-[0_0_6px_rgba(216,22,63,0.3)]" 
+                      : "bg-zinc-950 text-zinc-500 border-zinc-900"
+                  )}
+                >
+                  SLIP
+                </button>
+              </div>
             </div>
 
             {/* Platter Center */}
@@ -1638,53 +1770,115 @@ export default function MixArchive({
               </div>
             </div>
 
-            {/* Outer Right: Pitch & Buttons */}
-            <div className="flex flex-col gap-1 items-end shrink-0">
-              <div className="bg-zinc-950 border border-zinc-900 rounded p-1 text-center font-mono text-[7px] leading-tight text-zinc-400">
-                <div className="text-[6px] text-zinc-600 font-bold">BPM</div>
-                <div className="font-bold text-white tracking-tighter">{getBpmString(deck2)}</div>
+            {/* Outer Right: Pitch & Buttons & Volume */}
+            <div className="flex gap-2 items-center shrink-0">
+              <div className="flex flex-col gap-1 items-end">
+                <div className="bg-zinc-950 border border-zinc-900 rounded p-1 text-center font-mono text-[7px] leading-tight text-zinc-400">
+                  <div className="text-[6px] text-zinc-600 font-bold">BPM</div>
+                  <div className="font-bold text-white tracking-tighter">{getBpmString(deck2)}</div>
+                </div>
+                <button 
+                  onClick={() => {
+                    playClick(800, 'sine', 0.02);
+                    const active = deck2.isLoopActive;
+                    setDecks((prev: any) => ({
+                      ...prev,
+                      [2]: { 
+                        ...prev[2], 
+                        isLoopActive: !active,
+                        loopIn: !active ? deck2.progress : null,
+                        loopOut: !active ? deck2.progress + 4 * (60 / (deck2.bpm || 120)) : null
+                      }
+                    }));
+                  }}
+                  className={cn(
+                    "px-2 py-0.5 rounded text-[7px] font-bold border transition-all uppercase tracking-wider",
+                    deck2.isLoopActive 
+                      ? "bg-rose-950 text-rose-400 border-rose-800 shadow-[0_0_6px_rgba(244,63,94,0.3)] animate-pulse" 
+                      : "bg-zinc-950 text-zinc-500 border-zinc-900"
+                  )}
+                >
+                  {deck2.isLoopActive ? "4B LOOP" : "LOOP OFF"}
+                </button>
+                <button 
+                  onClick={() => {
+                    playClick(800, 'sine', 0.02);
+                    setDecks((prev: any) => ({
+                      ...prev,
+                      [2]: { ...prev[2], slipEnabled: !deck2.slipEnabled }
+                    }));
+                  }}
+                  className={cn(
+                    "px-2 py-0.5 rounded text-[7px] font-bold border transition-all uppercase tracking-wider",
+                    deck2.slipEnabled 
+                      ? "bg-primary/20 text-primary border-primary/40 shadow-[0_0_6px_rgba(216,22,63,0.3)]" 
+                      : "bg-zinc-950 text-zinc-500 border-zinc-900"
+                  )}
+                >
+                  SLIP
+                </button>
               </div>
-              <button 
-                onClick={() => {
-                  playClick(800, 'sine', 0.02);
-                  const active = deck2.isLoopActive;
-                  setDecks((prev: any) => ({
-                    ...prev,
-                    [2]: { 
-                      ...prev[2], 
-                      isLoopActive: !active,
-                      loopIn: !active ? deck2.progress : null,
-                      loopOut: !active ? deck2.progress + 4 * (60 / (deck2.bpm || 120)) : null
-                    }
-                  }));
-                }}
-                className={cn(
-                  "px-2 py-0.5 rounded text-[7px] font-bold border transition-all uppercase tracking-wider",
-                  deck2.isLoopActive 
-                    ? "bg-rose-950 text-rose-400 border-rose-800 shadow-[0_0_6px_rgba(244,63,94,0.3)] animate-pulse" 
-                    : "bg-zinc-950 text-zinc-500 border-zinc-900"
-                )}
-              >
-                {deck2.isLoopActive ? "4B LOOP" : "LOOP OFF"}
-              </button>
-              <button 
-                onClick={() => {
-                  playClick(800, 'sine', 0.02);
-                  setDecks((prev: any) => ({
-                    ...prev,
-                    [2]: { ...prev[2], slipEnabled: !deck2.slipEnabled }
-                  }));
-                }}
-                className={cn(
-                  "px-2 py-0.5 rounded text-[7px] font-bold border transition-all uppercase tracking-wider",
-                  deck2.slipEnabled 
-                    ? "bg-primary/20 text-primary border-primary/40 shadow-[0_0_6px_rgba(216,22,63,0.3)]" 
-                    : "bg-zinc-950 text-zinc-500 border-zinc-900"
-                )}
-              >
-                SLIP
-              </button>
+
+              {/* Volume Slider */}
+              <div className="h-20 w-4 flex flex-col items-center select-none relative shrink-0">
+                <span className="text-[5px] text-zinc-500 font-mono font-bold leading-none uppercase mb-1">VOL</span>
+                <input 
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={deck2.volume}
+                  {...{ orient: "vertical" }}
+                  style={{ writingMode: 'bt-lr', WebkitAppearance: 'slider-vertical' } as any}
+                  onChange={(e) => handleVolumeChange(2, Number(e.target.value))}
+                  className="w-1.5 h-16 accent-rose-500 bg-zinc-900 rounded-lg appearance-none cursor-pointer border border-zinc-800"
+                />
+              </div>
             </div>
+          </div>
+        </div>
+
+        {/* Hot Cues Row (A-D) */}
+        <div className="grid grid-cols-[1.2fr_1fr_1.2fr] gap-2 items-center w-full px-4 mt-1 shrink-0">
+          {/* Deck 1 Hot Cues A-D */}
+          <div className="flex gap-1.5 justify-start">
+            {(['A', 'B', 'C', 'D'] as const).map(pad => {
+              const hasCue = deck1?.hotCues?.[pad] !== null && deck1?.hotCues?.[pad] !== undefined;
+              return (
+                <button
+                  key={pad}
+                  onPointerDown={() => handleHotCuePressMobile(1, pad)}
+                  className={cn(
+                    "h-5 w-7 rounded border font-mono text-[7px] font-black uppercase transition-all select-none cursor-pointer flex items-center justify-center",
+                    hasCue
+                      ? "bg-emerald-950 border-emerald-500 text-emerald-400 shadow-[0_0_6px_rgba(16,185,129,0.3)]"
+                      : "bg-zinc-950 border-zinc-900 text-zinc-600 hover:text-zinc-400"
+                  )}
+                >
+                  {pad}
+                </button>
+              );
+            })}
+          </div>
+          <div /> {/* Center spacer */}
+          {/* Deck 2 Hot Cues A-D */}
+          <div className="flex gap-1.5 justify-end">
+            {(['A', 'B', 'C', 'D'] as const).map(pad => {
+              const hasCue = deck2?.hotCues?.[pad] !== null && deck2?.hotCues?.[pad] !== undefined;
+              return (
+                <button
+                  key={pad}
+                  onPointerDown={() => handleHotCuePressMobile(2, pad)}
+                  className={cn(
+                    "h-5 w-7 rounded border font-mono text-[7px] font-black uppercase transition-all select-none cursor-pointer flex items-center justify-center",
+                    hasCue
+                      ? "bg-rose-950 border-rose-500 text-rose-400 shadow-[0_0_6px_rgba(244,63,94,0.3)]"
+                      : "bg-zinc-950 border-zinc-900 text-zinc-600 hover:text-zinc-400"
+                  )}
+                >
+                  {pad}
+                </button>
+              );
+            })}
           </div>
         </div>
 

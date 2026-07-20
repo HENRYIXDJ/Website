@@ -308,38 +308,96 @@ function StorybookAlbum({
           </div>
         </div>
 
-        {/* Front Cover Page (swings open) */}
+        {/* 3D Rotating Cover Container */}
         <motion.div
           variants={{
             initial: { rotateY: 0 },
-            hover: { rotateY: -105 }
+            hover: { rotateY: -135 }
           }}
           transition={{ type: "spring", stiffness: 90, damping: 14 }}
-          className="absolute inset-0 bg-zinc-900 border border-zinc-800 rounded-r-xl shadow-2xl z-30 [transform-origin:left_center] [transform-style:preserve-3d] [backface-visibility:hidden] flex flex-col justify-between p-6 overflow-hidden"
+          className="absolute inset-0 z-30 [transform-origin:left_center] [transform-style:preserve-3d]"
         >
-          {/* Cover background tech grid lines */}
-          <div className="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.3)_50%)] bg-[length:100%_4px] pointer-events-none z-10 opacity-30" />
-          <div className="absolute inset-0 bg-primary/[0.02] pointer-events-none z-10" />
+          {/* FRONT FACE of the Cover */}
+          <div 
+            className="absolute inset-0 bg-zinc-900 border border-zinc-800 rounded-r-xl shadow-2xl flex flex-col justify-between p-5 overflow-hidden z-20"
+            style={{ backfaceVisibility: 'hidden' }}
+          >
+            {/* Cover background tech grid lines */}
+            <div className="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.3)_50%)] bg-[length:100%_4px] pointer-events-none z-10 opacity-30" />
+            <div className="absolute inset-0 bg-primary/[0.02] pointer-events-none z-10" />
 
-          {/* Album Title plate */}
-          <div className="flex flex-col gap-1 text-left relative z-20">
-            <div className="w-8 h-1 bg-primary rounded-full mb-3 shadow-[0_0_8px_rgba(216,22,63,0.6)]" />
-            <h3 className="font-mono text-xs md:text-sm font-black text-zinc-100 uppercase tracking-[0.2em] leading-tight group-hover:text-primary transition-colors duration-300">
-              {album.title}
-            </h3>
-            <span className="font-mono text-[7.5px] text-zinc-500 uppercase tracking-widest font-bold block mt-1">
-              VOL // 01
-            </span>
+            {/* Album Title plate */}
+            <div className="flex flex-col gap-1 text-left relative z-20">
+              <div className="w-8 h-1 bg-primary rounded-full mb-2.5 shadow-[0_0_8px_rgba(216,22,63,0.6)]" />
+              <h3 className="font-mono text-xs font-black text-zinc-100 uppercase tracking-[0.2em] leading-tight group-hover:text-primary transition-colors duration-300">
+                {album.title}
+              </h3>
+              <span className="font-mono text-[7px] text-zinc-500 uppercase tracking-widest font-bold block mt-0.5">
+                VOL // 01
+              </span>
+            </div>
+
+            {/* First Image Cover Picture */}
+            {album.images[0] && (
+              <div className="my-2.5 relative flex-grow w-full rounded border border-zinc-950 overflow-hidden bg-black shadow-inner">
+                <Image
+                  src={album.images[0].src}
+                  alt={album.title}
+                  fill
+                  sizes="260px"
+                  unoptimized={album.images[0].src.includes('/api/assets')}
+                  className="object-cover transition-transform duration-500 group-hover:scale-105"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-black/20 pointer-events-none" />
+              </div>
+            )}
+
+            {/* Lower cover branding info */}
+            <div className="border-t border-zinc-850 pt-2 flex flex-col gap-1.5 relative z-20 text-left">
+              <span className="font-mono text-[6px] text-zinc-600 uppercase tracking-[0.3em] font-black">
+                HENRY IX // PHOTO SYSTEM
+              </span>
+              <div className="flex justify-between items-center text-[6.5px] text-zinc-500 font-mono font-bold">
+                <span>SYSTEM: READY</span>
+                <span>DATA_STREAM</span>
+              </div>
+            </div>
           </div>
 
-          {/* Lower cover branding info */}
-          <div className="border-t border-zinc-800/80 pt-4 flex flex-col gap-2 relative z-20 text-left">
-            <span className="font-mono text-[6.5px] text-zinc-600 uppercase tracking-[0.3em] font-black">
-              HENRY IX // TECH BINDER
-            </span>
-            <div className="flex justify-between items-center text-[7px] text-zinc-500 font-mono font-bold">
-              <span>SYSTEM: OK</span>
-              <span>READ_PORT_3</span>
+          {/* BACK FACE of the Cover (visible when opened/flipped) */}
+          <div 
+            className="absolute inset-0 bg-zinc-950 border border-zinc-900 rounded-r-xl shadow-inner flex flex-col justify-between p-5 overflow-hidden z-10"
+            style={{ 
+              transform: 'rotateY(180deg)', 
+              backfaceVisibility: 'hidden' 
+            }}
+          >
+            {/* Curated back-face texture & circuit lines */}
+            <div className="absolute inset-0 opacity-[0.02] pointer-events-none" style={{
+              backgroundImage: 'radial-gradient(#fff 1px, transparent 1px)',
+              backgroundSize: '12px 12px'
+            }} />
+            {/* Absolute black shadow overlay on left edge (creating the inner spine crease shadow) */}
+            <div className="absolute left-0 top-0 bottom-0 w-3 bg-gradient-to-r from-black to-transparent opacity-60" />
+
+            <div className="flex flex-col gap-2 text-left relative z-20">
+              <span className="text-[6.5px] text-zinc-500 uppercase tracking-widest font-bold">INDEX_CONTENTS</span>
+              <div className="h-[1px] w-full bg-zinc-900" />
+            </div>
+
+            {/* Retro label design */}
+            <div className="flex-grow flex items-center justify-center p-3">
+              <div className="border border-dashed border-zinc-800 p-2.5 rounded text-center font-mono max-w-[160px] opacity-60">
+                <div className="text-[6px] text-zinc-500 uppercase tracking-widest leading-none mb-1">ARCHIVE LOG</div>
+                <div className="text-[7.5px] font-bold text-zinc-450 truncate uppercase tracking-wider">{album.title}</div>
+                <div className="text-[5.5px] text-zinc-650 mt-1.5 leading-none">NO_MOD_PERMISSION_07</div>
+              </div>
+            </div>
+
+            <div className="border-t border-zinc-900 pt-2 text-left">
+              <span className="text-[6px] text-zinc-600 font-bold uppercase tracking-widest">
+                VERIFIED BY / HENRY IX
+              </span>
             </div>
           </div>
         </motion.div>
