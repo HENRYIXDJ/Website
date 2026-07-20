@@ -182,7 +182,31 @@ export async function GET(request: NextRequest) {
     useCdn: false,
   });
 
+  // Native Cloudflare Context & Binding detection
+  let ctx: any = null;
+  let r2Binding: any = null;
+  try {
+    const cfContext = eval("require")('@opennextjs/cloudflare');
+    const cloudflareContext = cfContext.getCloudflareContext();
+    ctx = cloudflareContext.ctx;
+    r2Binding = cloudflareContext.env.R2_BUCKET;
+  } catch (err) {
+    ctx = (globalThis as any).MINIFLARE_EXECUTION_CONTEXT || null;
+    r2Binding = (process.env.R2_BUCKET as any) || (globalThis as any).R2_BUCKET;
+  }
+
+  let uploadCount = 0;
+  const MAX_UPLOADS_PER_RUN = 2; // Prevent worker execution time/CPU limit timeout
+
   async function fileExistsInR2(key: string): Promise<boolean> {
+    if (r2Binding && typeof r2Binding.head === 'function') {
+      try {
+        const obj = await r2Binding.head(key);
+        return obj !== null;
+      } catch (err) {
+        return false;
+      }
+    }
     try {
       const command = new HeadObjectCommand({
         Bucket: process.env.R2_BUCKET_NAME || '',
@@ -290,6 +314,15 @@ export async function GET(request: NextRequest) {
       throw new Error(`Empty body returned for file ${fileId} from Drive`);
     }
 
+    if (r2Binding && typeof r2Binding.put === 'function') {
+      console.log(`Using native R2 binding.put for key: ${key}`);
+      await r2Binding.put(key, driveRes.body, {
+        httpMetadata: { contentType }
+      });
+      return;
+    }
+
+    console.log(`Using S3 client upload fallback for key: ${key}`);
     const upload = new Upload({
       client: s3Client,
       params: {
@@ -398,20 +431,20 @@ export async function GET(request: NextRequest) {
     return driveRes.text();
   }
 
-  try {
+  async function runSync(): Promise<string[]> {
     const rootId = await findFolderId('Henry IX Website');
     if (!rootId) {
-      return NextResponse.json({ error: "Root folder 'Henry IX Website' not found in Drive" }, { status: 404 });
+      throw new Error("Root folder 'Henry IX Website' not found in Drive");
     }
 
     const mixesId = await findFolderId('Mixes', rootId);
     if (!mixesId) {
-      return NextResponse.json({ error: "Mixes folder not found" }, { status: 404 });
+      throw new Error("Mixes folder not found");
     }
 
     const mixAudioId = await findFolderId('Mix Audio', mixesId);
     if (!mixAudioId) {
-      return NextResponse.json({ error: "Mix Audio folder not found" }, { status: 404 });
+      throw new Error("Mix Audio folder not found");
     }
 
     const tracklistsFolderId = await findFolderId('Mix Tracklists', mixesId) || await findFolderId('Mix Track Lists', mixesId);
@@ -499,7 +532,14 @@ export async function GET(request: NextRequest) {
           const currentAudioFile = existing.audioFile;
           const expectedAudioFile = `/${audioR2Key}`;
           if (currentAudioFile !== expectedAudioFile || !audioExists) {
-            await uploadToR2(mp3.id!, audioR2Key, 'audio/mpeg');
+            if (!audioExists) {
+              if (uploadCount >= MAX_UPLOADS_PER_RUN) {
+                console.log(`[CRON] Max uploads limit reached (${MAX_UPLOADS_PER_RUN}). Skipping audio sync for ${cleanTitle} until next run.`);
+                continue;
+              }
+              await uploadToR2(mp3.id!, audioR2Key, 'audio/mpeg');
+              uploadCount++;
+            }
             if (currentAudioFile !== expectedAudioFile) {
               patchData.audioFile = expectedAudioFile;
               needsPatch = true;
@@ -509,8 +549,15 @@ export async function GET(request: NextRequest) {
           const currentArtworkFile = existing.artworkFile;
           const expectedArtworkFile = artworkR2Key ? `/${artworkR2Key}` : undefined;
           if (artworkFile && (currentArtworkFile !== expectedArtworkFile || !artworkExists)) {
-            const artworkContentType = artworkFile.name.endsWith('.png') ? 'image/png' : artworkFile.name.endsWith('.webp') ? 'image/webp' : 'image/jpeg';
-            await uploadToR2(artworkFile.id, artworkR2Key!, artworkContentType);
+            if (!artworkExists) {
+              if (uploadCount >= MAX_UPLOADS_PER_RUN) {
+                console.log(`[CRON] Max uploads limit reached (${MAX_UPLOADS_PER_RUN}). Skipping artwork sync for ${cleanTitle} until next run.`);
+                continue;
+              }
+              const artworkContentType = artworkFile.name.endsWith('.png') ? 'image/png' : artworkFile.name.endsWith('.webp') ? 'image/webp' : 'image/jpeg';
+              await uploadToR2(artworkFile.id, artworkR2Key!, artworkContentType);
+              uploadCount++;
+            }
             if (currentArtworkFile !== expectedArtworkFile) {
               patchData.artworkFile = expectedArtworkFile;
               needsPatch = true;
@@ -530,10 +577,22 @@ export async function GET(request: NextRequest) {
         }
 
         // New mix discovered
+        if (uploadCount >= MAX_UPLOADS_PER_RUN) {
+          console.log(`[CRON] Max uploads limit reached (${MAX_UPLOADS_PER_RUN}). Skipping new mix creation for ${cleanTitle} until next run.`);
+          continue;
+        }
+
         await uploadToR2(mp3.id!, audioR2Key, 'audio/mpeg');
+        uploadCount++;
+
         if (artworkFile && artworkR2Key) {
+          if (uploadCount >= MAX_UPLOADS_PER_RUN) {
+            console.log(`[CRON] Max uploads limit reached (${MAX_UPLOADS_PER_RUN}). Skipping artwork upload for ${cleanTitle} until next run.`);
+            continue;
+          }
           const artworkContentType = artworkFile.name.endsWith('.png') ? 'image/png' : artworkFile.name.endsWith('.webp') ? 'image/webp' : 'image/jpeg';
           await uploadToR2(artworkFile.id, artworkR2Key, artworkContentType);
+          uploadCount++;
         }
 
         const mixDoc = {
@@ -582,7 +641,23 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ success: true, processed: syncResults });
+    return syncResults;
+  }
+
+  if (ctx && typeof ctx.waitUntil === 'function') {
+    console.log('[CRON] Detected Cloudflare Worker execution context. Triggering background sync via ctx.waitUntil.');
+    ctx.waitUntil(
+      runSync()
+        .then(results => console.log('[CRON] Background sync completed successfully:', results))
+        .catch(err => console.error('[CRON] Background sync failed:', err))
+    );
+    return NextResponse.json({ success: true, status: 'Background sync triggered' });
+  }
+
+  console.log('[CRON] No execution context found. Running sync synchronously in foreground.');
+  try {
+    const processed = await runSync();
+    return NextResponse.json({ success: true, processed });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Sync failed' }, { status: 500 });
   }

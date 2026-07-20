@@ -51,6 +51,29 @@ async function handleAssetRequest(request: Request) {
   // pathname starts with a slash, we want to strip the leading slash
   const pathname = decodeURIComponent(parsedUrl.pathname.slice(1));
 
+  // Check cache first (for GET requests without Range header)
+  const cache = typeof caches !== 'undefined' ? (caches as any).default : null;
+  const isGet = request.method === 'GET';
+  const rangeHeader = request.headers.get('Range');
+
+  let cacheKey: string | null = null;
+  if (cache && isGet && !rangeHeader) {
+    cacheKey = request.url;
+    try {
+      const cachedResponse = await cache.match(cacheKey);
+      if (cachedResponse) {
+        const newHeaders = new Headers(cachedResponse.headers);
+        newHeaders.set('X-R2-Cache', 'HIT');
+        return new Response(cachedResponse.body, {
+          status: cachedResponse.status,
+          headers: newHeaders,
+        });
+      }
+    } catch (e) {
+      console.warn('Cloudflare Cache API match error:', e);
+    }
+  }
+
   const r2PublicDomain = process.env.NEXT_PUBLIC_R2_PUBLIC_URL;
   const storageBaseUrl = process.env.NEXT_PUBLIC_STORAGE_BASE_URL;
   const allowedHosts = [
@@ -121,10 +144,20 @@ async function handleAssetRequest(request: Request) {
           headers.set('Content-Length', object.size.toString());
         }
 
-        return new NextResponse(object.body, {
+        const responseToReturn = new NextResponse(object.body, {
           status: statusCode,
           headers
         });
+        
+        headers.set('X-R2-Cache', 'MISS');
+        if (cache && cacheKey && statusCode === 200) {
+          try {
+            await cache.put(cacheKey, responseToReturn.clone());
+          } catch (e) {
+            console.warn('Cloudflare Cache API put R2 error:', e);
+          }
+        }
+        return responseToReturn;
       }
     } catch (err) {
       console.error('Error reading from R2 binding:', err);
@@ -175,10 +208,20 @@ async function handleAssetRequest(request: Request) {
         headers.set('Cache-Control', 'public, max-age=31536000, immutable');
       }
       
-      return new NextResponse(response.body, {
+      const responseToReturn = new NextResponse(response.body, {
         status: response.status,
         headers,
       });
+
+      headers.set('X-R2-Cache', 'MISS');
+      if (cache && cacheKey && response.status === 200) {
+        try {
+          await cache.put(cacheKey, responseToReturn.clone());
+        } catch (e) {
+          console.warn('Cloudflare Cache API put fallback error:', e);
+        }
+      }
+      return responseToReturn;
     } catch (err) {
       console.error('Error fetching from asset storage fallback:', err);
       return new NextResponse('Failed to fetch from asset storage fallback', { status: 500 });
@@ -274,10 +317,20 @@ async function handleAssetRequest(request: Request) {
       });
     }
 
-    return new NextResponse(finalStream, {
+    const responseToReturn = new NextResponse(finalStream, {
       status: statusCode,
       headers,
     });
+
+    headers.set('X-R2-Cache', 'MISS');
+    if (cache && cacheKey && statusCode === 200) {
+      try {
+        await cache.put(cacheKey, responseToReturn.clone());
+      } catch (e) {
+        console.warn('Cloudflare Cache API put S3 error:', e);
+      }
+    }
+    return responseToReturn;
 
   } catch (error: any) {
     console.error('Error proxying asset from R2, attempting fallback:', error);
@@ -327,10 +380,20 @@ async function handleAssetRequest(request: Request) {
             headers.set('Cache-Control', 'public, max-age=31536000, immutable');
           }
           
-          return new NextResponse(fallbackResponse.body, {
+          const responseToReturn = new NextResponse(fallbackResponse.body, {
             status: fallbackResponse.status,
             headers,
           });
+
+          headers.set('X-R2-Cache', 'MISS');
+          if (cache && cacheKey && fallbackResponse.status === 200) {
+            try {
+              await cache.put(cacheKey, responseToReturn.clone());
+            } catch (e) {
+              console.warn('Cloudflare Cache API put local fallback error:', e);
+            }
+          }
+          return responseToReturn;
         }
       } catch (fallbackErr) {
         console.error('Fallback fetch failed:', fallbackErr);
