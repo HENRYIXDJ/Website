@@ -15,7 +15,7 @@ export const formatPlayheadTime = (secs: number) => {
   return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}.${f.toString().padStart(2, '0')}`;
 };
 
-export const proxyUrl = (url: string) => `/api/assets?url=${encodeURIComponent(url)}`;
+export const proxyUrl = (url: string) => url;
 
 export const getSessionImage = (title: string, artworkUrl?: string) => {
   if (artworkUrl) return artworkUrl;
