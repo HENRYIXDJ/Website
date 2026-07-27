@@ -295,7 +295,7 @@ function StorybookAlbum({
                     alt=""
                     fill
                     sizes="120px"
-                    unoptimized={img.src.includes('/api/assets')}
+                    unoptimized={true}
                     className="object-cover filter grayscale contrast-125 brightness-90"
                   />
                 </div>
@@ -345,7 +345,7 @@ function StorybookAlbum({
                   alt={album.title}
                   fill
                   sizes="260px"
-                  unoptimized={album.images[0].src.includes('/api/assets')}
+                  unoptimized={true}
                   className="object-cover transition-transform duration-500 group-hover:scale-105"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-black/20 pointer-events-none" />
@@ -579,7 +579,7 @@ function ExpandedBookView({
                       alt={img.title}
                       fill
                       sizes="(max-width: 768px) 100vw, 25vw"
-                      unoptimized={img.src.includes('/api/assets')}
+                      unoptimized={true}
                       className="object-cover filter grayscale group-hover:grayscale-0 contrast-125 group-hover:scale-[1.03] transition-all duration-500"
                     />
                     
@@ -621,11 +621,11 @@ export default function GalleryClient() {
       title: 'ME',
       description: 'Candid deck captures, crowd wave highlights, studio sessions, and headshots of HENRY IX.',
       images: [
-        { src: '/gallery/Me/img_2255.jpg', title: 'DECK CONTROLS' },
-        { src: '/gallery/Me/img_3540.jpg', title: 'BOOTH MONITOR' },
-        { src: '/gallery/Me/img_0495.jpg', title: 'ROYAL COURT S1' },
-        { src: '/gallery/Me/img_4564.jpg', title: 'CROWD WAVE' },
-        { src: '/gallery/Me/img_0899.jpg', title: 'RED PORTRAIT' }
+        { src: getStorageUrl('/gallery/Me/img_2255.jpg'), title: 'DECK CONTROLS' },
+        { src: getStorageUrl('/gallery/Me/img_3540.jpg'), title: 'BOOTH MONITOR' },
+        { src: getStorageUrl('/gallery/Me/img_0495.jpg'), title: 'ROYAL COURT S1' },
+        { src: getStorageUrl('/gallery/Me/img_4564.jpg'), title: 'CROWD WAVE' },
+        { src: getStorageUrl('/gallery/Me/img_0899.jpg'), title: 'RED PORTRAIT' }
       ]
     }
   ]);
@@ -872,7 +872,7 @@ export default function GalleryClient() {
                     fill
                     sizes="100vw"
                     loading="lazy"
-                    unoptimized={activeImage.src.includes('/api/assets')}
+                    unoptimized={true}
                     className="object-contain block pointer-events-none"
                   />
                 </motion.div>
