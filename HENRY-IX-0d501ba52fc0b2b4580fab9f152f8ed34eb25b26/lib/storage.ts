@@ -1,14 +1,16 @@
 export function getStorageUrl(path: string): string {
-  // If the path is already a full URL, return it as is
+  if (!path) return '';
+  if (path.startsWith('/api/assets')) return path;
+
+  let fullUrl: string;
   if (path.startsWith('http://') || path.startsWith('https://')) {
-    return path;
+    fullUrl = path;
+  } else {
+    const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+    const baseUrl = process.env.NEXT_PUBLIC_STORAGE_BASE_URL || 'https://pub-c7c5ff43a8ae174ad91e2668de0ad7f0.r2.dev';
+    fullUrl = `${baseUrl}${normalizedPath}`;
   }
 
-  // Ensure path starts with a slash
-  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-
-  // Use the configured base URL, fallback to Cloudflare R2 default
-  const baseUrl = process.env.NEXT_PUBLIC_STORAGE_BASE_URL || 'https://pub-c7c5ff43a8ae174ad91e2668de0ad7f0.r2.dev';
-  
-  return `${baseUrl}${normalizedPath}`;
+  return `/api/assets?url=${encodeURIComponent(fullUrl)}`;
 }
+
