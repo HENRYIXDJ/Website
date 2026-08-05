@@ -161,7 +161,11 @@ const generateStaticPeaks = (num = 500): number[] => {
   return smoothed.map(p => p / maxVal);
 };
 
-const proxyUrl = (url: string) => url;
+const proxyUrl = (url: string) => {
+  if (!url) return '';
+  if (url.startsWith('/api/assets')) return url;
+  return `/api/assets?url=${encodeURIComponent(url)}`;
+};
 
 // ---------------------------------------------------------------------------
 // Initial deck data
