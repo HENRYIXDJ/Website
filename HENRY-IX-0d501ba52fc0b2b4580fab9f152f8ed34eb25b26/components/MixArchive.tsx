@@ -83,13 +83,11 @@ export default function MixArchive({
 
   useEffect(() => {
     const handleResize = () => {
-      const isWindowStacked = window.innerWidth < 1536;
-      setStacked(isWindowStacked);
-      
       const mobile = window.innerWidth < 1024;
       setIsMobile(mobile);
       if (mobile) {
         setDeckCount(2);
+        setStacked(true);
       }
       
       setIsPortrait(window.innerHeight > window.innerWidth);
@@ -2180,9 +2178,10 @@ export default function MixArchive({
             <style dangerouslySetInnerHTML={{ __html: `
               .dj-grid-container {
                 display: grid;
-                gap: 12px;
+                gap: 8px;
                 width: 100%;
                 height: 100%;
+                min-height: 0;
               }
               
               /* Mobile Mode (Screens < 1024px) */
@@ -2190,7 +2189,7 @@ export default function MixArchive({
                 .dj-grid-container {
                   display: grid;
                   gap: 6px;
-                  grid-template-columns: 1fr minmax(130px, 0.9fr) 1fr;
+                  grid-template-columns: minmax(0, 1fr) minmax(130px, 0.9fr) minmax(0, 1fr);
                   grid-template-rows: 1fr;
                   grid-template-areas: "deckL mixer deckR";
                   width: 100%;
@@ -2199,32 +2198,28 @@ export default function MixArchive({
                 }
               }
 
-              /* Performance Mode (Screens 1024px - 1535px) */
-              @media (min-width: 1024px) and (max-width: 1535px) {
+              /* Desktop Mode (Screens >= 1024px) */
+              @media (min-width: 1024px) {
                 .dj-grid-container {
-                  gap: 12px;
-                  grid-template-columns: 1fr minmax(160px, 1.2fr) 1fr;
-                  grid-template-rows: 1fr;
-                  grid-template-areas: "deckL mixer deckR";
-                }
-              }
-              
-              /* Standard Mode (Screens >= 1536px) */
-              @media (min-width: 1536px) {
-                .dj-grid-container {
-                  ${deckCount === 2 ? `
-                    grid-template-columns: 1.8fr minmax(280px, 1.2fr) 1.8fr;
+                  gap: 8px;
+                  ${isStacked ? `
+                    grid-template-columns: minmax(0, 1fr) minmax(160px, 1.1fr) minmax(0, 1fr);
+                    grid-template-rows: 1fr;
+                    grid-template-areas: "deckL mixer deckR";
+                  ` : deckCount === 2 ? `
+                    grid-template-columns: minmax(0, 1.8fr) minmax(200px, 1.2fr) minmax(0, 1.8fr);
                     grid-template-rows: 1fr;
                     grid-template-areas: "deck1 mixer deck2";
                   ` : `
-                    grid-template-columns: 1fr 1fr minmax(280px, 1.2fr) 1fr 1fr;
+                    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(160px, 1.1fr) minmax(0, 1fr) minmax(0, 1fr);
                     grid-template-rows: 1fr;
                     grid-template-areas: "deck3 deck1 mixer deck2 deck4";
                   `}
                 }
+              }
             `}} />
 
-            <div className="dj-grid-container select-none flex-grow min-h-0 h-full overflow-y-auto 2xl:overflow-hidden p-1">
+            <div className="dj-grid-container select-none flex-grow min-h-0 h-full overflow-hidden p-1">
               
               {/* Decks */}
               {activeDeckIds.map(id => {
@@ -2243,14 +2238,18 @@ export default function MixArchive({
                     key={`deck-container-${id}`}
                     style={{ gridArea: getDeckArea(id) }}
                     className={cn(
-                      "flex flex-col gap-2.5 h-full min-h-0",
+                      "flex flex-col gap-2 h-full min-h-0",
                       (isActive || !isStacked) ? "flex" : "hidden"
                     )}
                   >
                     {/* Browser */}
                     <div className={cn(
                       "transition-all duration-300 min-h-0",
-                      isMobile ? "h-[100px] shrink-0" : "h-[144px] shrink-0"
+                      isMobile 
+                        ? "h-[85px] shrink-0" 
+                        : deckCount === 4 && !isStacked 
+                          ? "h-[90px] xl:h-[105px] shrink-0" 
+                          : "h-[120px] xl:h-[135px] shrink-0"
                     )}>
                       {renderDeckBrowser(id)}
                     </div>
