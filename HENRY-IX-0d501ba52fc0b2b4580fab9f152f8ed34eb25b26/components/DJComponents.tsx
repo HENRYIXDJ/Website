@@ -538,6 +538,10 @@ interface LEDEqualizerProps {
   rightDeckId?: number;
   leftPlaying?: boolean;
   rightPlaying?: boolean;
+  leftTrim?: number;
+  leftVolume?: number;
+  rightTrim?: number;
+  rightVolume?: number;
 }
 
 export function LEDEqualizer({ 
@@ -549,7 +553,11 @@ export function LEDEqualizer({
   leftDeckId,
   rightDeckId,
   leftPlaying = false,
-  rightPlaying = false
+  rightPlaying = false,
+  leftTrim = 50,
+  leftVolume = 100,
+  rightTrim = 50,
+  rightVolume = 100
 }: LEDEqualizerProps) {
   const [leftVU, setLeftVU] = useState<number>(0);
   const [rightVU, setRightVU] = useState<number>(0);
@@ -590,30 +598,34 @@ export function LEDEqualizer({
       const leftData = dataArrayRefLeft.current;
       const rightData = dataArrayRefRight.current;
       
-      // Update Left VU meter
+      // Update Left VU meter (Audio Signal * Trim Gain * Volume Fader)
       if (leftAnalyser && leftData && leftPlaying) {
         leftAnalyser.getByteFrequencyData(leftData);
-        let bassSum = 0;
-        const limit = Math.min(10, leftData.length);
-        for (let i = 0; i < limit; i++) bassSum += leftData[i];
-        const averageBass = bassSum / limit;
-        const vuLevel = Math.min(8, Math.max(1, Math.floor((averageBass / 255) * 8.5)));
+        let sum = 0;
+        for (let i = 0; i < leftData.length; i++) sum += leftData[i];
+        const rawSignal = (sum / leftData.length) / 255;
+        const trimMult = leftTrim <= 50 ? (leftTrim / 50) : 1.0 + ((leftTrim - 50) / 50) * 1.5;
+        const faderMult = leftVolume / 100;
+        const level = rawSignal * trimMult * faderMult;
+        const vuLevel = Math.min(8, Math.max(0, Math.round(level * 8.5)));
         setLeftVU(vuLevel);
       } else {
-        setLeftVU(1);
+        setLeftVU(0);
       }
 
-      // Update Right VU meter
+      // Update Right VU meter (Audio Signal * Trim Gain * Volume Fader)
       if (rightAnalyser && rightData && rightPlaying) {
         rightAnalyser.getByteFrequencyData(rightData);
-        let bassSum = 0;
-        const limit = Math.min(10, rightData.length);
-        for (let i = 0; i < limit; i++) bassSum += rightData[i];
-        const averageBass = bassSum / limit;
-        const vuLevel = Math.min(8, Math.max(1, Math.floor((averageBass / 255) * 8.5)));
+        let sum = 0;
+        for (let i = 0; i < rightData.length; i++) sum += rightData[i];
+        const rawSignal = (sum / rightData.length) / 255;
+        const trimMult = rightTrim <= 50 ? (rightTrim / 50) : 1.0 + ((rightTrim - 50) / 50) * 1.5;
+        const faderMult = rightVolume / 100;
+        const level = rawSignal * trimMult * faderMult;
+        const vuLevel = Math.min(8, Math.max(0, Math.round(level * 8.5)));
         setRightVU(vuLevel);
       } else {
-        setRightVU(1);
+        setRightVU(0);
       }
 
       // Center Waveform display

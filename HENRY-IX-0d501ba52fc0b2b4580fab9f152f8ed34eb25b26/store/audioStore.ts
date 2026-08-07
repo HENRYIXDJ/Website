@@ -30,6 +30,7 @@ export interface DeckState {
   trim: number;
   syncEnabled: boolean;
   syncMode?: 'BEAT' | 'BPM';
+  keySyncEnabled?: boolean;
   quantizeEnabled?: boolean;
   crossfaderAssign: 'L' | 'R' | 'THRU';
   waveformPeaks: number[];
@@ -38,6 +39,7 @@ export interface DeckState {
   loopOut?: number | null;
   isLoopActive?: boolean;
   firstBeatOffset?: number;
+  zoomLevel?: number; // Waveform pixels per second zoom level
   jogMode: 'VINYL' | 'CDJ';
   masterTempo: boolean;
   isMaster: boolean;

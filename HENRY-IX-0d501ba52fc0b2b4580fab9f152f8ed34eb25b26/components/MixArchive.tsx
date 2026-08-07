@@ -3,11 +3,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { motion, useMotionValue, AnimatePresence } from 'framer-motion';
-import { Play, Pause, X } from 'lucide-react';
+import { Play, Pause, X, Cpu } from 'lucide-react';
 import { useAudioStore } from '@/store/audioStore';
 import { cn } from '@/lib/utils';
 import { LEDEqualizer, RotaryKnob } from '@/components/DJComponents';
 import { audioEngine } from '@/lib/AudioEngine';
+import { midiEngine } from '@/lib/midiEngine';
+import { MIDILearnModal } from './MIDILearnModal';
 import { playClick, playTick, playLockoutBlip } from '@/lib/audioUtils';
 import { 
   formatTime, 
@@ -17,6 +19,7 @@ import {
   parseTracklist 
 } from '@/lib/mixes';
 import { VolumeFader } from './VolumeFader';
+import { ChannelVUMeter } from './ChannelVUMeter';
 import { Crossfader } from './Crossfader';
 import { VinylStack } from './VinylStack';
 import { SingleDeckWaveform } from './SingleDeckWaveform';
@@ -75,6 +78,30 @@ export default function MixArchive({
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isCDJMenuOpen, setIsCDJMenuOpen] = useState(false);
   const [activeTracklistDeckId, setActiveTracklistDeckId] = useState<number | null>(null);
+
+  const [isMIDIOpen, setIsMIDIOpen] = useState(false);
+  const [midiDeviceName, setMIDIDeviceName] = useState<string>('');
+  const [isGlitching, setIsGlitching] = useState(false);
+
+  const handleDeckCountChange = (count: 2 | 4) => {
+    if (deckCount === count) return;
+    setIsGlitching(true);
+    setDeckCount(count);
+    playClick(800, 'sine', 0.02);
+    setTimeout(() => setIsGlitching(false), 280);
+  };
+
+  useEffect(() => {
+    midiEngine.init();
+    const unsub = midiEngine.subscribeDevices((devs) => {
+      if (devs.length > 0) {
+        setMIDIDeviceName(devs[0].name);
+      } else {
+        setMIDIDeviceName('');
+      }
+    });
+    return () => unsub();
+  }, []);
   const [mobileWaveformHeight, setMobileWaveformHeight] = useState(28);
   const activeDeckIds = (deckCount === 2 ? [1, 2] : [3, 1, 2, 4]) as readonly (1 | 2 | 3 | 4)[];
 
@@ -889,24 +916,38 @@ export default function MixArchive({
   const renderMixer = () => {
     return (
       <div className={cn(
-        "rounded-xl p-2.5 px-3 flex flex-col justify-between bg-zinc-950 border min-h-[180px] h-full flex-grow relative transition-all duration-300 shadow-2xl z-10 w-full",
-        isDepth ? "border-zinc-900" : "border-black/10"
+        "rounded-xl p-2.5 px-3 flex flex-col justify-between bg-zinc-950/75 backdrop-blur-md border min-h-[180px] h-full flex-grow relative transition-all duration-300 shadow-2xl z-10 w-full",
+        isDepth ? "border-zinc-800/80" : "border-black/20"
       )}>
         <div className="absolute inset-0 opacity-[0.01] pointer-events-none z-0" style={{
           backgroundImage: 'radial-gradient(#fff 1px, transparent 1px)',
           backgroundSize: '12px 12px'
         }} />
 
-        {/* Mixer plate tag */}
+        {/* Mixer plate tag with Hardware MIDI status button */}
         <div className="w-full flex justify-between items-center border-b border-zinc-900/60 pb-1 z-10 shrink-0 select-none">
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5">
             <span className="font-mono text-[8px] text-primary tracking-[0.2em] font-bold">
-              MIXER CORE v4.1 // TB-303
+              MIXER CORE v4.1 // DJM-900NXS2
             </span>
           </div>
-          <span className="font-mono text-[6px] text-zinc-600 tracking-[0.1em] font-bold">
-            UK PATENT_PEND
-          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsMIDIOpen(true)}
+              className={cn(
+                "px-2 py-0.5 rounded text-[7px] font-mono font-black tracking-widest uppercase transition-all border cursor-pointer flex items-center gap-1.5",
+                midiDeviceName 
+                  ? "bg-emerald-950/60 border-emerald-800/60 text-emerald-400 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.3)]"
+                  : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-zinc-200 hover:border-zinc-700"
+              )}
+            >
+              <Cpu className="w-2.5 h-2.5" />
+              {midiDeviceName ? `LINKED: ${midiDeviceName}` : 'MIDI HARDWARE LINK'}
+            </button>
+            <span className="font-mono text-[6px] text-zinc-600 tracking-[0.1em] font-bold">
+              PRO DJ LINK
+            </span>
+          </div>
         </div>
 
         {/* LED EQ screen */}
@@ -921,6 +962,10 @@ export default function MixArchive({
             rightDeckId={rightActiveDeck}
             leftPlaying={decks[leftActiveDeck]?.isPlaying}
             rightPlaying={decks[rightActiveDeck]?.isPlaying}
+            leftTrim={decks[leftActiveDeck]?.trim ?? 50}
+            leftVolume={decks[leftActiveDeck]?.volume ?? 100}
+            rightTrim={decks[rightActiveDeck]?.trim ?? 50}
+            rightVolume={decks[rightActiveDeck]?.volume ?? 100}
           />
         </div>
 
@@ -956,7 +1001,15 @@ export default function MixArchive({
                   CH {id}
                 </span>
 
-                <div className="flex flex-col gap-2 w-full">
+                <div className="flex flex-col gap-1.5 w-full items-center">
+                  {/* Dedicated LED VU Volume Meter for this deck, positioned above TRIM */}
+                  <ChannelVUMeter 
+                    deckId={id}
+                    trim={deck.trim ?? 50}
+                    volume={deck.volume}
+                    isPlaying={deck.isPlaying}
+                  />
+
                   {!isMobile && (
                     <RotaryKnob 
                       label="TRIM"
@@ -1993,7 +2046,7 @@ export default function MixArchive({
         className={cn(
           "relative w-full rounded-xl border border-dashed flex flex-col gap-2 p-2 md:p-2.5 h-full",
           activeView === 'cdj' ? "overflow-hidden" : "overflow-y-auto overflow-x-hidden",
-          isDepth ? "border-zinc-800 bg-zinc-950/40" : "border-black/20"
+          isDepth ? "border-zinc-800/80 bg-zinc-950/25 backdrop-blur-sm shadow-2xl" : "border-black/20 bg-black/10 backdrop-blur-sm"
         )}
       >
 
@@ -2125,10 +2178,7 @@ export default function MixArchive({
                     {([2, 4] as const).map((count) => (
                       <button
                         key={count}
-                        onClick={() => {
-                          setDeckCount(count);
-                          playClick(800, 'sine', 0.02);
-                        }}
+                        onClick={() => handleDeckCountChange(count)}
                         className={cn(
                           "relative px-2 py-0.5 rounded font-mono text-[7.5px] md:text-[8px] font-black uppercase transition-colors cursor-pointer flex items-center justify-center w-6 md:w-8 h-5",
                           deckCount === count ? "text-zinc-950 font-black" : "text-zinc-500 hover:text-zinc-300"
@@ -2221,123 +2271,149 @@ export default function MixArchive({
 
             <div className="dj-grid-container select-none flex-grow min-h-0 h-full overflow-hidden p-1">
               
-              {/* Decks */}
-              {activeDeckIds.map(id => {
-                const isLeft = (id === 1 || id === 3);
-                const isActive = isLeft ? (leftActiveDeck === id) : (rightActiveDeck === id);
-                const deck = decks[id];
-                const isLocked = deck?.id === 'locked';
-                const themeColor = 
-                  id === 1 ? 'rgba(211,15,49,1)' : // red
-                  id === 2 ? 'rgba(34,211,238,1)' : // cyan
-                  id === 3 ? 'rgba(16,185,129,1)' : // green
-                  'rgba(234,179,8,1)'; // yellow
+              {/* Decks with Framer Motion Push Inward/Outward Spring Animations */}
+              <AnimatePresence mode="popLayout">
+                {activeDeckIds.map(id => {
+                  const isLeft = (id === 1 || id === 3);
+                  const isActive = isLeft ? (leftActiveDeck === id) : (rightActiveDeck === id);
+                  const deck = decks[id];
+                  const isLocked = deck?.id === 'locked';
+                  const themeColor = 
+                    id === 1 ? 'rgba(211,15,49,1)' : // red
+                    id === 2 ? 'rgba(34,211,238,1)' : // cyan
+                    id === 3 ? 'rgba(16,185,129,1)' : // green
+                    'rgba(234,179,8,1)'; // yellow
 
-                return (
-                  <div
-                    key={`deck-container-${id}`}
-                    style={{ gridArea: getDeckArea(id) }}
-                    className={cn(
-                      "flex flex-col gap-2 h-full min-h-0",
-                      (isActive || !isStacked) ? "flex" : "hidden"
-                    )}
-                  >
-                    {/* Browser */}
-                    <div className={cn(
-                      "transition-all duration-300 min-h-0",
-                      isMobile 
-                        ? "h-[85px] shrink-0" 
-                        : deckCount === 4 && !isStacked 
-                          ? "h-[90px] xl:h-[105px] shrink-0" 
-                          : "h-[120px] xl:h-[135px] shrink-0"
-                    )}>
-                      {renderDeckBrowser(id)}
-                    </div>
-
-                    {/* Waveform */}
-                    <div className="shrink-0">
-                      {isStacked ? renderStackedWaveform(id) : (
-                        <div 
-                          className="bg-zinc-950 border border-zinc-900/60 rounded-xl p-2 md:p-2.5 flex flex-col gap-2 w-full shadow-md border-l-2 select-none" 
-                          style={{ borderLeftColor: themeColor }}
-                        >
-                          {/* LCD State Log Info Header (combined) */}
-                          <div className="w-full flex flex-col gap-1 font-mono text-[9px]">
-                            {/* LCD Status Indicators */}
-                            <div className="flex items-center justify-between text-zinc-500 text-[6.5px] tracking-widest border-b border-zinc-900 pb-1 uppercase font-black">
-                              <span>DECK_{id} STATE LOG</span>
-                              <span style={{ color: isLocked ? 'rgb(234,179,8)' : deck?.isPlaying ? themeColor : 'rgb(113,113,122)' }}>
-                                {isLocked ? "ACCESS_LOCKED" : deck?.isPlaying ? "● PLAYING" : "■ PAUSED"}
-                              </span>
-                            </div>
-
-                            {/* Track Name */}
-                            <div className="flex flex-col mt-0.5">
-                              <span className="text-[5.5px] text-zinc-600 uppercase tracking-widest font-black mb-0.5 leading-none">TRACK NAME</span>
-                              <span className="font-black truncate tracking-wider text-zinc-300 font-mono uppercase text-[9.5px] leading-none">
-                                {isLocked ? "LOCKED DECK (PREVIEW ONLY)" : deck?.title || "NO TRACK LOADED"}
-                              </span>
-                            </div>
-
-                            {/* Tempo, Playhead and Sync values */}
-                            <div className="grid grid-cols-3 gap-2 mt-1 border-t border-zinc-900/50 pt-1 select-none">
-                              <div className="flex flex-col">
-                                <span className="text-[5px] text-zinc-600 uppercase tracking-widest font-bold leading-none mb-0.5">SPEED</span>
-                                <span className="font-bold text-zinc-400 text-[8.5px] leading-none">
-                                  {isLocked ? "130.00 BPM" : `${(deck?.bpm * (1 + (deck?.pitch || 0) / 100)).toFixed(2)} BPM`}
-                                </span>
-                              </div>
-                              <div className="flex flex-col text-center">
-                                <span className="text-[5px] text-zinc-600 uppercase tracking-widest font-bold leading-none mb-0.5">PLAYHEAD</span>
-                                <span className="font-bold text-zinc-400 font-mono text-[8.5px] leading-none">
-                                  {isLocked ? "LOCKED" : formatPlayheadTime(deck?.progress || 0)}
-                                </span>
-                              </div>
-                              <div className="flex flex-col text-right">
-                                <span className="text-[5px] text-zinc-600 uppercase tracking-widest font-bold leading-none mb-0.5">SYNC STATUS</span>
-                                <span className={cn(
-                                  "font-black text-mono tracking-wide uppercase transition-colors duration-300 text-[8.5px] leading-none",
-                                  deck?.syncEnabled ? "text-emerald-400" : "text-zinc-600"
-                                )}>
-                                  {deck?.syncEnabled ? "SYNCED" : "OFF"}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Scrolling Waveform */}
-                          <div className="w-full relative bg-black/40 rounded p-1 border border-zinc-900/50 flex flex-col justify-center items-center">
-                            <div 
-                              className="text-[6.5px] font-mono tracking-widest font-black uppercase self-start mb-0.5 px-0.5"
-                              style={{ color: themeColor }}
-                            >
-                              WAVE DISPLAY
-                            </div>
-                            <SingleDeckWaveform 
-                              deckId={id} 
-                              deck={deck} 
-                              isDepth={isDepth} 
-                            />
-                          </div>
-                        </div>
+                  return (
+                    <motion.div
+                      key={`deck-container-${id}`}
+                      initial={{ 
+                        opacity: 0, 
+                        scale: 0.96, 
+                        x: id === 3 ? -40 : id === 4 ? 40 : 0,
+                        skewX: isGlitching ? (id % 2 === 0 ? -1.5 : 1.5) : 0
+                      }}
+                      animate={{ 
+                        opacity: 1, 
+                        scale: 1, 
+                        x: 0,
+                        skewX: 0
+                      }}
+                      exit={{ 
+                        opacity: 0, 
+                        scale: 0.96, 
+                        x: id === 3 ? -40 : id === 4 ? 40 : 0,
+                        skewX: isGlitching ? (id % 2 === 0 ? 1.5 : -1.5) : 0
+                      }}
+                      transition={{ 
+                        duration: 0.32, 
+                        ease: [0.16, 1, 0.3, 1] 
+                      }}
+                      style={{ gridArea: getDeckArea(id) }}
+                      className={cn(
+                        "flex flex-col gap-2 h-full min-h-0 will-change-transform",
+                        (isActive || !isStacked) ? "flex" : "hidden"
                       )}
-                    </div>
+                    >
+                      {/* Browser */}
+                      <div className={cn(
+                        "transition-all duration-300 min-h-0",
+                        isMobile 
+                          ? "h-[85px] shrink-0" 
+                          : deckCount === 4 && !isStacked 
+                            ? "h-[90px] xl:h-[105px] shrink-0" 
+                            : "h-[120px] xl:h-[135px] shrink-0"
+                      )}>
+                        {renderDeckBrowser(id)}
+                      </div>
 
-                    {/* Controls */}
-                    <div className="flex-1 min-h-0">
-                      {renderDeckControls(id)}
-                    </div>
-                  </div>
-                );
-              })}
+                      {/* Waveform */}
+                      <div className="shrink-0">
+                        {isStacked ? renderStackedWaveform(id) : (
+                          <div 
+                            className="bg-zinc-950/75 backdrop-blur-md border border-zinc-900/60 rounded-xl p-2 md:p-2.5 flex flex-col gap-2 w-full shadow-md border-l-2 select-none" 
+                            style={{ borderLeftColor: themeColor }}
+                          >
+                            {/* LCD State Log Info Header (combined) */}
+                            <div className="w-full flex flex-col gap-1 font-mono text-[9px]">
+                              {/* LCD Status Indicators */}
+                              <div className="flex items-center justify-between text-zinc-500 text-[6.5px] tracking-widest border-b border-zinc-900 pb-1 uppercase font-black">
+                                <span>DECK_{id} STATE LOG</span>
+                                <span style={{ color: isLocked ? 'rgb(234,179,8)' : deck?.isPlaying ? themeColor : 'rgb(113,113,122)' }}>
+                                  {isLocked ? "ACCESS_LOCKED" : deck?.isPlaying ? "● PLAYING" : "■ PAUSED"}
+                                </span>
+                              </div>
+
+                              {/* Track Name */}
+                              <div className="flex flex-col mt-0.5">
+                                <span className="text-[5.5px] text-zinc-600 uppercase tracking-widest font-black mb-0.5 leading-none">TRACK NAME</span>
+                                <span className="font-black truncate tracking-wider text-zinc-300 font-mono uppercase text-[9.5px] leading-none">
+                                  {isLocked ? "LOCKED DECK (PREVIEW ONLY)" : deck?.title || "NO TRACK LOADED"}
+                                </span>
+                              </div>
+
+                              {/* Tempo, Playhead and Sync values */}
+                              <div className="grid grid-cols-3 gap-2 mt-1 border-t border-zinc-900/50 pt-1 select-none">
+                                <div className="flex flex-col">
+                                  <span className="text-[5px] text-zinc-600 uppercase tracking-widest font-bold leading-none mb-0.5">SPEED</span>
+                                  <span className="font-bold text-zinc-400 text-[8.5px] leading-none">
+                                    {isLocked ? "130.00 BPM" : `${(deck?.bpm * (1 + (deck?.pitch || 0) / 100)).toFixed(2)} BPM`}
+                                  </span>
+                                </div>
+                                <div className="flex flex-col text-center">
+                                  <span className="text-[5px] text-zinc-600 uppercase tracking-widest font-bold leading-none mb-0.5">PLAYHEAD</span>
+                                  <span className="font-bold text-zinc-400 font-mono text-[8.5px] leading-none">
+                                    {isLocked ? "LOCKED" : formatPlayheadTime(deck?.progress || 0)}
+                                  </span>
+                                </div>
+                                <div className="flex flex-col text-right">
+                                  <span className="text-[5px] text-zinc-600 uppercase tracking-widest font-bold leading-none mb-0.5">SYNC STATUS</span>
+                                  <span className={cn(
+                                    "font-black text-mono tracking-wide uppercase transition-colors duration-300 text-[8.5px] leading-none",
+                                    deck?.syncEnabled ? "text-emerald-400" : "text-zinc-600"
+                                  )}>
+                                    {deck?.syncEnabled ? "SYNCED" : "OFF"}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Scrolling Waveform */}
+                            <div className="w-full relative bg-black/40 rounded p-1 border border-zinc-900/50 flex flex-col justify-center items-center">
+                              <div 
+                                className="text-[6.5px] font-mono tracking-widest font-black uppercase self-start mb-0.5 px-0.5"
+                                style={{ color: themeColor }}
+                              >
+                                WAVE DISPLAY
+                              </div>
+                              <SingleDeckWaveform 
+                                deckId={id} 
+                                deck={deck} 
+                                isDepth={isDepth} 
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Controls */}
+                      <div className="flex-1 min-h-0">
+                        {renderDeckControls(id)}
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </AnimatePresence>
 
               {/* Central Mixer Panel */}
-              <div 
+              <motion.div 
+                layout
+                transition={{ type: "spring", stiffness: 280, damping: 28 }}
                 style={{ gridArea: 'mixer' }} 
                 className="mixer-module block h-full min-h-0"
               >
                 {renderMixer()}
-              </div>
+              </motion.div>
 
             </div>
           </>
@@ -2595,6 +2671,9 @@ export default function MixArchive({
           </div>
         )}
       </AnimatePresence>
+
+      {/* WebMIDI Hardware Link & Mapping Modal */}
+      <MIDILearnModal isOpen={isMIDIOpen} onClose={() => setIsMIDIOpen(false)} />
     </section>
   );
 }

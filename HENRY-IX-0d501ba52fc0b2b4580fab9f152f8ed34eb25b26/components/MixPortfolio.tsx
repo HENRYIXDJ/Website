@@ -209,11 +209,25 @@ export default function MixPortfolio({
           });
         }
       } catch (err) {
-        console.warn('Could not load dynamic mixes from Sanity, falling back to static database:', String(err));
+        console.warn('Dynamic mix portfolio fetch skipped or offline:', err);
       }
     }
     loadDynamicMixes();
   }, [setDecks]);
+
+  // Preload all mix artwork images in browser cache for zero lag on hover/selection
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    mixGroups.forEach(group => {
+      group.mixes.forEach((mix: any) => {
+        const imgUrl = mix.artworkUrl ? proxyUrl(mix.artworkUrl) : null;
+        if (imgUrl) {
+          const img = new window.Image();
+          img.src = imgUrl;
+        }
+      });
+    });
+  }, [mixGroups]);
 
   return (
     <MixArchive 

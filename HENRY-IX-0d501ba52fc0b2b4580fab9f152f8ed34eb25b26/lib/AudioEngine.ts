@@ -76,6 +76,10 @@ export class AudioEngine {
   public loadedUrls: Record<number, string> = { 1: '', 2: '', 3: '', 4: '' };
   public widgetRefs: Record<number, any> = { 1: null, 2: null, 3: null, 4: null };
 
+  public getDeckAnalyser(deckId: number): AnalyserNode | null {
+    return this.deckNodes[deckId]?.analyserNode || null;
+  }
+
   private analysisWorker: Worker | null = null;
   private workerCallbacks: Record<string, (result: any) => void> = {};
   private lcdRefs: Record<number, HTMLElement | null> = {};
@@ -208,7 +212,9 @@ export class AudioEngine {
       audio.playbackRate = 1 + pitch / 100;
       
       const offset = deck?.firstBeatOffset || 0;
-      audio.currentTime = offset;
+      try {
+        audio.currentTime = offset;
+      } catch (e) {}
       
       let newCuePoints = deck?.cuePoints || [];
       if (newCuePoints.length === 0 || Math.abs(newCuePoints[0] - offset) > 0.05) {
@@ -219,13 +225,15 @@ export class AudioEngine {
         duration: audio.duration, 
         isReady: true,
         progress: offset,
+        mainCue: offset,
         cuePoints: newCuePoints
       });
       
-      // Auto-detect onset for unknown tracks
-      if (!offset && audio.src && audio.src.startsWith('http') && !audio.src.includes('soundcloud')) {
+      // Auto-detect onset ONLY if track does NOT have a valid pre-configured firstBeatOffset
+      const hasPresetOffset = (deck?.firstBeatOffset || 0) > 0.01;
+      if (!hasPresetOffset && audio.src && audio.src.startsWith('http') && !audio.src.includes('soundcloud')) {
         const absoluteUrl = new URL(audio.src).href;
-        fetch(absoluteUrl, { headers: { Range: 'bytes=0-1500000' } })
+        fetch(absoluteUrl, { headers: { Range: 'bytes=0-1800000' } })
           .then(res => { if (res.ok || res.status === 206) return res.arrayBuffer(); else throw new Error(); })
           .then(async buffer => {
             const actx = new OfflineAudioContext(1, 44100 * 30, 44100);
@@ -237,18 +245,23 @@ export class AudioEngine {
               let sum = 0;
               for (let j = 0; j < wSize && i + j < data.length; j++) sum += data[i+j] * data[i+j];
               const rms = Math.sqrt(sum / wSize);
-              if (rms > 0.012 && (i / 44100) > 0.02) {
+              if (rms > 0.010 && (i / 44100) > 0.02) {
                 const detected = i / 44100;
-                console.log(`[BACKGROUND ONSET] Deck ${deckId} detected at ${detected.toFixed(3)}s`);
+                console.log(`[FIRST BEAT ONSET DETECTED] Deck ${deckId} first beat at ${detected.toFixed(3)}s`);
                 
                 const current = useAudioStore.getState().decks[deckId];
-                if (current && (!current.firstBeatOffset || current.firstBeatOffset === 0)) {
+                if (current) {
                   let updatedCue = current.cuePoints || [];
                   if (updatedCue.length === 0 || Math.abs(updatedCue[0] - detected) > 0.05) {
                     updatedCue = [detected, ...updatedCue.filter(c => Math.abs(c - detected) > 0.05)];
                   }
-                  useAudioStore.getState().setDeck(deckId, { firstBeatOffset: detected, cuePoints: updatedCue, progress: current.isPlaying ? current.progress : detected });
-                  if (!current.isPlaying && audio.currentTime === 0) {
+                  useAudioStore.getState().setDeck(deckId, { 
+                    firstBeatOffset: detected, 
+                    mainCue: detected,
+                    cuePoints: updatedCue, 
+                    progress: current.isPlaying ? current.progress : detected 
+                  });
+                  if (!current.isPlaying && (audio.currentTime === 0 || audio.currentTime < detected)) {
                      audio.currentTime = detected;
                   }
                 }
@@ -272,9 +285,42 @@ export class AudioEngine {
     let lastProgressUpdate = 0;
     audio.addEventListener('timeupdate', () => {
       const now = performance.now();
-      if (now - lastProgressUpdate >= 100) {
+      if (now - lastProgressUpdate >= 80) {
         lastProgressUpdate = now;
         useAudioStore.getState().setDeck(deckId, { progress: audio.currentTime });
+
+        // Continuous Pro DJ Link phase lock drift corrector
+        const currentDeck = useAudioStore.getState().decks[deckId];
+        if (currentDeck?.isPlaying && currentDeck?.syncEnabled && currentDeck?.syncMode !== 'BPM') {
+          const masterDeckId = [1, 2, 3, 4].find(
+            id => id !== deckId && useAudioStore.getState().decks[id]?.isPlaying && useAudioStore.getState().decks[id]?.isMaster
+          ) || [1, 2, 3, 4].find(
+            id => id !== deckId && useAudioStore.getState().decks[id]?.isPlaying
+          );
+          if (masterDeckId) {
+            const deckA = useAudioStore.getState().decks[masterDeckId];
+            const audioA = this.audioElements[masterDeckId];
+            if (deckA && audioA && !audioA.paused) {
+              const activeBpmA = deckA.bpm * (1 + (deckA.pitch || 0) / 100);
+              const activeBpmB = currentDeck.bpm * (1 + (currentDeck.pitch || 0) / 100);
+              const beatIntervalA = 60 / activeBpmA;
+              const beatIntervalB = 60 / activeBpmB;
+
+              const phaseA = (Math.max(0, audioA.currentTime - (deckA.firstBeatOffset || 0)) % beatIntervalA) / beatIntervalA;
+              const phaseB = (Math.max(0, audio.currentTime - (currentDeck.firstBeatOffset || 0)) % beatIntervalB) / beatIntervalB;
+
+              let phaseDiff = Math.abs(phaseA - phaseB);
+              if (phaseDiff > 0.5) phaseDiff = 1.0 - phaseDiff;
+
+              // Micro-adjust if drift exceeds ~15ms (0.04 beat)
+              if (phaseDiff > 0.04) {
+                const currentBeatB = Math.floor(Math.max(0, audio.currentTime - (currentDeck.firstBeatOffset || 0)) / beatIntervalB);
+                const correctedTime = (currentDeck.firstBeatOffset || 0) + (currentBeatB + phaseA) * beatIntervalB;
+                audio.currentTime = correctedTime;
+              }
+            }
+          }
+        }
       }
     });
 
@@ -450,19 +496,21 @@ export class AudioEngine {
     audioB.playbackRate = 1 + clampedPitchB / 100;
 
     if (deckB.syncMode !== 'BPM') {
-      const activeBeatInterval = 60 / activeBpmA;
+      const activeBpmB = deckB.bpm * (1 + clampedPitchB / 100);
+      const activeBeatIntervalA = 60 / activeBpmA;
+      const activeBeatIntervalB = 60 / activeBpmB;
+
       const offsetA = deckA.firstBeatOffset || 0;
       const offsetB = deckB.firstBeatOffset || 0;
       
       const elapsedA = Math.max(0, audioA.currentTime - offsetA);
-      const phaseA = elapsedA % activeBeatInterval;
+      const phaseFractionA = (elapsedA % activeBeatIntervalA) / activeBeatIntervalA;
       
       const durationB = audioB.duration || deckB.duration || 0;
-      const elapsedB = audioB.currentTime - offsetB;
+      const elapsedB = Math.max(0, audioB.currentTime - offsetB);
       
-      // Snap directly to the nearest beat boundary to align phases
-      const nearestBeatIndex = Math.round(elapsedB / activeBeatInterval);
-      let targetTimeB = offsetB + nearestBeatIndex * activeBeatInterval + phaseA;
+      const currentBeatIndexB = Math.floor(elapsedB / activeBeatIntervalB);
+      let targetTimeB = offsetB + (currentBeatIndexB + phaseFractionA) * activeBeatIntervalB;
 
       if (targetTimeB < 0) targetTimeB = 0;
       if (durationB && targetTimeB > durationB) targetTimeB = durationB;
@@ -529,7 +577,7 @@ export class AudioEngine {
               const freshState = useAudioStore.getState();
               const freshDeck = freshState.decks[deckId];
               const cfMult = this.computeCrossfaderGain(freshDeck.crossfaderAssign, freshState.crossfader);
-              this.setGain(deckId, freshDeck.volume, cfMult, freshState.isMuted, 0.35);
+              this.setGain(deckId, freshDeck.volume, cfMult, freshState.isMuted, 0.005);
             })
             .catch(err => {
               this.playPending[deckId] = false;
@@ -548,7 +596,7 @@ export class AudioEngine {
               const freshState = useAudioStore.getState();
               const freshDeck = freshState.decks[deckId];
               const cfMult = this.computeCrossfaderGain(freshDeck.crossfaderAssign, freshState.crossfader);
-              this.setGain(deckId, freshDeck.volume, cfMult, freshState.isMuted, 0.35);
+              this.setGain(deckId, freshDeck.volume, cfMult, freshState.isMuted, 0.005);
             })
             .catch(err => {
               this.playPending[deckId] = false;
@@ -566,7 +614,7 @@ export class AudioEngine {
                         const freshState = useAudioStore.getState();
                         const freshDeck2 = freshState.decks[deckId];
                         const cfMult = this.computeCrossfaderGain(freshDeck2.crossfaderAssign, freshState.crossfader);
-                        this.setGain(deckId, freshDeck2.volume, cfMult, freshState.isMuted, 0.35);
+                        this.setGain(deckId, freshDeck2.volume, cfMult, freshState.isMuted, 0.005);
                       })
                       .catch(err2 => {
                         this.playPending[deckId] = false;
@@ -713,6 +761,7 @@ export class AudioEngine {
           : new URL(track.url, window.location.origin).href;
         if (this.loadedUrls[deckId] !== track.url) {
           this.loadedUrls[deckId] = track.url;
+          audio.preload = 'auto';
           audio.src = absoluteUrl;
           audio.load();
         }
@@ -834,22 +883,37 @@ export class AudioEngine {
         };
       }
 
-      const slicedBuffer = await file.slice(0, 4 * 1024 * 1024).arrayBuffer();
+      const fullBuffer = await file.arrayBuffer();
 
       this.workerCallbacks[fileKey] = async ({ bpm, peaks, firstBeatOffset, error }: any) => {
         if (error) { console.error('Analysis worker error:', error); return; }
-        useAudioStore.getState().setDeck(deckId, { bpm, waveformPeaks: peaks, firstBeatOffset });
+        const offset = firstBeatOffset && isFinite(firstBeatOffset) ? Math.max(0, firstBeatOffset) : 0;
+        useAudioStore.getState().setDeck(deckId, { 
+          bpm, 
+          waveformPeaks: peaks, 
+          firstBeatOffset: offset,
+          mainCue: offset,
+          progress: offset
+        });
         useAudioStore.getState().setDetectedBpm(fileKey, bpm);
-        this.seekToFirstBeatOneOfBar(deckId, firstBeatOffset || 0, bpm);
-        await cacheWaveform(fileKey, { bpm, peaks, firstBeatOffset });
+        this.seekLocalBuffer(deckId, offset);
+        await cacheWaveform(fileKey, { bpm, peaks, firstBeatOffset: offset });
       };
 
-      this.analysisWorker.postMessage({ buffer: slicedBuffer, fileKey, numPeaks: 500 }, [slicedBuffer]);
+      this.analysisWorker.postMessage({ buffer: fullBuffer, fileKey, numPeaks: 500 }, [fullBuffer]);
     } catch (err) {
       console.error('Failed to spawn analysis worker:', err);
     }
 
     playClick(1100, 'sine', 0.1);
+  }
+
+  setPitch(deckId: number, pitchPct: number) {
+    this.ensureDeckInitialized(deckId);
+    const audio = this.audioElements[deckId];
+    if (audio) {
+      audio.playbackRate = 1 + pitchPct / 100;
+    }
   }
 
   seekLocalBuffer(deckId: number, seekTime: number) {

@@ -92,7 +92,7 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
   const [cdjWidth, setCdjWidth] = useState(320); // default fallback
   const [cdjHeight, setCdjHeight] = useState(240); // default fallback
   const [jogSize, setJogSize] = useState(144); // default 144px (w-36)
-  const innerPlatterSize = jogSize * (80 / 144);
+  const innerPlatterSize = jogSize * (108 / 144); // Enlarged display ratio (75% of jog size)
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -113,8 +113,8 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
         const availHeight = height - hotCuesHeight - padding;
         
         const size = Math.min(availWidth, availHeight);
-        // Clamp minimum size to 64px instead of 144px to prevent overflow on small screens
-        const targetSize = Math.max(64, Math.min(400, size * 0.85));
+        // Target size fills 92% of available center jog space
+        const targetSize = Math.max(64, Math.min(400, size * 0.92));
         setJogSize(targetSize);
       }
     });
@@ -151,30 +151,22 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
     const audioEl = audioElementsRef?.current?.[deckId];
     if (!audioEl) return;
 
-    const mainCueTime = deck.mainCue || 0;
+    const mainCueTime = deck.mainCue !== undefined && deck.mainCue !== null ? deck.mainCue : (deck.firstBeatOffset || 0);
     const currentProgress = deck.progress || 0;
 
     if (deck.isPlaying) {
       // 1. If playing: stop, seek back to cue point, pause
       audioEl.pause();
       seekLocalBuffer(deckId, mainCueTime);
-      setDeck(deckId, { isPlaying: false, isCueStuttering: false });
+      setDeck(deckId, { isPlaying: false, isCueStuttering: false, progress: mainCueTime });
     } else {
       // 2. If paused:
       if (Math.abs(currentProgress - mainCueTime) > 0.08) {
-        // Paused at a non-cue point: set new cue point snapped to closest beat
-        const bpm = deck.bpm || 120;
-        const pitch = deck.pitch || 0;
-        const currentBpm = bpm * (1 + pitch / 100);
-        const beatInterval = 60 / currentBpm;
-        const offset = deck.firstBeatOffset || 0;
-        const elapsed = currentProgress - offset;
-        const closestBeatIndex = Math.round(elapsed / beatInterval);
-        const snappedTime = Math.max(0, offset + closestBeatIndex * beatInterval);
-
-        setDeck(deckId, { mainCue: snappedTime });
+        // Paused away from main cue: seek back to main cue point
+        seekLocalBuffer(deckId, mainCueTime);
+        setDeck(deckId, { progress: mainCueTime, isCueStuttering: false });
       } else {
-        // Paused exactly at cue point: start cue stutter (play while held)
+        // Paused directly at cue point: start cue stutter (play while held)
         setDeck(deckId, { isPlaying: true, isCueStuttering: true });
         audioEl.play().catch((err: any) => {
           if (err.name !== 'AbortError') {
@@ -227,9 +219,7 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
     if (savedTime === null || savedTime === undefined) {
       // Save Hot Cue: snap to closest beat of the beatgrid
       const bpm = deck.bpm || 120;
-      const pitch = deck.pitch || 0;
-      const currentBpm = bpm * (1 + pitch / 100);
-      const beatInterval = 60 / currentBpm;
+      const beatInterval = 60 / bpm;
       const offset = deck.firstBeatOffset || 0;
       const elapsed = currentProgress - offset;
       const closestBeatIndex = Math.round(elapsed / beatInterval);
@@ -449,56 +439,66 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
     setDeck(deckId, { firstBeatOffset: currentProgress });
   };
 
+  // --- Beat Jump Handler ---
+  const handleBeatJump = (numBeats: number) => {
+    if (isLocked || !deck) return;
+    playClick(850, 'sine', 0.015);
+    const audio = audioElementsRef?.current?.[deckId];
+    const bpm = deck.bpm || 120;
+    const activeBpm = bpm * (1 + (deck.pitch || 0) / 100);
+    const beatSec = 60 / activeBpm;
+    const jumpSec = numBeats * beatSec;
+    
+    if (audio) {
+      const newTime = Math.max(0, audio.currentTime + jumpSec);
+      audio.currentTime = newTime;
+      setDeck(deckId, { progress: newTime });
+    }
+  };
+
+  // --- Key Sync Handler ---
+  const handleKeySyncPress = (e: React.PointerEvent) => {
+    e.preventDefault();
+    if (isLocked) return;
+    playClick(900, 'sine', 0.02);
+    setDeck(deckId, { keySyncEnabled: !deck?.keySyncEnabled });
+  };
+
   // --- Jog Wheel Event Handler Stubs for Scratching / Pitch Bend ---
   const handlePlatterDown = (e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault();
     if (isLocked) return;
-    
-    // Scratch logic starts here:
-    // 1. Capture absolute coordinate centers of platter.
-    // 2. Set scratching state ref to true to freeze playback rates.
     console.log(`[JOG WHEEL DECK ${deckId}] Platter Down. Mode: ${deck.jogMode}. Scratching started.`);
   };
 
   const handlePlatterMove = (e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault();
     if (isLocked) return;
-
-    // Pitch bend / scratch calculations based on radius/rotation speed:
-    // 1. If Vinyl mode: calculate angular delta and seek playhead.
-    // 2. If CDJ mode: apply angular delta as temporary playbackRate modification.
   };
 
   const handlePlatterUp = (e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault();
     if (isLocked) return;
-
-    // Scratch logic ends:
-    // 1. Set scratching state ref to false.
-    // 2. Snap playback rates back to pitch slider levels.
     console.log(`[JOG WHEEL DECK ${deckId}] Platter Up. Scratching completed.`);
   };
 
   const handleRimDown = (e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault();
-    console.log(`[JOG WHEEL DECK ${deckId}] Outer Rim Down. Pitch bend activated.`);
   };
 
   const handleRimMove = (e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault();
-    // Pitch bending (nudge) modifies playbackRate by +/-0.05 temporarily
   };
 
   const handleRimUp = (e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault();
-    console.log(`[JOG WHEEL DECK ${deckId}] Outer Rim Up. Pitch bend released.`);
   };
 
   // --- Session Artwork and Spinning calculations ---
   const sessionImg = getSessionImage(deck?.title || '', deck?.artworkUrl);
 
   return (
-    <div ref={containerRef} className={cn("w-full h-full flex flex-col justify-between relative select-none bg-zinc-900 border border-zinc-800 rounded-2xl shadow-[0_4px_30px_rgba(0,0,0,0.8)]", (cdjWidth < 260 || cdjHeight < 220) ? "p-1.5 gap-1.5" : "p-3 gap-3")}>
+    <div ref={containerRef} className={cn("w-full h-full flex flex-col justify-between relative select-none bg-zinc-950/75 backdrop-blur-md border border-zinc-800/80 rounded-2xl shadow-[0_4px_30px_rgba(0,0,0,0.8)]", (cdjWidth < 260 || cdjHeight < 220) ? "p-1.5 gap-1.5" : "p-3 gap-3")}>
       
       {/* 1. RGB Hot Cues Row (A-H) */}
       <div className={cn("w-full flex items-center justify-between border-b border-zinc-800", (cdjWidth < 260 || cdjHeight < 220) ? "pb-1 gap-1" : "pb-2 gap-1.5")}>
@@ -726,6 +726,24 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
 
               <div className="flex flex-col items-center gap-0.5 w-full">
                 {!(cdjWidth < 260 || cdjHeight < 220) && (
+                  <span className="text-[4.5px] text-zinc-500 font-mono font-bold uppercase leading-none">KEY</span>
+                )}
+                <button
+                  onPointerDown={handleKeySyncPress}
+                  className={cn(
+                    "w-full rounded border transition-colors cursor-pointer flex justify-center items-center font-mono leading-none",
+                    (cdjWidth < 260 || cdjHeight < 220) ? "max-w-[14px] min-w-[12px] aspect-square text-[4.5px] font-bold" : "max-w-[28px] min-w-[20px] aspect-square text-[6.5px] font-black",
+                    deck?.keySyncEnabled
+                      ? "bg-purple-500 border-purple-400 text-black shadow-[0_0_8px_rgba(168,85,247,0.4)]"
+                      : "bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-300"
+                  )}
+                >
+                  K
+                </button>
+              </div>
+
+              <div className="flex flex-col items-center gap-0.5 w-full">
+                {!(cdjWidth < 260 || cdjHeight < 220) && (
                   <span className="text-[4.5px] text-zinc-500 font-mono font-bold uppercase leading-none">QNTZ</span>
                 )}
                 <button
@@ -750,33 +768,94 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
             {/* Left Side: Main Controls */}
             <div className={cn("flex flex-col justify-end shrink-0", (cdjWidth < 260 || cdjHeight < 220) ? "w-9" : "w-12")}>
               
-              {/* Grid Adjust Panel */}
+              {/* Grid & Beat Jump Panel */}
               {!(cdjWidth < 260 || cdjHeight < 220) && (
-                <div className="flex flex-col items-center gap-1.5 mb-auto border border-zinc-800/40 rounded-lg p-1 bg-zinc-950/40 select-none">
-                  <span className="text-[5px] text-zinc-500 font-mono font-bold uppercase tracking-wider leading-none">GRID</span>
-                  <div className="flex flex-col gap-1 w-full">
+                <div className="flex flex-col items-center gap-1.5 mb-auto border border-zinc-800/60 rounded-lg p-1.5 bg-zinc-950/80 select-none shadow-md w-full">
+                  <span className="text-[5.5px] text-zinc-400 font-mono font-black uppercase tracking-wider leading-none">BEAT JUMP (BARS)</span>
+                  <div className="grid grid-cols-2 gap-1 w-full">
+                    <button
+                      onPointerDown={() => handleBeatJump(-16)}
+                      className="h-5 rounded border border-zinc-700 bg-zinc-900 text-zinc-300 hover:text-white hover:border-primary active:bg-primary/40 flex items-center justify-center font-mono text-[6.5px] font-black cursor-pointer shadow-sm"
+                      title="Beat Jump -4 Bars (-16 beats)"
+                    >
+                      -4B
+                    </button>
+                    <button
+                      onPointerDown={() => handleBeatJump(16)}
+                      className="h-5 rounded border border-zinc-700 bg-zinc-900 text-zinc-300 hover:text-white hover:border-primary active:bg-primary/40 flex items-center justify-center font-mono text-[6.5px] font-black cursor-pointer shadow-sm"
+                      title="Beat Jump +4 Bars (+16 beats)"
+                    >
+                      +4B
+                    </button>
+                    <button
+                      onPointerDown={() => handleBeatJump(-32)}
+                      className="h-5 rounded border border-zinc-700 bg-zinc-900 text-zinc-300 hover:text-white hover:border-primary active:bg-primary/40 flex items-center justify-center font-mono text-[6.5px] font-black cursor-pointer shadow-sm"
+                      title="Beat Jump -8 Bars (-32 beats)"
+                    >
+                      -8B
+                    </button>
+                    <button
+                      onPointerDown={() => handleBeatJump(32)}
+                      className="h-5 rounded border border-zinc-700 bg-zinc-900 text-zinc-300 hover:text-white hover:border-primary active:bg-primary/40 flex items-center justify-center font-mono text-[6.5px] font-black cursor-pointer shadow-sm"
+                      title="Beat Jump +8 Bars (+32 beats)"
+                    >
+                      +8B
+                    </button>
+                    <button
+                      onPointerDown={() => handleBeatJump(-64)}
+                      className="h-5 rounded border border-zinc-700 bg-zinc-900 text-zinc-300 hover:text-white hover:border-primary active:bg-primary/40 flex items-center justify-center font-mono text-[6.5px] font-black cursor-pointer shadow-sm"
+                      title="Beat Jump -16 Bars (-64 beats)"
+                    >
+                      -16B
+                    </button>
+                    <button
+                      onPointerDown={() => handleBeatJump(64)}
+                      className="h-5 rounded border border-zinc-700 bg-zinc-900 text-zinc-300 hover:text-white hover:border-primary active:bg-primary/40 flex items-center justify-center font-mono text-[6.5px] font-black cursor-pointer shadow-sm"
+                      title="Beat Jump +16 Bars (+64 beats)"
+                    >
+                      +16B
+                    </button>
+                    <button
+                      onPointerDown={() => handleBeatJump(-128)}
+                      className="h-5 rounded border border-zinc-700 bg-zinc-900 text-zinc-300 hover:text-white hover:border-primary active:bg-primary/40 flex items-center justify-center font-mono text-[6.5px] font-black cursor-pointer shadow-sm"
+                      title="Beat Jump -32 Bars (-128 beats)"
+                    >
+                      -32B
+                    </button>
+                    <button
+                      onPointerDown={() => handleBeatJump(128)}
+                      className="h-5 rounded border border-zinc-700 bg-zinc-900 text-zinc-300 hover:text-white hover:border-primary active:bg-primary/40 flex items-center justify-center font-mono text-[6.5px] font-black cursor-pointer shadow-sm"
+                      title="Beat Jump +32 Bars (+128 beats)"
+                    >
+                      +32B
+                    </button>
+                  </div>
+
+                  <span className="text-[5.5px] text-zinc-400 font-mono font-black uppercase tracking-wider leading-none mt-1">BEATGRID NUDGE</span>
+                  <div className="grid grid-cols-2 gap-1 w-full">
                     <button
                       onPointerDown={handleGridNudgeLeft}
-                      className="h-5 w-10 rounded border border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-zinc-200 hover:border-zinc-700 active:bg-zinc-800 flex items-center justify-center font-mono text-[5.5px] font-bold cursor-pointer uppercase"
+                      className="h-4.5 rounded border border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-white flex items-center justify-center font-mono text-[5.5px] font-bold cursor-pointer"
                       title="Nudge Beatgrid Left (-10ms)"
                     >
-                      -10
+                      -10ms
                     </button>
                     <button
                       onPointerDown={handleGridNudgeRight}
-                      className="h-5 w-10 rounded border border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-zinc-200 hover:border-zinc-700 active:bg-zinc-800 flex items-center justify-center font-mono text-[5.5px] font-bold cursor-pointer uppercase"
+                      className="h-4.5 rounded border border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-white flex items-center justify-center font-mono text-[5.5px] font-bold cursor-pointer"
                       title="Nudge Beatgrid Right (+10ms)"
                     >
-                      +10
-                    </button>
-                    <button
-                      onPointerDown={handleGridAlignCurrent}
-                      className="h-5 w-10 rounded border border-amber-500/20 bg-amber-950/20 text-amber-500 hover:text-amber-400 hover:border-amber-500/40 active:bg-amber-900/40 flex items-center justify-center font-mono text-[5.5px] font-black cursor-pointer leading-none text-center uppercase"
-                      title="Set Grid Start to Current Playhead"
-                    >
-                      TAP
+                      +10ms
                     </button>
                   </div>
+
+                  <button
+                    onPointerDown={handleGridAlignCurrent}
+                    className="w-full h-4.5 rounded border border-amber-500/40 bg-amber-950/40 text-amber-400 hover:bg-amber-900/60 active:bg-amber-800 flex items-center justify-center font-mono text-[6px] font-black cursor-pointer uppercase shadow-sm"
+                    title="Set Current Position as Beat 1 Downbeat"
+                  >
+                    SET BEAT 1
+                  </button>
                 </div>
               )}
 
@@ -853,7 +932,7 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
                   onPointerMove={handlePlatterMove}
                   onPointerUp={handlePlatterUp}
                   className={cn(
-                    "rounded-full border border-black overflow-hidden relative shadow-inner bg-cover bg-center select-none pointer-events-none z-10 flex items-center justify-center",
+                    "rounded-full border border-black overflow-hidden relative shadow-inner bg-contain bg-center bg-no-repeat bg-black select-none pointer-events-none z-10 flex items-center justify-center",
                     (deck?.isPlaying && !deck?.isCueStuttering) && "animate-[spin_1.8s_linear_infinite]" // 33.3 RPM
                   )}
                   style={{ 
