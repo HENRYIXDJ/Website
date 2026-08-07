@@ -24,7 +24,7 @@ function GlobalBackgroundGrid() {
 
   return (
     <motion.div 
-      className="fixed inset-x-0 top-0 bottom-[-200px] pointer-events-none z-0 opacity-5"
+      className="fixed inset-x-0 top-0 bottom-[-200px] pointer-events-none z-0 opacity-20"
       style={isMobile ? {} : { y: yBackgroundGrid, willChange: "transform" }}
     >
       <div className="w-full h-full bg-[linear-gradient(to_right,#808080_1px,transparent_1px),linear-gradient(to_bottom,#808080_1px,transparent_1px)] bg-[size:5rem_5rem]" style={{ backgroundPosition: 'calc(50% - 0.5px) 0' }} />
