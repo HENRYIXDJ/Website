@@ -265,6 +265,9 @@ async function handleAssetRequest(request: Request) {
     if (s3Response.LastModified) {
       headers.set('Last-Modified', s3Response.LastModified.toUTCString());
     }
+    if (!headers.has('Cache-Control') || headers.get('Cache-Control')?.includes('no-cache')) {
+      headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+    }
 
     const statusCode = s3Response.ContentRange ? 206 : 200;
 

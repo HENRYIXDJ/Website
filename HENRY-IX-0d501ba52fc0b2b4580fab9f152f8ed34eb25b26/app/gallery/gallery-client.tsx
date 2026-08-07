@@ -27,7 +27,7 @@ const proxyUrl = (url: string) => {
 };
 
 /* ==========================================================================
-   DEFAULT CCTV ALBUM DATASETS (6 SURVEILLANCE CAMERAS - MIX ARTWORK & CMS)
+   DEFAULT CCTV ALBUM DATASETS (12 SURVEILLANCE CAMERAS - 4 COLS x 3 ROWS)
    ========================================================================== */
 const INITIAL_CCTV_ALBUMS: CCTVAlbum[] = [
   {
@@ -87,20 +87,79 @@ const INITIAL_CCTV_ALBUMS: CCTVAlbum[] = [
   {
     id: 'cam_06',
     camTag: 'CAM 06',
-    title: 'MASTER ARTWORK CATALOG',
-    description: 'Combined promotional cover art catalog across all release series.',
+    title: 'CORNER NEW CROSS ARCHIVE',
+    description: 'Underground venue captures and artwork covers.',
+    items: [
+      { src: proxyUrl(getStorageUrl('/Mixes/Corner%20New%20Cross/Mix%20Artwork/CNC%20N2%20Artwork.png')), title: 'CORNER NEW CROSS N2 ARCHIVE' },
+      { src: proxyUrl(getStorageUrl('/Mixes/Corner%20New%20Cross/Mix%20Artwork/CNC%20N1%20Artwork.png')), title: 'CORNER NEW CROSS N1 ARCHIVE' },
+    ],
+  },
+  {
+    id: 'cam_07',
+    camTag: 'CAM 07',
+    title: 'TRACK ARTWORK CATALOG 01',
+    description: 'Combined promotional cover art catalog.',
     items: [
       { src: proxyUrl(getStorageUrl('/Mixes/Knight%20Club/Mix%20Artwork/Knight%20Club%20Track%20Artwork%20Session%202.jpg')), title: 'KNIGHT CLUB S2' },
       { src: proxyUrl(getStorageUrl('/Mixes/Royal%20Court/Mix%20Artwork/Royal%20Court%20Session%201%20Track%20Artwork.jpg')), title: 'ROYAL COURT S1' },
+    ],
+  },
+  {
+    id: 'cam_08',
+    camTag: 'CAM 08',
+    title: 'TRACK ARTWORK CATALOG 02',
+    description: 'Additional artwork releases.',
+    items: [
       { src: proxyUrl(getStorageUrl('/Mixes/Corner%20New%20Cross/Mix%20Artwork/CNC%20N1%20Artwork.png')), title: 'CORNER NEW CROSS N1' },
       { src: proxyUrl(getStorageUrl('/Mixes/Knight%20Club/Mix%20Artwork/Knight%20Club%20Track%20Artwork%20Session%204.jpg')), title: 'KNIGHT CLUB S4' },
+    ],
+  },
+  {
+    id: 'cam_09',
+    camTag: 'CAM 09',
+    title: 'STUDIO TRANSMISSIONS',
+    description: 'Darkroom transmissions and studio visuals.',
+    items: [
+      { src: proxyUrl(getStorageUrl('/Mixes/Knight%20Club/Mix%20Artwork/Knight%20Club%20Track%20Artwork%20Session%203.jpg')), title: 'STUDIO TRANSMISSION 03' },
+      { src: proxyUrl(getStorageUrl('/Mixes/Royal%20Court/Mix%20Artwork/Royal%20Court%20Session%202%20Track%20Artwork.jpg')), title: 'STUDIO TRANSMISSION 02' },
+    ],
+  },
+  {
+    id: 'cam_10',
+    camTag: 'CAM 10',
+    title: 'BOOTH & DECK CAPTURES',
+    description: 'Hardware visuals and stage deck archives.',
+    items: [
+      { src: proxyUrl(getStorageUrl('/Mixes/Knight%20Club/Mix%20Artwork/Knight%20Club%20Track%20Artwork%20Session%205.jpg')), title: 'DECK VISUAL S5' },
+      { src: proxyUrl(getStorageUrl('/Mixes/Corner%20New%20Cross/Mix%20Artwork/CNC%20N2%20Artwork.png')), title: 'BOOTH VISUAL CNC' },
+    ],
+  },
+  {
+    id: 'cam_11',
+    camTag: 'CAM 11',
+    title: 'LIVE PERFORMANCE STREAM',
+    description: 'Live set imagery and crowd visuals.',
+    items: [
+      { src: proxyUrl(getStorageUrl('/Mixes/Royal%20Court/Mix%20Artwork/Royal%20Court%20Session%201%20Track%20Artwork.jpg')), title: 'LIVE STREAM RC' },
+      { src: proxyUrl(getStorageUrl('/Mixes/Knight%20Club/Mix%20Artwork/Knight%20Club%20Track%20Artwork%20Session%201.jpg')), title: 'LIVE STREAM KC' },
+    ],
+  },
+  {
+    id: 'cam_12',
+    camTag: 'CAM 12',
+    title: 'MASTER SURVEILLANCE FEED',
+    description: 'Master CCTV security monitor composite stream.',
+    items: [
+      { src: proxyUrl(getStorageUrl('/Mixes/Knight%20Club/Mix%20Artwork/Knight%20Club%20Track%20Artwork%20Session%204.jpg')), title: 'MASTER FEED KC4' },
+      { src: proxyUrl(getStorageUrl('/Mixes/Corner%20New%20Cross/Mix%20Artwork/CNC%20N1%20Artwork.png')), title: 'MASTER FEED CNC1' },
+      { src: proxyUrl(getStorageUrl('/Mixes/Royal%20Court/Mix%20Artwork/Royal%20Court%20Session%202%20Track%20Artwork.jpg')), title: 'MASTER FEED RC2' },
     ],
   },
 ];
 
 export default function GalleryClient() {
   const [albums, setAlbums] = useState<CCTVAlbum[]>(INITIAL_CCTV_ALBUMS);
-  const [currentMediaIndices, setCurrentMediaIndices] = useState<number[]>([0, 0, 0, 0, 0, 0]);
+  const [currentMediaIndices, setCurrentMediaIndices] = useState<number[]>([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
 
   // Modal / Lightbox state
   const [selectedAlbumIndex, setSelectedAlbumIndex] = useState<number | null>(null);
@@ -142,13 +201,13 @@ export default function GalleryClient() {
         }
 
         setAlbums(prev => {
-          return prev.map(album => {
-            if (album.id === 'cam_01' && dynamicArtwork.length > 0) {
+          return prev.map((album) => {
+            if ((album.id === 'cam_01' || album.id === 'cam_07' || album.id === 'cam_12') && dynamicArtwork.length > 0) {
               const merged = [...album.items, ...dynamicArtwork];
               const unique = merged.filter((v, i, a) => a.findIndex(t => t.src === v.src) === i);
               return { ...album, items: unique };
             }
-            if (album.id === 'cam_02' && dynamicMe.length > 0) {
+            if ((album.id === 'cam_02' || album.id === 'cam_05' || album.id === 'cam_10') && dynamicMe.length > 0) {
               const merged = [...album.items, ...dynamicMe];
               const unique = merged.filter((v, i, a) => a.findIndex(t => t.src === v.src) === i);
               return { ...album, items: unique };
@@ -162,6 +221,19 @@ export default function GalleryClient() {
     }
     loadDynamicGallery();
   }, []);
+
+  // Preload all unique gallery images in browser memory to eliminate image cycle lag and reduce R2 operations
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    albums.forEach(album => {
+      album.items.forEach(item => {
+        if (item.src) {
+          const img = new window.Image();
+          img.src = item.src;
+        }
+      });
+    });
+  }, [albums]);
 
   // Staggered media swapping interval for CCTV screens (cycles 1 random camera feed every 3.5 seconds)
   useEffect(() => {
@@ -227,8 +299,8 @@ export default function GalleryClient() {
 
   return (
     <main className="fixed inset-0 pt-12 md:pt-24 pb-2 px-2 md:px-3 w-full h-full flex flex-col bg-transparent selection:bg-primary/30 selection:text-primary font-mono select-none overflow-hidden">
-      {/* Fullscreen 6-Screen CCTV Matrix */}
-      <div className="flex-1 w-full h-full p-1.5 md:p-2 bg-black/90 rounded-xl border border-zinc-900 shadow-2xl grid grid-cols-2 lg:grid-cols-3 grid-rows-3 lg:grid-rows-2 gap-1.5 md:gap-2 overflow-hidden">
+      {/* Fullscreen 12-Screen CCTV Matrix (4 Columns x 3 Rows on Desktop) */}
+      <div className="flex-1 w-full h-full p-1 md:p-1.5 bg-black/90 rounded-xl border border-zinc-900 shadow-2xl grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 grid-rows-6 sm:grid-rows-4 lg:grid-rows-3 gap-1 md:gap-1.5 overflow-hidden">
         {albums.map((album, screenIndex) => {
           const activeMediaIndex = currentMediaIndices[screenIndex] % (album.items.length || 1);
           const mediaItem = album.items[activeMediaIndex] || album.items[0];
@@ -238,10 +310,10 @@ export default function GalleryClient() {
               key={album.id}
               initial={{ opacity: 0, scale: 0.98 }}
               animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.3, delay: screenIndex * 0.04 }}
+              transition={{ duration: 0.3, delay: screenIndex * 0.02 }}
               onClick={() => openCarousel(screenIndex)}
               onMouseEnter={() => playTick()}
-              className="group relative w-full h-full bg-zinc-950 border border-zinc-900/90 rounded-lg overflow-hidden cursor-pointer select-none transition-all duration-300 hover:border-primary/60 hover:shadow-[0_0_20px_rgba(216,22,63,0.3)]"
+              className="group relative w-full h-full bg-zinc-950 border border-zinc-900/90 rounded-md md:rounded-lg overflow-hidden cursor-pointer select-none transition-all duration-300 hover:border-primary/60 hover:shadow-[0_0_15px_rgba(216,22,63,0.3)]"
             >
               {/* Media Display */}
               {mediaItem && (
@@ -250,7 +322,7 @@ export default function GalleryClient() {
                     src={mediaItem.src}
                     alt={album.title}
                     fill
-                    sizes="(max-width: 768px) 50vw, 33vw"
+                    sizes="(max-width: 768px) 50vw, 25vw"
                     unoptimized={true}
                     className="object-cover w-full h-full transition-all duration-500 filter grayscale-[100%] brightness-[0.9] contrast-[1.2] group-hover:grayscale-0 group-hover:brightness-100 group-hover:contrast-100 group-hover:scale-105"
                   />
@@ -270,23 +342,23 @@ export default function GalleryClient() {
               />
 
               {/* Screen Meta HUD Overlay Header */}
-              <div className="absolute top-2 left-2 right-2 flex justify-between items-center z-30 pointer-events-none text-[8.5px] sm:text-[9.5px] tracking-wider uppercase font-mono">
-                <span className="bg-black/75 border border-primary/40 text-primary font-bold px-1.5 py-0.5 rounded-sm shadow-md">
+              <div className="absolute top-1.5 left-1.5 right-1.5 flex justify-between items-center z-30 pointer-events-none text-[7.5px] md:text-[8.5px] tracking-wider uppercase font-mono">
+                <span className="bg-black/80 border border-primary/40 text-primary font-bold px-1 py-0.5 rounded-sm shadow-md">
                   {album.camTag}
                 </span>
-                <span className="bg-black/75 text-zinc-100 font-bold px-1.5 py-0.5 rounded-sm truncate max-w-[140px] sm:max-w-[180px] shadow-md border border-zinc-900">
+                <span className="bg-black/80 text-zinc-100 font-bold px-1 py-0.5 rounded-sm truncate max-w-[100px] sm:max-w-[150px] shadow-md border border-zinc-900">
                   {album.title}
                 </span>
               </div>
 
               {/* REC Indicator Footer */}
-              <div className="absolute bottom-2 right-2 z-30 pointer-events-none flex items-center gap-1.5 bg-black/75 px-1.5 py-0.5 rounded border border-zinc-900/80">
+              <div className="absolute bottom-1.5 right-1.5 z-30 pointer-events-none flex items-center gap-1 bg-black/80 px-1 py-0.5 rounded border border-zinc-900/80">
                 <div className="w-1.5 h-1.5 rounded-full bg-[#D30F31] animate-pulse" />
-                <span className="text-[#D30F31] text-[8.5px] font-black tracking-widest">REC</span>
+                <span className="text-[#D30F31] text-[7.5px] font-black tracking-widest">REC</span>
               </div>
 
               {/* Count Indicator Footer */}
-              <div className="absolute bottom-2 left-2 z-30 pointer-events-none bg-black/75 px-1.5 py-0.5 rounded text-[8px] text-zinc-400 font-bold border border-zinc-900/80">
+              <div className="absolute bottom-1.5 left-1.5 z-30 pointer-events-none bg-black/80 px-1 py-0.5 rounded text-[7.5px] text-zinc-400 font-bold border border-zinc-900/80">
                 FILES // {album.items.length}
               </div>
             </motion.div>

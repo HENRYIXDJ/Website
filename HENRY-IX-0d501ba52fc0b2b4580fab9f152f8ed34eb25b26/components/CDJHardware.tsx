@@ -92,7 +92,7 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
   const [cdjWidth, setCdjWidth] = useState(320); // default fallback
   const [cdjHeight, setCdjHeight] = useState(240); // default fallback
   const [jogSize, setJogSize] = useState(144); // default 144px (w-36)
-  const innerPlatterSize = jogSize * (80 / 144);
+  const innerPlatterSize = jogSize * (108 / 144); // Enlarged display ratio (75% of jog size)
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -113,8 +113,8 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
         const availHeight = height - hotCuesHeight - padding;
         
         const size = Math.min(availWidth, availHeight);
-        // Clamp minimum size to 64px instead of 144px to prevent overflow on small screens
-        const targetSize = Math.max(64, Math.min(400, size * 0.85));
+        // Target size fills 92% of available center jog space
+        const targetSize = Math.max(64, Math.min(400, size * 0.92));
         setJogSize(targetSize);
       }
     });
@@ -853,7 +853,7 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
                   onPointerMove={handlePlatterMove}
                   onPointerUp={handlePlatterUp}
                   className={cn(
-                    "rounded-full border border-black overflow-hidden relative shadow-inner bg-cover bg-center select-none pointer-events-none z-10 flex items-center justify-center",
+                    "rounded-full border border-black overflow-hidden relative shadow-inner bg-contain bg-center bg-no-repeat bg-black select-none pointer-events-none z-10 flex items-center justify-center",
                     (deck?.isPlaying && !deck?.isCueStuttering) && "animate-[spin_1.8s_linear_infinite]" // 33.3 RPM
                   )}
                   style={{ 
