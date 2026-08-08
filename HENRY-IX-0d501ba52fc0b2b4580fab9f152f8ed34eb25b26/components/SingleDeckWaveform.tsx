@@ -157,12 +157,12 @@ export function SingleDeckWaveform({
       ctx.save();
       ctx.scale(dpr, dpr);
 
-      // 1. CHASSIS BACKGROUND
-      ctx.fillStyle = '#070709'; 
+      // 1. CHASSIS BACKGROUND (OLED ABSOLUTE BLACK)
+      ctx.fillStyle = '#000000'; 
       ctx.fillRect(0, 0, width, height);
 
-      // Horizontal central splits
-      ctx.strokeStyle = '#18181b';
+      // High-Contrast Horizontal central splits
+      ctx.strokeStyle = '#3f3f46';
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.moveTo(0, 0);
@@ -301,7 +301,7 @@ export function SingleDeckWaveform({
             points.push({ x, lowH: lowHeight, midH: midHeight, highH: highHeight });
           }
         } else {
-          // Pioneer Rekordbox & SoundCloud High-Density 3-Band Peak Map (16 samples/sec)
+          // Pro Audio & SoundCloud High-Density 3-Band Peak Map (16 samples/sec)
           const seedStr = currentDeck.link || currentDeck.id || 'track';
           const duration = currentDeck.duration || 300;
           const trackBpm = currentDeck.bpm || 120;
@@ -339,15 +339,15 @@ export function SingleDeckWaveform({
           const beatTime = offset + b * beatInterval;
           const x = beatTime * pixelsPerSecond;
           const isMajorBar = b % 4 === 0;
-          ctx.strokeStyle = isMajorBar ? 'rgba(255, 255, 255, 0.15)' : 'rgba(255, 255, 255, 0.05)';
-          ctx.lineWidth = isMajorBar ? 1.25 : 0.5;
+          ctx.strokeStyle = isMajorBar ? 'rgba(255, 255, 255, 0.45)' : 'rgba(255, 255, 255, 0.22)';
+          ctx.lineWidth = isMajorBar ? 1.5 : 1;
           ctx.beginPath();
           ctx.moveTo(x, 0);
           ctx.lineTo(x, height);
           ctx.stroke();
 
           if (isMajorBar && b >= 0) {
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
             ctx.font = 'bold 7.5px monospace';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'top';
@@ -597,7 +597,7 @@ export function SingleDeckWaveform({
       // Drag overlay HUD (milliseconds precision)
       if (drag) {
         ctx.save();
-        ctx.fillStyle = 'rgba(10, 10, 12, 0.9)';
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.95)';
         ctx.shadowBlur = 0;
         ctx.strokeStyle = drag.isShift ? '#f59e0b' : '#3b82f6';
         ctx.lineWidth = 1;

@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Cloud, ArrowRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { playClick, playTick, playDegauss } from '@/lib/audioUtils';
-import { signupAction, contactAction } from '@/app/actions';
+import siteContent from '@/lib/siteContent';
 
 const SPRING_CONFIG = { type: "spring" as const, stiffness: 300, damping: 20 };
 
@@ -124,7 +124,7 @@ export function MailingList({ isDepth }: { isDepth: boolean }) {
 
   return (
     <section className="w-full px-6 py-12 md:py-24 max-w-xl mx-auto flex flex-col items-center text-center">
-      <h3 className="font-mono text-xl font-bold tracking-[0.2em] uppercase mb-4 text-primary">The Inner Circle</h3>
+      <h3 className="font-mono text-xl font-bold tracking-[0.2em] uppercase mb-4 text-primary">{siteContent.newsletter.title}</h3>
 
       
       <AnimatePresence mode="wait">

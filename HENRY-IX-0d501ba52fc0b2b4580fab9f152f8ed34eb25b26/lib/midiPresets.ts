@@ -2,10 +2,10 @@
  * lib/midiPresets.ts
  *
  * Pre-configured MIDI mapping schemas for physical DJ hardware controllers:
- * - Pioneer XDJ-RX3 / XDJ-1000MK2
- * - Pioneer CDJ-3000 / CDJ-2000NXS2
- * - Pioneer DDJ-1000 / DDJ-800 / DDJ-FLX6
- * - Pioneer DDJ-400 / DDJ-FLX4
+ * - XDJ-RX3 / XDJ-1000MK2 Hardware
+ * - CDJ-3000 / CDJ-2000NXS2 Hardware
+ * - DDJ-1000 / DDJ-800 / DDJ-FLX6 Hardware
+ * - DDJ-400 / DDJ-FLX4 Hardware
  * - Numark Mixtrack Pro FX
  * - Hercules Inpulse Series
  * - Generic 2-Deck & 4-Deck Fallback Maps
@@ -138,8 +138,8 @@ function createDDJ400ChannelMap(deckId: 1 | 2, ch: number): MIDIMappingItem[] {
   ];
 }
 
-// Helper builder to standardise 4-deck Pioneer control mappings
-function createPioneerChannelMap(deckId: number, midiChannel: number): MIDIMappingItem[] {
+// Helper builder to standardise 4-deck hardware control mappings
+function createHardwareChannelMap(deckId: number, midiChannel: number): MIDIMappingItem[] {
   return [
     { id: `d${deckId}_play`, type: 'PLAY', channel: midiChannel, status: 'noteon', number: 11, deckId },
     { id: `d${deckId}_cue`, type: 'CUE', channel: midiChannel, status: 'noteon', number: 12, deckId },
@@ -180,46 +180,46 @@ function createPioneerChannelMap(deckId: number, midiChannel: number): MIDIMappi
   ];
 }
 
-export const PRESET_PIONEER_XDJ_RX3: ControllerPreset = {
-  id: 'pioneer_xdj_rx3',
-  name: 'Pioneer XDJ-RX3',
-  matchNames: ['xdj-rx3', 'pioneer xdj-rx3', 'rx3'],
+export const PRESET_XDJ_RX3: ControllerPreset = {
+  id: 'xdj_rx3_hardware',
+  name: 'XDJ-RX3 Hardware',
+  matchNames: ['xdj-rx3', 'rx3'],
   mappings: [
-    ...createPioneerChannelMap(1, 0),
-    ...createPioneerChannelMap(2, 1),
+    ...createHardwareChannelMap(1, 0),
+    ...createHardwareChannelMap(2, 1),
     { id: 'crossfader', type: 'CROSSFADER', channel: 0, status: 'cc', number: 31 }
   ]
 };
 
-export const PRESET_PIONEER_CDJ3000: ControllerPreset = {
-  id: 'pioneer_cdj_3000',
-  name: 'Pioneer CDJ-3000 / CDJ-2000NXS2',
-  matchNames: ['cdj-3000', 'cdj-2000nxs2', 'pioneer cdj'],
+export const PRESET_CDJ3000: ControllerPreset = {
+  id: 'cdj_3000_hardware',
+  name: 'CDJ-3000 / CDJ-2000NXS2 Hardware',
+  matchNames: ['cdj-3000', 'cdj-2000nxs2', 'cdj'],
   mappings: [
-    ...createPioneerChannelMap(1, 0),
-    ...createPioneerChannelMap(2, 1),
-    ...createPioneerChannelMap(3, 2),
-    ...createPioneerChannelMap(4, 3)
+    ...createHardwareChannelMap(1, 0),
+    ...createHardwareChannelMap(2, 1),
+    ...createHardwareChannelMap(3, 2),
+    ...createHardwareChannelMap(4, 3)
   ]
 };
 
-export const PRESET_PIONEER_DDJ1000: ControllerPreset = {
-  id: 'pioneer_ddj_1000',
-  name: 'Pioneer DDJ-1000 / DDJ-800 / DDJ-FLX6',
-  matchNames: ['ddj-1000', 'ddj-800', 'ddj-flx6', 'pioneer ddj-1000'],
+export const PRESET_DDJ1000: ControllerPreset = {
+  id: 'ddj_1000_hardware',
+  name: 'DDJ-1000 / DDJ-800 / DDJ-FLX6 Hardware',
+  matchNames: ['ddj-1000', 'ddj-800', 'ddj-flx6'],
   mappings: [
-    ...createPioneerChannelMap(1, 0),
-    ...createPioneerChannelMap(2, 1),
-    ...createPioneerChannelMap(3, 2),
-    ...createPioneerChannelMap(4, 3),
+    ...createHardwareChannelMap(1, 0),
+    ...createHardwareChannelMap(2, 1),
+    ...createHardwareChannelMap(3, 2),
+    ...createHardwareChannelMap(4, 3),
     { id: 'crossfader', type: 'CROSSFADER', channel: 0, status: 'cc', number: 31 }
   ]
 };
 
-export const PRESET_PIONEER_DDJ400: ControllerPreset = {
-  id: 'pioneer_ddj_400',
-  name: 'Pioneer DDJ-400 / DDJ-FLX4',
-  matchNames: ['ddj-400', 'ddj-flx4', 'flx4', 'pioneer ddj-400', 'ddj'],
+export const PRESET_DDJ400: ControllerPreset = {
+  id: 'ddj_400_hardware',
+  name: 'DDJ-400 / DDJ-FLX4 Hardware',
+  matchNames: ['ddj-400', 'ddj-flx4', 'flx4', 'ddj'],
   mappings: [
     ...createDDJ400ChannelMap(1, 0),
     ...createDDJ400ChannelMap(2, 1),
@@ -233,8 +233,8 @@ export const PRESET_NUMARK_MIXTRACK: ControllerPreset = {
   name: 'Numark Mixtrack Pro FX',
   matchNames: ['numark', 'mixtrack'],
   mappings: [
-    ...createPioneerChannelMap(1, 0),
-    ...createPioneerChannelMap(2, 1),
+    ...createHardwareChannelMap(1, 0),
+    ...createHardwareChannelMap(2, 1),
     { id: 'crossfader', type: 'CROSSFADER', channel: 0, status: 'cc', number: 31 }
   ]
 };
@@ -244,8 +244,8 @@ export const PRESET_HERCULES_INPULSE: ControllerPreset = {
   name: 'Hercules Inpulse Series',
   matchNames: ['hercules', 'inpulse'],
   mappings: [
-    ...createPioneerChannelMap(1, 0),
-    ...createPioneerChannelMap(2, 1),
+    ...createHardwareChannelMap(1, 0),
+    ...createHardwareChannelMap(2, 1),
     { id: 'crossfader', type: 'CROSSFADER', channel: 0, status: 'cc', number: 31 }
   ]
 };
@@ -255,19 +255,19 @@ export const PRESET_GENERIC_4DECK: ControllerPreset = {
   name: 'Generic Universal 4-Deck Mapping',
   matchNames: ['generic', 'midi', 'controller'],
   mappings: [
-    ...createPioneerChannelMap(1, 0),
-    ...createPioneerChannelMap(2, 1),
-    ...createPioneerChannelMap(3, 2),
-    ...createPioneerChannelMap(4, 3),
+    ...createHardwareChannelMap(1, 0),
+    ...createHardwareChannelMap(2, 1),
+    ...createHardwareChannelMap(3, 2),
+    ...createHardwareChannelMap(4, 3),
     { id: 'crossfader', type: 'CROSSFADER', channel: 0, status: 'cc', number: 31 }
   ]
 };
 
 export const ALL_HARDWARE_PRESETS: ControllerPreset[] = [
-  PRESET_PIONEER_XDJ_RX3,
-  PRESET_PIONEER_CDJ3000,
-  PRESET_PIONEER_DDJ1000,
-  PRESET_PIONEER_DDJ400,
+  PRESET_XDJ_RX3,
+  PRESET_CDJ3000,
+  PRESET_DDJ1000,
+  PRESET_DDJ400,
   PRESET_NUMARK_MIXTRACK,
   PRESET_HERCULES_INPULSE,
   PRESET_GENERIC_4DECK

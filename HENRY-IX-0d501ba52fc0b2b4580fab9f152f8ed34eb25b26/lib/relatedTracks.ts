@@ -10,7 +10,7 @@ export interface TrackMeta {
 }
 
 /**
- * Intelligent Rekordbox Related Tracks Matching Engine
+ * Intelligent Pro Audio Related Tracks Matching Engine
  * Ranks tracks based on BPM proximity (±5%) and Camelot key compatibility.
  */
 export function getRelatedTracks(currentTrack: TrackMeta, catalog: TrackMeta[]): TrackMeta[] {

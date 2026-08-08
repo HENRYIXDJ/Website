@@ -11,6 +11,6 @@ export function getStorageUrl(path: string): string {
     fullUrl = `${baseUrl}${normalizedPath}`;
   }
 
-  return `/api/assets?url=${encodeURIComponent(fullUrl)}`;
+  return fullUrl;
 }
 

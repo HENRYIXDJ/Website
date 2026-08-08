@@ -345,8 +345,8 @@ export default function AudioVisualizerBackground({
           const offset = (time * speed * 25) % (gridDepth / lineCount);
 
           ctx2d.save();
-          ctx2d.strokeStyle = isDepthRef.current ? 'rgba(216, 22, 63, 0.12)' : 'rgba(24, 24, 27, 0.1)';
-          ctx2d.lineWidth = 1.5;
+          ctx2d.strokeStyle = isDepthRef.current ? 'rgba(216, 22, 63, 0.45)' : 'rgba(255, 255, 255, 0.25)';
+          ctx2d.lineWidth = 1.75;
 
           // Draw horizontal lines
           for (let i = 0; i < lineCount; i++) {

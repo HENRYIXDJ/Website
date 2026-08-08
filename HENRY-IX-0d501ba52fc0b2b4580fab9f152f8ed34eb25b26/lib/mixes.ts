@@ -17,8 +17,7 @@ export const formatPlayheadTime = (secs: number) => {
 
 export const proxyUrl = (url: string) => {
   if (!url) return '';
-  if (url.startsWith('/api/assets')) return url;
-  return `/api/assets?url=${encodeURIComponent(url)}`;
+  return url;
 };
 
 export const getSessionImage = (title: string, artworkUrl?: string) => {
@@ -205,7 +204,7 @@ export interface PeakPoint3Band {
 const peakCache = new Map<string, PeakPoint3Band[]>();
 
 /**
- * Pioneer Rekordbox Deterministic 3-Band Waveform Peak Generator
+ * Pro Audio Deterministic 3-Band Waveform Peak Generator
  * Generates 100% accurate, cached, frequency-separated peaks (Low, Mid, High)
  */
 export function getDeterministic3BandPeaks(trackId: string, duration = 300, bpm = 120): PeakPoint3Band[] {

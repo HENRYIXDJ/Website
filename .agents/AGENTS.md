@@ -5,7 +5,7 @@ These rules govern the development, visual styling, coding patterns, and layout 
 ---
 
 ## 1. Role & Core Focus
-Act as an expert frontend engineer, senior audio DSP programmer, and creative UI designer. Maintain a premium, skeuomorphic, high-fidelity aesthetic inspired by analog audio equipment and Pioneer DJ hardware.
+Act as an expert frontend engineer, senior audio DSP programmer, and creative UI designer. Maintain a premium, skeuomorphic, high-fidelity aesthetic inspired by analog audio equipment, Ditherboy & Script Slayer ASCII dithering, and pro DJ hardware.
 
 Focus on building a portfolio showcase, live streaming setups, ticket booking systems, event listings, and marketing integrations.
 
@@ -19,16 +19,18 @@ Follow the core retro-futuristic dark mode theme:
 * **Primary Accent Color:** HENRY IX Red (`#D8163F`, `var(--color-primary)`).
 * **Primary Glow:** `rgba(216, 22, 63, 0.45)` (`var(--color-primary-glow)`).
 * **CDJ Symmetrical Accents:**
-  * Deck 1: Pioneer Red (`rgba(211,15,49,1)`)
-  * Deck 2: Pioneer Cyan (`rgba(34,211,238,1)`)
-  * Deck 3: Pioneer Emerald Green (`rgba(16,185,129,1)`)
-  * Deck 4: Pioneer Gold/Yellow (`rgba(234,179,8,1)`)
+  * Deck 1: Red (`rgba(211,15,49,1)`)
+  * Deck 2: Blue (`rgba(34,211,238,1)`)
+  * Deck 3: Green (`rgba(16,185,129,1)`)
+  * Deck 4: Yellow (`rgba(234,179,8,1)`)
 
 ### B. Typography
-* **Primary Font:** Custom display font `Avathe` (`var(--font-avathe)`). Use for headers, titles, logo brandings, and hero elements.
-* **Secondary Font:** `JetBrains Mono` (`var(--font-mono)`). Use for all terminal HUDs, speed dials, state logs, readouts, code snippets, forms, and technical listings.
+* **Primary Font:** Custom display font `Avathe` (`var(--font-avathe)`). Use for headers, titles, logo brandings, and hero elements. (Do not alter Avathe).
+* **Secondary Font:** `OCR A` (`var(--font-ocra)`, `.font-mono`). Use for all terminal HUDs, speed dials, state logs, readouts, forms, and technical listings.
+* **Tertiary Font:** `IBM Plex Mono` (`var(--font-ibm-plex)`, `.font-tertiary`). Use for secondary UI copy, descriptive body text, and standard code listings where clean monospaced legibility is required.
 
-### C. Visual Effects & Overlays
+### C. Visual Effects, Glitching & Overlays
+* **ASCII Dither & Glitch Aesthetics:** Incorporate Ditherboy & Script Slayer style ASCII character distortion (`░▒▓█`, `[+/--\]`), 1-bit / 2-bit Bayer halftone dither textures (`.bayer-dither`), and signal noise.
 * **Vivid Glows:** Use shadow utilities like `shadow-neon-glow` (`0 0 10px var(--color-primary-glow)`) and `shadow-neon-strong` (`0 0 20px rgba(216, 22, 63, 0.65)`) for hover states on knobs, faders, and active buttons.
 
 ### D. Scrollbar Theme
@@ -36,7 +38,7 @@ Follow the core retro-futuristic dark mode theme:
 * **Custom Containers:** Use the `.custom-scrollbar` utility on list panels and playlists:
   * Width/Height: `4px`
   * Track: Zinc Black (`#09090b`)
-  * Thumb: Accent Red (`#D8163F`) / Hover Rose (`#f43f5e`)
+  * Thumb: Classic HENRY IX Red (`#D8163F`) with strict rectangular shape (`border-radius: 0 !important`).
 
 ---
 

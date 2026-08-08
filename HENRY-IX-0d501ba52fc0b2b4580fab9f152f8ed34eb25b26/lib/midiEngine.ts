@@ -92,7 +92,7 @@ class MIDIEngine {
       devices.push({
         id: input.id,
         name: input.name || 'Generic DJ Controller',
-        manufacturer: input.manufacturer || 'Pioneer DJ',
+        manufacturer: input.manufacturer || 'Pro Audio Hardware',
         state: input.state
       });
     }

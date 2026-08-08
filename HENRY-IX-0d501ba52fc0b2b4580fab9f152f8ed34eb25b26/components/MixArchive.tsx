@@ -10,6 +10,8 @@ import { RotaryKnob } from '@/components/DJComponents';
 import { audioEngine } from '@/lib/AudioEngine';
 import { midiEngine } from '@/lib/midiEngine';
 import { MIDILearnModal } from './MIDILearnModal';
+import { useUsbLibrary } from '@/lib/useUsbLibrary';
+import { setRecorder, RecordingState } from '@/lib/audioRecorder';
 import { playClick, playTick, playLockoutBlip } from '@/lib/audioUtils';
 import { 
   formatTime, 
@@ -82,6 +84,13 @@ export default function MixArchive({
   const [isMIDIOpen, setIsMIDIOpen] = useState(false);
   const [midiDeviceName, setMIDIDeviceName] = useState<string>('');
   const [isGlitching, setIsGlitching] = useState(false);
+
+  const { connectUsbDrive, usbTracks, usbFolderName, isLoading: isUsbLoading } = useUsbLibrary();
+  const [recordingState, setRecordingState] = useState<RecordingState>(setRecorder.getState());
+
+  useEffect(() => {
+    return setRecorder.subscribe(setRecordingState);
+  }, []);
 
   const handleDeckCountChange = (count: 2 | 4) => {
     if (deckCount === count) return;
@@ -709,7 +718,7 @@ export default function MixArchive({
         className="rounded-xl border border-zinc-900 bg-zinc-950/90 flex flex-col text-zinc-300 font-mono text-[9px] select-none h-full w-full overflow-hidden shadow-2xl relative transition-all duration-300 min-h-0"
         style={{ borderTop: `2px solid ${themeColor}` }}
       >
-        {/* Rekordbox Playlist Browser Header */}
+        {/* Tracklist & Playlist Browser Header */}
         <div className="flex justify-between items-center bg-black/60 border-b border-zinc-900 px-3 py-1.5 shrink-0 text-[8px] text-zinc-500 tracking-wider uppercase font-bold">
           <div className="flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: themeColor }} />
@@ -2245,9 +2254,10 @@ export default function MixArchive({
                 </>
               )}
 
-              {/* Controller Link & Key Mapping Triggers */}
+              {/* Controller Link, USB Connect & Live Set Recorder Triggers */}
               {activeView === 'cdj' && (
                 <div className="flex items-center gap-1.5 select-none">
+                  {/* Controller Link Button */}
                   <button
                     onClick={() => {
                       setIsMIDIOpen(true);
@@ -2263,6 +2273,60 @@ export default function MixArchive({
                     <Cpu className="w-3 h-3" />
                     {midiDeviceName ? `LINKED: ${midiDeviceName}` : 'Controller Link'}
                   </button>
+
+                  {/* CONNECT USB / LOCAL LIBRARY Button (Right next to Controller button) */}
+                  <button
+                    onClick={() => {
+                      playClick(900, 'sine', 0.02);
+                      connectUsbDrive();
+                    }}
+                    disabled={isUsbLoading}
+                    className={cn(
+                      "px-2.5 py-1 rounded-none text-[7.5px] md:text-[8px] font-mono font-bold tracking-wider uppercase transition-all border cursor-pointer flex items-center gap-1.5 active:scale-95",
+                      usbFolderName
+                        ? "bg-primary/20 border-primary/50 text-primary shadow-[0_0_8px_rgba(216,22,63,0.3)]"
+                        : "bg-zinc-950 hover:bg-zinc-900 border-zinc-900 hover:border-zinc-800 text-zinc-400 hover:text-zinc-200"
+                    )}
+                  >
+                    <span>💾</span>
+                    {isUsbLoading ? 'SCANNING USB...' : usbFolderName ? `USB: ${usbFolderName}` : 'CONNECT USB'}
+                  </button>
+
+                  {/* LIVE SET RECORDING ENGINE BUTTON */}
+                  <button
+                    onClick={() => {
+                      playClick(1000, 'sine', 0.03);
+                      if (recordingState.isRecording) {
+                        setRecorder.stopRecording();
+                      } else {
+                        setRecorder.startRecording('wav');
+                      }
+                    }}
+                    className={cn(
+                      "px-2.5 py-1 rounded-none text-[7.5px] md:text-[8px] font-mono font-bold tracking-wider uppercase transition-all border cursor-pointer flex items-center gap-1.5 active:scale-95",
+                      recordingState.isRecording
+                        ? "bg-red-950 border-red-800 text-red-400 animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.5)]"
+                        : "bg-zinc-950 hover:bg-zinc-900 border-zinc-900 hover:border-zinc-800 text-zinc-400 hover:text-zinc-200"
+                    )}
+                  >
+                    <span className={cn("w-2 h-2 rounded-full", recordingState.isRecording ? "bg-red-500 animate-ping" : "bg-zinc-600")} />
+                    {recordingState.isRecording
+                      ? `REC [ ${formatTime(recordingState.duration)} ]`
+                      : 'REC SET'}
+                  </button>
+
+                  {/* DOWNLOAD RECORDED SET BUTTON (When recording finished) */}
+                  {recordingState.recordedBlob && !recordingState.isRecording && (
+                    <button
+                      onClick={() => {
+                        playClick(900, 'sine', 0.02);
+                        setRecorder.downloadRecordedSet('HENRY_IX_LIVE_SET');
+                      }}
+                      className="px-2.5 py-1 bg-emerald-950 hover:bg-emerald-900 border border-emerald-800 rounded-none text-emerald-400 font-mono text-[7.5px] md:text-[8px] font-bold tracking-wider uppercase transition-all cursor-pointer flex items-center gap-1 active:scale-95 shadow-[0_0_8px_rgba(16,185,129,0.3)] animate-bounce"
+                    >
+                      <span>⬇ SAVE SET (.WAV)</span>
+                    </button>
+                  )}
 
                   <button
                     onClick={() => {

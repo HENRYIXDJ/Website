@@ -28,12 +28,12 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
 
   const isLocked = deck?.id === 'locked';
 
-  // Symmetrical theme color accent based on Pioneer deck indices
+  // Symmetrical theme color accent based on deck indices
   const themeColor = 
     deckId === 1 ? 'rgba(211,15,49,1)' : // D1: Red
-    deckId === 2 ? 'rgba(34,211,238,1)' : // D2: Cyan
-    deckId === 3 ? 'rgba(16,185,129,1)' : // D3: Emerald/Green
-    'rgba(234,179,8,1)';                  // D4: Gold/Yellow
+    deckId === 2 ? 'rgba(34,211,238,1)' : // D2: Blue
+    deckId === 3 ? 'rgba(16,185,129,1)' : // D3: Green
+    'rgba(234,179,8,1)';                  // D4: Yellow
 
   const faderContainerRef = useRef<HTMLDivElement>(null);
   const lastUpdateRef = useRef({ time: 0, value: deck?.pitch || 0 });
@@ -504,7 +504,7 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
       ref={containerRef} 
       style={{ containerType: 'inline-size', transform: 'translateZ(0)' }} 
       className={cn(
-        "w-full h-full flex flex-col justify-between relative select-none border border-zinc-900 rounded-none bg-black",
+        "w-full h-full flex flex-col justify-between relative select-none border border-zinc-800 rounded-none bg-black",
         (cdjWidth < 360 || cdjHeight < 310) ? "p-1.5 gap-1.5" : "p-3 gap-3"
       )}
     >
@@ -923,9 +923,9 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
                 }}
               >
                 {/* Grooves & Position Stripes */}
-                <div className="absolute inset-3 border border-dashed border-zinc-900/40 rounded-full pointer-events-none" />
-                <div className="absolute inset-7 border border-zinc-900/20 rounded-full pointer-events-none" />
-                <div className="absolute inset-11 border border-dashed border-zinc-900/40 rounded-full pointer-events-none" />
+                <div className="absolute inset-3 border border-dashed border-zinc-700/60 rounded-full pointer-events-none" />
+                <div className="absolute inset-7 border border-zinc-700/40 rounded-full pointer-events-none" />
+                <div className="absolute inset-11 border border-dashed border-zinc-700/60 rounded-full pointer-events-none" />
 
                 {/* Platter Marker Needle Ring */}
                 <div 

@@ -217,8 +217,8 @@ function render() {
     const offset = (time * speed * 25) % (gridDepth / lineCount);
 
     ctx.save();
-    ctx.strokeStyle = isDepth ? 'rgba(216, 22, 63, 0.12)' : 'rgba(24, 24, 27, 0.1)';
-    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = isDepth ? 'rgba(216, 22, 63, 0.45)' : 'rgba(255, 255, 255, 0.25)';
+    ctx.lineWidth = 1.75;
 
     // Draw horizontal grid lines
     for (let i = 0; i < lineCount; i++) {
