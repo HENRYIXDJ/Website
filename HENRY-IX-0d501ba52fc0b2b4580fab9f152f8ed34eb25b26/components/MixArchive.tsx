@@ -1148,7 +1148,7 @@ export default function MixArchive({
               >
                 <span className="text-primary">&lt;</span> BACK TO ARCHIVE
               </button>
-              <h2 className="text-xl md:text-3xl font-sans font-bold text-primary tracking-widest uppercase glitch" data-text={group.title}>{group.title}</h2>
+              <h2 className="text-xl md:text-3xl font-avathe font-bold text-primary tracking-widest uppercase glitch" data-text={group.title}>{group.title}</h2>
             </div>
 
             {/* Real-time Search Input inside Expanded View */}
@@ -1320,7 +1320,7 @@ export default function MixArchive({
     return (
       <div className="w-full h-full p-4 md:p-8 overflow-y-auto custom-scrollbar flex flex-col gap-8">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-zinc-900 pb-4">
-          <h2 className="text-2xl md:text-4xl font-sans font-bold text-primary tracking-widest uppercase glitch" data-text="01 / MIX ARCHIVE">01 / MIX ARCHIVE</h2>
+          <h2 className="text-2xl md:text-4xl font-avathe font-bold text-primary tracking-widest uppercase glitch" data-text="01 / MIX ARCHIVE">01 / MIX ARCHIVE</h2>
           
           {/* Real-time Global Library Search Input */}
           <div className="relative w-full md:w-80">

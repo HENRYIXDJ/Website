@@ -101,7 +101,7 @@ const HeroNode = React.memo(function HeroNode({
         style={styleText}
       >
         <motion.h1 
-          className="glitch font-sans text-[clamp(3.2rem,15vh,18vw)] md:text-[clamp(5rem,22vh,24vw)] w-full font-bold tracking-wider leading-none text-center select-none text-primary whitespace-nowrap magnetic-snap cursor-pointer pointer-events-auto"
+          className="glitch font-avathe text-[clamp(3.2rem,15vh,18vw)] md:text-[clamp(5rem,22vh,24vw)] w-full font-bold tracking-wider leading-none text-center select-none text-primary whitespace-nowrap magnetic-snap cursor-pointer pointer-events-auto"
           onClick={() => {
             if (isBigText) {
               window.scrollTo({ top: window.innerHeight, behavior: 'smooth' });
@@ -201,7 +201,7 @@ const NavigationNode = React.memo(function NavigationNode() {
               onClick={() => playNavSwoosh()}
             >
               <span
-                className="glitch font-sans font-bold text-primary text-[clamp(2.5rem,8.5vh,10.5vw)] leading-none tracking-wider uppercase select-none inline-block"
+                className="glitch font-avathe font-bold text-primary text-[clamp(2.5rem,8.5vh,10.5vw)] leading-none tracking-wider uppercase select-none inline-block"
                 data-text={label}
               >
                 {label}

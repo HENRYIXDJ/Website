@@ -18,7 +18,7 @@ export default function PrivacyPage() {
           <div className="flex items-center gap-2 mb-2 text-primary font-bold text-xs uppercase tracking-widest">
             <span>●</span> UK LEGAL & DATA PROTECTION COMPLIANCE
           </div>
-          <h1 className="text-3xl md:text-5xl font-sans font-black tracking-widest text-primary uppercase mb-4 glitch" data-text="PRIVACY POLICY">
+          <h1 className="text-3xl md:text-5xl font-avathe font-black tracking-widest text-primary uppercase mb-4 glitch" data-text="PRIVACY POLICY">
             PRIVACY POLICY
           </h1>
           <div className="flex flex-wrap gap-4 text-[10px] text-zinc-500 uppercase tracking-widest">

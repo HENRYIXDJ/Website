@@ -20,7 +20,7 @@ export function VinylStack({ group, onClick, playTick }: VinylStackProps) {
       whileHover="hover"
     >
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-50">
-        <h3 className="absolute -bottom-10 text-center text-white font-sans font-bold text-lg md:text-xl tracking-widest uppercase opacity-80 group-hover:opacity-100 group-hover:text-primary transition-all">
+        <h3 className="absolute -bottom-10 text-center text-white font-avathe font-bold text-lg md:text-xl tracking-widest uppercase opacity-80 group-hover:opacity-100 group-hover:text-primary transition-all">
           {group.title}
         </h3>
       </div>

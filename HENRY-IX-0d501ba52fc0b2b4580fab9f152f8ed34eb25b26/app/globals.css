@@ -5,9 +5,13 @@
   --color-primary-glow: rgba(216, 22, 63, 0.45);
   --shadow-neon-glow: 0 0 10px rgba(216, 22, 63, 0.45);
   --shadow-neon-strong: 0 0 20px rgba(216, 22, 63, 0.65);
-  --font-avathe: var(--font-avathe), "sans-serif";
+  --font-avathe: var(--font-avathe), sans-serif;
   --font-mono: var(--font-ocra), "OCR A Std", "OCR-A", monospace;
   --font-sans: var(--font-ibm-plex), "IBM Plex Mono", monospace;
+}
+
+.font-avathe {
+  font-family: var(--font-avathe), sans-serif;
 }
 
 /* Hide scrollbar for Chrome, Safari and Opera */

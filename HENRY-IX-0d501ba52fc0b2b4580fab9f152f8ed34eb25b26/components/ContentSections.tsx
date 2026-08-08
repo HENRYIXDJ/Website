@@ -42,7 +42,7 @@ export function Schedule({ isDepth }: { isDepth: boolean }) {
           whileInView={{ y: 0, opacity: 1, scale: 1 }}
           viewport={{ once: true }}
           transition={{ type: "spring", stiffness: 300, damping: 25, delay: 0.15 }}
-          className="glitch font-sans font-bold tracking-wider leading-none text-center select-none text-primary w-full flex flex-col items-center"
+          className="glitch font-avathe font-bold tracking-wider leading-none text-center select-none text-primary w-full flex flex-col items-center"
           data-text="COMING SOON"
         >
           <span className="text-[clamp(2.5rem,10vh,11vw)]">COMING</span>

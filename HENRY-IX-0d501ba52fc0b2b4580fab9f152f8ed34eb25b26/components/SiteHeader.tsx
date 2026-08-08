@@ -186,7 +186,7 @@ export default function SiteHeader() {
         {!isHomePage && (
           <Link
             href="/"
-            className="glitch font-sans font-bold text-2xl md:text-3xl tracking-wider leading-none text-primary cursor-pointer select-none"
+            className="glitch font-avathe font-bold text-2xl md:text-3xl tracking-wider leading-none text-primary cursor-pointer select-none"
             data-text="HENRY IX"
           >
             HENRY IX

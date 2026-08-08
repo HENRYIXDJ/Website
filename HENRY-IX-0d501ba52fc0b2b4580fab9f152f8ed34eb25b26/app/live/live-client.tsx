@@ -220,7 +220,7 @@ export default function LiveClient({ initialSettings, history }: LiveClientProps
             transition={{ duration: 0.8, ease: 'easeOut' }}
           >
             <h1
-              className="glitch font-sans font-black text-primary text-[clamp(2rem,6vh,5.5rem)] leading-none tracking-wider uppercase select-none"
+              className="glitch font-avathe font-black text-primary text-[clamp(2rem,6vh,5.5rem)] leading-none tracking-wider uppercase select-none"
               data-text="LIVE TRANSMISSION"
             >
               LIVE STREAM
