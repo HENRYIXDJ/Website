@@ -58,7 +58,7 @@ export function Crossfader({
   }, [onChange]);
 
   return (
-    <div ref={containerRef} className="relative w-full h-5 bg-zinc-950 border border-zinc-900 focus-within:border-primary focus-within:shadow-[0_0_8px_rgba(216,22,63,0.5)] rounded flex items-center justify-center px-4 overflow-hidden select-none shadow-inner">
+    <div ref={containerRef} className="relative w-full h-5 bg-black border border-zinc-900 focus-within:border-primary rounded-none flex items-center justify-center px-4 overflow-hidden select-none">
       <input 
         type="range"
         min="0"
@@ -106,13 +106,13 @@ export function Crossfader({
       <div className="w-[95%] h-[1px] bg-zinc-800 absolute" />
 
       <div 
-        className="absolute h-5 bg-gradient-to-r from-zinc-700 to-zinc-900 border border-zinc-600 rounded flex items-center justify-center shadow pointer-events-none"
+        className="absolute h-5 bg-black border border-zinc-800 rounded-none flex items-center justify-center pointer-events-none"
         style={{ 
           left: `calc(${value}% - 12.5px)`,
           width: '25px'
         }}
       >
-        <div className="h-full w-[1px] bg-primary shadow-[0_0_2px_#d8163f]" />
+        <div className="h-full w-[1px] bg-primary" />
       </div>
     </div>
   );

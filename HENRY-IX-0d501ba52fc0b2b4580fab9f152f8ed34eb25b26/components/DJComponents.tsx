@@ -6,6 +6,7 @@ import { Volume2, VolumeX } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { playClick, playTick, playDegauss } from '@/lib/audioUtils';
 import { useAudio } from '@/components/AudioProvider';
+import { useAudioStore } from '@/store/audioStore';
 
 // --- RETAIL RETRO CUSTOM COMPONENTS ---
 
@@ -168,9 +169,9 @@ export function RotaryKnob({ label, value, onChange, disabled = false, colorClas
             } : {})
           }}
           className={cn(
-            "rounded-full bg-gradient-to-b from-zinc-800 to-zinc-950 border flex items-center justify-center shadow relative pointer-events-none z-10 transition-colors duration-300",
+            "rounded-full bg-zinc-900 border flex items-center justify-center shadow relative pointer-events-none z-10 transition-colors duration-300",
             isFlex ? "" : (isSm ? "w-5.5 h-5.5" : isLg ? "w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 xl:w-10 xl:h-10" : "w-7.5 h-7.5"),
-            disabled ? "border-zinc-900" : "border-zinc-700"
+            disabled ? "border-zinc-900" : "border-zinc-800"
           )}
         >
           {/* Active pointer tick marker */}
@@ -179,7 +180,6 @@ export function RotaryKnob({ label, value, onChange, disabled = false, colorClas
             isFlex ? "h-[20%] w-[1.5px]" : (isSm ? "h-1.5 w-[1px]" : isLg ? "h-2 w-[1.5px] top-0.5 md:h-2.5 md:w-[2px] xl:h-3 xl:top-1" : "h-2 w-[1.5px]"),
             disabled ? "bg-zinc-800" : "bg-primary shadow-[0_0_3px_#d8163f]"
           )} />
-          <div className="absolute inset-0.5 rounded-full bg-gradient-to-tr from-transparent via-white/5 to-transparent" />
         </motion.div>
       </div>
 
@@ -253,7 +253,10 @@ export function SplitFlapText({ text, active }: { text: string, active: boolean 
   );
 }
 
-export function MuteSwitch({ isMuted, setIsMuted }: { isMuted: boolean; setIsMuted: (muted: boolean) => void }) {
+export function VolumeMuteToggle() {
+  const isMuted = useAudioStore(s => s.isMuted);
+  const setIsMuted = useAudioStore(s => s.setIsMuted);
+
   return (
     <motion.button
       onClick={() => {
@@ -267,18 +270,18 @@ export function MuteSwitch({ isMuted, setIsMuted }: { isMuted: boolean; setIsMut
       whileHover={{ scale: 1.05 }}
       whileTap={{ scale: 0.95 }}
       className={cn(
-        "fixed top-4 md:top-8 right-4 md:right-8 z-50 p-2.5 rounded-lg border font-mono text-[9px] uppercase tracking-widest font-bold flex items-center gap-2 cursor-pointer transition-colors backdrop-blur-md bg-zinc-950/80 border-zinc-800 text-zinc-100 magnetic-snap shadow-[0_0_10px_rgba(0,0,0,0.5)]"
+        "fixed top-4 md:top-8 right-4 md:right-8 z-50 p-2.5 rounded-none border font-mono text-[9px] uppercase tracking-widest font-bold flex items-center gap-2 cursor-pointer transition-colors bg-black border-zinc-900 text-zinc-100 magnetic-snap"
       )}
     >
       {isMuted ? (
         <>
           <VolumeX className="w-4 h-4 text-primary animate-pulse" />
-          <span className="text-primary tracking-widest text-[8px] bg-primary/10 px-1.5 py-0.5 rounded border border-primary/20">MUTED</span>
+          <span className="text-primary tracking-widest text-[8px] bg-primary/10 px-1.5 py-0.5 rounded-none border border-primary/20">MUTED</span>
         </>
       ) : (
         <>
           <Volume2 className="w-4 h-4 text-emerald-500" />
-          <span className="text-emerald-500 tracking-widest text-[8px] bg-emerald-950/40 px-1.5 py-0.5 rounded border border-emerald-800/20">AUDIO_ON</span>
+          <span className="text-emerald-500 tracking-widest text-[8px] bg-emerald-950/40 px-1.5 py-0.5 rounded-none border border-emerald-800/20">AUDIO_ON</span>
         </>
       )}
     </motion.button>
@@ -332,8 +335,8 @@ export function MagneticIcon({ Icon, href, isDepth, name }: { Icon: any, href: s
       whileHover={{ scale: 1.15 }}
       transition={{ type: "spring", stiffness: 350, damping: 15, mass: 0.5 }}
       className={cn(
-        "p-3 rounded-xl border flex items-center justify-center cursor-pointer transition-all duration-300 relative group magnetic-snap shadow-lg bg-zinc-950",
-        isDepth ? "border-zinc-800 text-zinc-400 hover:text-primary hover:border-primary/50 shadow-[0_0_15px_rgba(0,0,0,0.8)]" : "border-zinc-200 text-zinc-700 hover:text-black hover:border-black"
+        "p-3 rounded-none border flex items-center justify-center cursor-pointer transition-all duration-300 relative group magnetic-snap bg-black",
+        isDepth ? "border-zinc-900 text-zinc-400 hover:text-primary hover:border-primary/50" : "border-zinc-200 text-zinc-700 hover:text-black hover:border-black"
       )}
     >
       <Icon className="w-5 h-5 relative z-10 transition-transform duration-300 group-hover:rotate-[6deg]" />
@@ -343,7 +346,7 @@ export function MagneticIcon({ Icon, href, isDepth, name }: { Icon: any, href: s
         {hovered && (
           <motion.div 
             layoutId="activeIndicator"
-            className="absolute inset-0 rounded-xl bg-primary/5 border border-primary/20 pointer-events-none"
+            className="absolute inset-0 rounded-none bg-primary/5 border border-primary/20 pointer-events-none"
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
@@ -354,7 +357,7 @@ export function MagneticIcon({ Icon, href, isDepth, name }: { Icon: any, href: s
       
       {/* Tooltip name */}
       {name && (
-        <span className="absolute bottom-full mb-2 bg-zinc-950 border border-zinc-850 px-2 py-1 rounded text-[7.5px] font-mono tracking-widest text-primary uppercase opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none select-none z-30 font-bold whitespace-nowrap shadow-xl">
+        <span className="absolute bottom-full mb-2 bg-black border border-zinc-900 px-2 py-1 rounded-none text-[7.5px] font-mono tracking-widest text-primary uppercase opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none select-none z-30 font-bold whitespace-nowrap">
           {name}
         </span>
       )}
@@ -669,30 +672,24 @@ export function LEDEqualizer({
   }, [analyserNode, deckAnalysers, leftDeckId, rightDeckId, leftPlaying, rightPlaying, isPlaying]);
 
   return (
-    <div className="flex gap-2 items-center h-16 bg-zinc-950 p-1 rounded border border-zinc-900 shadow-inner w-full justify-between relative overflow-hidden select-none">
-      {/* Grid Scanlines Effect */}
-      <div className="absolute inset-0 bg-[linear-gradient(rgba(18,18,18,0)_95%,rgba(216,22,63,0.06)_95%)] bg-[size:100%_4px] pointer-events-none z-20" />
-      
-      {/* Subtle screen glow */}
-      <div className="absolute inset-0 bg-primary/2 pointer-events-none z-10" />
-
+    <div className="flex gap-2 items-center h-16 bg-black p-1 rounded-none border border-zinc-900 w-full justify-between relative overflow-hidden select-none">
       {/* LEFT CH VU LEVEL METER */}
       <div className="flex flex-col gap-[0.5px] h-full w-1.5 justify-end relative z-10 select-none shrink-0">
         {Array.from({ length: 8 }).map((_, segmentIdx) => {
           const indexFromBottom = 7 - segmentIdx;
           const isActive = indexFromBottom < leftVU;
           
-          let colorClass = "bg-zinc-900 border-zinc-950";
+          let colorClass = "bg-black border-zinc-900";
           if (isActive) {
-            if (indexFromBottom >= 7) colorClass = "bg-primary border-primary shadow-[0_0_3px_#d8163f]";
-            else if (indexFromBottom >= 5) colorClass = "bg-yellow-500 border-yellow-500 shadow-[0_0_3px_#eab308]";
-            else colorClass = "bg-emerald-500 border-emerald-500 shadow-[0_0_3px_#10b981]";
+            if (indexFromBottom >= 7) colorClass = "bg-primary border-primary";
+            else if (indexFromBottom >= 5) colorClass = "bg-yellow-500 border-yellow-500";
+            else colorClass = "bg-emerald-500 border-emerald-500";
           }
 
           return (
             <div 
               key={segmentIdx} 
-              className={cn("w-full h-1 rounded-sm border-[0.5px] transition-all duration-75", colorClass)}
+              className={cn("w-full h-1 rounded-none border-[0.5px] transition-all duration-75", colorClass)}
             />
           );
         })}
@@ -700,23 +697,20 @@ export function LEDEqualizer({
       </div>
 
       {/* CENTRAL WAVEFORM MONITOR */}
-      <div className="flex-grow flex flex-col justify-between h-full bg-zinc-950/65 px-2 py-1 relative border-l border-r border-zinc-900/60 overflow-hidden mx-1 rounded-sm">
-        {/* Neon screen grid */}
-        <div className="absolute inset-0 opacity-[0.03] bg-[linear-gradient(to_right,#fff_1px,transparent_1px),linear-gradient(to_bottom,#fff_1px,transparent_1px)] bg-[size:12px_12px]" />
-        
+      <div className="flex-grow flex flex-col justify-between h-full bg-black px-2 py-1 relative border-l border-r border-zinc-900 overflow-hidden mx-1 rounded-none">
         {/* Dynamic horizontal waveform track bars */}
         <div className="flex items-center gap-[3px] w-full h-[75%] justify-center relative mt-0.5">
           {/* Timeline Center Guideline */}
-          <div className="absolute left-0 right-0 h-[1px] bg-zinc-900/80 z-0" />
+          <div className="absolute left-0 right-0 h-[1px] bg-zinc-900 z-0" />
           
           {waveform.map((height, idx) => (
             <div key={idx} className="flex-grow flex items-center justify-center h-full relative z-10">
               <div 
                 className={cn(
-                  "w-full rounded-sm transition-all duration-75",
+                  "w-full rounded-none transition-all duration-75",
                   isPlaying 
-                    ? "bg-primary shadow-[0_0_4px_#d8163f]" 
-                    : "bg-zinc-800 border border-zinc-900"
+                    ? "bg-primary" 
+                    : "bg-black border border-zinc-900"
                 )}
                 style={{
                   height: `${Math.min(100, Math.max(8, height * 8.5))}%`
@@ -740,17 +734,17 @@ export function LEDEqualizer({
           const indexFromBottom = 7 - segmentIdx;
           const isActive = indexFromBottom < rightVU;
           
-          let colorClass = "bg-zinc-900 border-zinc-950";
+          let colorClass = "bg-black border-zinc-900";
           if (isActive) {
-            if (indexFromBottom >= 7) colorClass = "bg-primary border-primary shadow-[0_0_3px_#d8163f]";
-            else if (indexFromBottom >= 5) colorClass = "bg-yellow-500 border-yellow-500 shadow-[0_0_3px_#eab308]";
-            else colorClass = "bg-emerald-500 border-emerald-500 shadow-[0_0_3px_#10b981]";
+            if (indexFromBottom >= 7) colorClass = "bg-primary border-primary";
+            else if (indexFromBottom >= 5) colorClass = "bg-yellow-500 border-yellow-500";
+            else colorClass = "bg-emerald-500 border-emerald-500";
           }
 
           return (
             <div 
               key={segmentIdx} 
-              className={cn("w-full h-1 rounded-sm border-[0.5px] transition-all duration-75", colorClass)}
+              className={cn("w-full h-1 rounded-none border-[0.5px] transition-all duration-75", colorClass)}
             />
           );
         })}

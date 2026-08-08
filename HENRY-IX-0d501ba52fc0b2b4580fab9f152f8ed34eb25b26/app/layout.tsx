@@ -1,11 +1,10 @@
 import type { Metadata } from 'next';
-import { JetBrains_Mono } from 'next/font/google';
+import { IBM_Plex_Mono } from 'next/font/google';
 import localFont from 'next/font/local';
 import './globals.css';
 import { BotIdClient } from 'botid/client';
 import { AudioProvider } from '@/components/AudioProvider';
 import ClientLayoutWrappers from '@/components/ClientLayoutWrappers';
-
 
 const avathe = localFont({
   src: './fonts/avathe.otf',
@@ -13,9 +12,16 @@ const avathe = localFont({
   adjustFontFallback: false,
 });
 
-const jetbrainsMono = JetBrains_Mono({
+const ocra = localFont({
+  src: './fonts/ocra.woff',
+  variable: '--font-ocra',
+  adjustFontFallback: false,
+});
+
+const ibmPlexMono = IBM_Plex_Mono({
+  weight: ['400', '500', '600', '700'],
   subsets: ['latin'],
-  variable: '--font-mono',
+  variable: '--font-ibm-plex',
 });
 
 export const metadata: Metadata = {
@@ -55,7 +61,7 @@ const jsonLd = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${avathe.variable} ${jetbrainsMono.variable}`}>
+    <html lang="en" className={`${avathe.variable} ${ocra.variable} ${ibmPlexMono.variable}`}>
       <head>
         <link rel="preload" href="https://w.soundcloud.com/player/api.js" as="script" />
         <BotIdClient protect={[{ path: '/', method: 'POST' }, { path: '/contact', method: 'POST' }]} />
@@ -66,8 +72,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body suppressHydrationWarning className="bg-black">
         <AudioProvider>
-          <ClientLayoutWrappers />
-          {children}
+          <ClientLayoutWrappers>
+            {children}
+          </ClientLayoutWrappers>
         </AudioProvider>
       </body>
     </html>

@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useRef, useEffect, useState } from 'react';
-import { motion, useMotionTemplate } from 'framer-motion';
 import { useAudio } from './AudioProvider';
 
 // Shared state for fallback mode particle effect
@@ -411,39 +410,11 @@ export default function AudioVisualizerBackground({
   }, [isPlaying, isDepth, mouseX, mouseY, mode]);
 
   return (
-    <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
+    <div className="absolute inset-0 pointer-events-none overflow-hidden z-0 bg-black">
       {/* Canvas — controlled by OffscreenCanvas worker or fallback */}
-      {isMobile ? (
-        <div className="absolute inset-0 bg-gradient-to-tr from-black via-zinc-950 to-black opacity-80 animate-pulse z-0">
-          <div
-            className="absolute inset-0 opacity-40 z-0"
-            style={{
-              background: 'radial-gradient(500px circle at 50% 50%, rgba(216, 22, 63, 0.08), transparent 70%)',
-            }}
-          />
-        </div>
-      ) : (
+      {!isMobile && (
         <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
       )}
-
-      {/* CSS fallback radial glow for older browsers / SSR */}
-      <motion.div
-        className="absolute inset-0 transition-opacity duration-300 pointer-events-none opacity-40 z-0"
-        style={{
-          background: useMotionTemplate`radial-gradient(450px circle at ${mouseX}px ${mouseY}px, ${
-            isDepth ? 'rgba(211, 15, 49, 0.08)' : 'rgba(211, 15, 49, 0.04)'
-          }, transparent 60%)`,
-        }}
-      />
-
-      {/* Subtle scanline overlay */}
-      <div
-        className="absolute inset-0 opacity-[0.03] pointer-events-none"
-        style={{
-          backgroundImage: 'radial-gradient(circle at 1px 1px, currentColor 1px, transparent 0)',
-          backgroundSize: '40px 40px',
-        }}
-      />
     </div>
   );
 }

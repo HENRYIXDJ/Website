@@ -70,7 +70,7 @@ export function VolumeFader({
   }, [onChange, isLocked]);
 
   return (
-    <div ref={containerRef} className="relative flex-grow min-h-[50px] max-h-[140px] w-[32cqw] max-w-[28px] min-w-[14px] bg-zinc-950 border border-zinc-900 focus-within:border-zinc-500 focus-within:shadow-[0_0_8px_rgba(255,255,255,0.15)] rounded flex items-center justify-center overflow-hidden shadow-inner">
+    <div ref={containerRef} className="relative flex-grow min-h-[50px] max-h-[140px] w-[32cqw] max-w-[28px] min-w-[14px] bg-black border border-zinc-900 focus-within:border-zinc-500 rounded-none flex items-center justify-center overflow-hidden">
       <input 
         type="range"
         min="0"
@@ -130,8 +130,7 @@ export function VolumeFader({
         style={{ 
           height: `${volume}%`,
           backgroundColor: channelColor,
-          opacity: isPlaying ? 0.50 : 0.15,
-          boxShadow: isPlaying ? `0 0 10px ${channelColor}` : undefined
+          opacity: isPlaying ? 0.35 : 0.10
         }}
       />
 
@@ -143,13 +142,13 @@ export function VolumeFader({
 
       {/* Fader Cap */}
       <div 
-        className="absolute w-[135%] h-[min(26px,max(18px,28cqw))] bg-gradient-to-b from-zinc-700 to-zinc-900 border border-zinc-600 rounded flex items-center justify-center shadow pointer-events-none"
+        className="absolute w-[135%] h-[min(26px,max(18px,28cqw))] bg-black border border-zinc-800 rounded-none flex items-center justify-center pointer-events-none"
         style={{ 
           bottom: `calc(${volume}% - min(13px,max(9px,14cqw)))`,
           transform: 'translateY(50%)'
         }}
       >
-        <div className="w-full h-[1px] bg-primary shadow-[0_0_2px_#d8163f]" />
+        <div className="w-full h-[1px] bg-primary" />
       </div>
     </div>
   );

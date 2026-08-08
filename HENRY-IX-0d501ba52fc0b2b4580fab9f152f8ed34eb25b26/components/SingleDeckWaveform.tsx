@@ -31,16 +31,19 @@ export function SingleDeckWaveform({
   const leftActiveDeck = useAudioStore(s => s.leftActiveDeck);
   const rightActiveDeck = useAudioStore(s => s.rightActiveDeck);
   const visualLatencyOffset = useAudioStore(s => s.visualLatencyOffset);
+  const isEcoMode = useAudioStore(s => s.isEcoMode);
 
   const leftActiveDeckRef = useRef(leftActiveDeck);
   const rightActiveDeckRef = useRef(rightActiveDeck);
   const visualLatencyOffsetRef = useRef(visualLatencyOffset);
+  const isEcoModeRef = useRef(isEcoMode);
 
   useEffect(() => {
     leftActiveDeckRef.current = leftActiveDeck;
     rightActiveDeckRef.current = rightActiveDeck;
     visualLatencyOffsetRef.current = visualLatencyOffset;
-  }, [leftActiveDeck, rightActiveDeck, visualLatencyOffset]);
+    isEcoModeRef.current = isEcoMode;
+  }, [leftActiveDeck, rightActiveDeck, visualLatencyOffset, isEcoMode]);
 
   const [dragState, setDragState] = useState<{
     startX: number;
@@ -96,11 +99,19 @@ export function SingleDeckWaveform({
     let frameId: number;
 
     const render = () => {
+      const now = performance.now();
+      const targetInterval = isEcoModeRef.current ? 33 : 16; // 30fps cap in eco mode (33ms)
+      if (now - lastFrameTimeRef.current < targetInterval) {
+        frameId = requestAnimationFrame(render);
+        return;
+      }
+
       const currentDeck = deckRef.current;
       if (!currentDeck) {
         frameId = requestAnimationFrame(render);
         return;
       }
+      lastFrameTimeRef.current = now;
 
       let targetProgress = currentDeck.progress || 0;
       let isCurrentlyPlaying = currentDeck.isPlaying;
@@ -676,12 +687,12 @@ export function SingleDeckWaveform({
   };
 
   return (
-    <div className="relative w-full h-full min-h-[20px] md:min-h-[48px] max-h-[100px] bg-black/60 backdrop-blur-md rounded border border-zinc-900/80 overflow-hidden shadow-inner flex items-center justify-center select-none shrink-0 z-10">
+    <div className="relative w-full h-full min-h-[20px] md:min-h-[48px] max-h-[100px] bg-black rounded-none border border-zinc-900 overflow-hidden flex items-center justify-center select-none shrink-0 z-10">
       {/* Zoom & Set Downbeat Toolbar */}
-      <div className="absolute top-1 right-1 z-20 flex items-center gap-1 bg-black/85 backdrop-blur-md px-1.5 py-0.5 rounded border border-zinc-800/80 pointer-events-auto">
+      <div className="absolute top-1 right-1 z-20 flex items-center gap-1 bg-black px-1.5 py-0.5 rounded-none border border-zinc-900 pointer-events-auto">
         <button
           onClick={handleSetDownbeat}
-          className="px-1.5 py-0.5 rounded border border-amber-500/40 bg-amber-950/40 text-amber-400 hover:bg-amber-900/60 font-mono text-[7px] font-black uppercase leading-none cursor-pointer"
+          className="px-1.5 py-0.5 rounded-none border border-amber-500/40 bg-amber-950/40 text-amber-400 hover:bg-amber-900/60 font-mono text-[7px] font-black uppercase leading-none cursor-pointer"
           title="Set current playhead position as Beat 1 Downbeat"
         >
           SET BEAT 1
@@ -689,7 +700,7 @@ export function SingleDeckWaveform({
         <div className="flex items-center gap-0.5 border-l border-zinc-800 pl-1">
           <button
             onClick={handleZoomOut}
-            className="w-4 h-4 rounded border border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-white flex items-center justify-center font-mono text-[9px] font-bold cursor-pointer"
+            className="w-4 h-4 rounded-none border border-zinc-800 bg-black text-zinc-400 hover:text-white flex items-center justify-center font-mono text-[9px] font-bold cursor-pointer"
             title="Zoom Out Waveform"
           >
             -
@@ -699,7 +710,7 @@ export function SingleDeckWaveform({
           </span>
           <button
             onClick={handleZoomIn}
-            className="w-4 h-4 rounded border border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-white flex items-center justify-center font-mono text-[9px] font-bold cursor-pointer"
+            className="w-4 h-4 rounded-none border border-zinc-800 bg-black text-zinc-400 hover:text-white flex items-center justify-center font-mono text-[9px] font-bold cursor-pointer"
             title="Zoom In Waveform"
           >
             +

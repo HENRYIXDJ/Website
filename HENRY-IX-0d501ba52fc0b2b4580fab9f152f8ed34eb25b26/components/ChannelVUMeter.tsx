@@ -100,7 +100,7 @@ export function ChannelVUMeter({ deckId, trim, volume, isPlaying }: ChannelVUMet
   }, [deckId, trim, volume, isPlaying]);
 
   return (
-    <div className="relative w-full max-w-[24px] h-8 flex flex-col items-center justify-center bg-zinc-950/90 rounded border border-zinc-900/80 p-0.5 shadow-inner my-0.5">
+    <div className="relative w-full max-w-[24px] h-8 flex flex-col items-center justify-center bg-black rounded-none border border-zinc-900 p-0.5 my-0.5">
       <canvas
         ref={canvasRef}
         width={8}

@@ -33,7 +33,7 @@ export function VinylStack({ group, onClick, playTick }: VinylStackProps) {
         return (
           <motion.div
             key={track.id}
-            className="absolute inset-0 w-full h-full rounded-lg overflow-hidden border border-zinc-800 shadow-[0_10px_30px_rgba(0,0,0,0.8)]"
+            className="absolute inset-0 w-full h-full rounded-none overflow-hidden border border-zinc-800 shadow-[0_10px_30px_rgba(0,0,0,0.8)]"
             style={{ 
               zIndex: 10 - i,
             }}
@@ -61,9 +61,6 @@ export function VinylStack({ group, onClick, playTick }: VinylStackProps) {
               alt={track.title}
               className="w-full h-full object-cover"
             />
-            {i === 0 && (
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent pointer-events-none" />
-            )}
             {i !== 0 && (
               <div className="absolute inset-0 bg-black/40 pointer-events-none" />
             )}
