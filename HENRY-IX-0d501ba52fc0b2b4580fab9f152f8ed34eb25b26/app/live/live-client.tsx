@@ -220,7 +220,7 @@ export default function LiveClient({ initialSettings, history }: LiveClientProps
             transition={{ duration: 0.8, ease: 'easeOut' }}
           >
             <h1
-              className="glitch font-sans font-black text-primary text-[clamp(2rem,6vh,5.5rem)] leading-none tracking-wider uppercase select-none"
+              className="glitch font-avathe font-black text-primary text-[clamp(2rem,6vh,5.5rem)] leading-none tracking-wider uppercase select-none"
               data-text="LIVE TRANSMISSION"
             >
               LIVE STREAM
@@ -232,7 +232,7 @@ export default function LiveClient({ initialSettings, history }: LiveClientProps
         <div className="relative z-10 w-full max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8 items-stretch select-none font-mono">
           
           {/* Stream Player Container (2/3 width) */}
-          <div className="lg:col-span-2 bg-zinc-950 border border-zinc-900 rounded-3xl p-4 md:p-6 shadow-2xl relative flex flex-col gap-4">
+          <div className="lg:col-span-2 bg-black border border-zinc-900 rounded-none p-4 md:p-6 relative flex flex-col gap-4">
             {/* Carbon texture background */}
             <div className="absolute inset-0 opacity-[0.015] pointer-events-none z-0" style={{
               backgroundImage: 'radial-gradient(#fff 1.5px, transparent 1.5px)',
@@ -240,7 +240,7 @@ export default function LiveClient({ initialSettings, history }: LiveClientProps
             }} />
 
             {/* Top Stats Bar */}
-            <div className="w-full flex justify-between items-center text-[7.5px] text-zinc-500 uppercase tracking-widest border-b border-zinc-900/60 pb-2 z-10">
+            <div className="w-full flex justify-between items-center text-[7.5px] text-zinc-500 uppercase tracking-widest border-b border-zinc-900 pb-2 z-10">
               <span className="flex items-center gap-1.5 text-zinc-300">
                 {activeStream.status === 'live' ? (
                   <>
@@ -277,20 +277,21 @@ export default function LiveClient({ initialSettings, history }: LiveClientProps
                 <button
                   onClick={() => setForceOnline(!forceOnline)}
                   className={cn(
-                    "text-[7px] border px-2 py-0.5 rounded cursor-pointer font-black tracking-widest transition-all",
+                    "px-2 py-0.5 font-mono text-[7px] font-black uppercase tracking-widest rounded-none border transition-all cursor-pointer",
                     forceOnline 
-                      ? "border-primary/45 text-primary bg-primary/5 shadow-[0_0_5px_rgba(216,22,63,0.25)] animate-pulse" 
-                      : "border-zinc-800 text-zinc-500 hover:text-zinc-300 bg-zinc-900/30"
+                      ? "border-primary text-primary bg-primary/5 animate-pulse" 
+                      : "border-zinc-900 text-zinc-500 hover:text-zinc-300 bg-black"
                   )}
+                  title="Toggle Test Signal Generator Bypass"
                 >
-                  {forceOnline ? "[ BYPASS SYSTEM: ON ]" : "[ BYPASS SYSTEM: OFF ]"}
+                  {forceOnline ? "[ BYPASS: ON ]" : "[ BYPASS: OFF ]"}
                 </button>
                 <span className="font-bold text-primary">PORT_3000 // DECODER_ENGAGED</span>
               </div>
             </div>
 
-            {/* Mux Player element */}
-            <div className="relative w-full aspect-video rounded-2xl overflow-hidden border border-zinc-900 bg-zinc-950 z-10 shadow-[inset_0_0_40px_rgba(0,0,0,0.85)] flex flex-col items-center justify-center">
+            {/* Video Viewport Chassis */}
+            <div className="relative w-full aspect-video rounded-none overflow-hidden border border-zinc-900 bg-black z-10 flex flex-col items-center justify-center">
               {activeStream.status === 'live' || activeStream.status === 'archived' || forceOnline ? (
                 (() => {
                   const ytId = getYouTubeEmbedId(activeStream.playbackId);
@@ -330,9 +331,7 @@ export default function LiveClient({ initialSettings, history }: LiveClientProps
                   );
                 })()
               ) : activeStream.status === 'upcoming' ? (
-                <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/95 p-6 text-center select-none overflow-hidden">
-                  <div className="absolute inset-0 bg-[linear-gradient(rgba(18,18,18,0)_95%,rgba(216,22,63,0.1)_95%)] bg-[size:100%_6px] pointer-events-none z-20 opacity-30 animate-pulse" />
-                  
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-black p-6 text-center select-none overflow-hidden">
                   <div className="flex flex-col gap-4 relative z-10 items-center">
                     <span className="text-primary font-black text-xs md:text-sm tracking-[0.3em] uppercase animate-pulse">
                       [ UPCOMING_TRANSMISSION ]
@@ -341,7 +340,7 @@ export default function LiveClient({ initialSettings, history }: LiveClientProps
                       {activeStream.title}
                     </span>
                     {preCountdownSecs !== null ? (
-                      <div className="flex flex-col gap-1.5 mt-2 bg-zinc-900/50 border border-zinc-800 rounded px-6 py-2 font-mono items-center">
+                      <div className="flex flex-col gap-1.5 mt-2 bg-zinc-950 border border-zinc-900 rounded-none px-6 py-2 font-mono items-center">
                         <span className="text-[10px] text-zinc-500 tracking-widest uppercase">TRANSMISSION EN ROUTE:</span>
                         <span className="text-lg text-primary font-black tracking-widest animate-pulse">
                           {formatCountdown(preCountdownSecs)}
@@ -349,7 +348,7 @@ export default function LiveClient({ initialSettings, history }: LiveClientProps
                       </div>
                     ) : (
                       activeStream.scheduledTime && (
-                        <div className="flex flex-col gap-1.5 mt-2 bg-zinc-900/50 border border-zinc-800 rounded px-4 py-2 font-mono">
+                        <div className="flex flex-col gap-1.5 mt-2 bg-zinc-950 border border-zinc-900 rounded-none px-4 py-2 font-mono">
                           <span className="text-[10px] text-zinc-500 tracking-widest uppercase">Scheduled Start Time:</span>
                           <span className="text-xs text-primary font-bold">
                             {new Date(activeStream.scheduledTime).toLocaleString('en-GB', {
@@ -374,9 +373,7 @@ export default function LiveClient({ initialSettings, history }: LiveClientProps
                   </div>
                 </div>
               ) : activeStream.status === 'ended' && postCountdownSecs !== null ? (
-                <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/95 p-6 text-center select-none overflow-hidden">
-                  <div className="absolute inset-0 bg-[linear-gradient(rgba(18,18,18,0)_95%,rgba(216,22,63,0.1)_95%)] bg-[size:100%_6px] pointer-events-none z-20 opacity-30 animate-pulse" />
-                  
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-black p-6 text-center select-none overflow-hidden">
                   <div className="flex flex-col gap-4 relative z-10 items-center">
                     <span className="text-primary font-black text-xs md:text-sm tracking-[0.3em] uppercase animate-pulse">
                       [ TRANSMISSION_CONCLUDED ]
@@ -384,7 +381,7 @@ export default function LiveClient({ initialSettings, history }: LiveClientProps
                     <span className="text-[11px] md:text-[13px] font-sans font-bold text-zinc-300 tracking-wider max-w-sm uppercase leading-relaxed">
                       THE LIVE BROADCAST HAS ENDED. THANK YOU FOR TUNING IN.
                     </span>
-                    <div className="flex flex-col gap-1.5 mt-2 bg-zinc-900/50 border border-zinc-800 rounded px-6 py-2 font-mono items-center">
+                    <div className="flex flex-col gap-1.5 mt-2 bg-zinc-950 border border-zinc-900 rounded-none px-6 py-2 font-mono items-center">
                       <span className="text-[10px] text-zinc-500 tracking-widest uppercase">System Standby In:</span>
                       <span className="text-sm text-primary font-black tracking-widest">
                         {formatCountdown(postCountdownSecs)}
@@ -400,9 +397,7 @@ export default function LiveClient({ initialSettings, history }: LiveClientProps
                   </div>
                 </div>
               ) : (
-                <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/95 p-6 text-center select-none overflow-hidden">
-                  {/* Subtle Grid Scanning overlay */}
-                  <div className="absolute inset-0 bg-[linear-gradient(rgba(18,18,18,0)_95%,rgba(216,22,63,0.1)_95%)] bg-[size:100%_6px] pointer-events-none z-20 opacity-30 animate-pulse" />
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-black p-6 text-center select-none overflow-hidden">
                   
                   {/* Test Pattern Color Bars */}
                   <div className="flex h-3.5 w-44 rounded-sm overflow-hidden mb-6 border border-zinc-900 opacity-60">
@@ -415,27 +410,25 @@ export default function LiveClient({ initialSettings, history }: LiveClientProps
                     <div className="w-[14.28%] h-full bg-blue-600" />
                   </div>
 
-                  <div className="flex flex-col gap-2.5 relative z-10">
-                    <span className="text-primary font-black text-xs md:text-sm tracking-[0.3em] uppercase animate-pulse">
-                      [ BROADCAST_STANDBY ]
+                  <div className="flex flex-col items-center gap-3 p-6 text-center relative z-10">
+                    <div className="w-3 h-3 rounded-full bg-primary animate-ping mb-2" />
+                    <span className="text-xs font-black tracking-[0.2em] text-primary uppercase">
+                      OFFLINE SIGNAL DETECTED
                     </span>
-                    <span className="text-[9px] text-zinc-500 tracking-[0.15em] uppercase font-bold max-w-sm leading-normal">
-                      No feed detected. Awaiting transmission connection from OBS encoder.
-                    </span>
-                  </div>
-
-                  {/* Diagnostic details */}
-                  <div className="absolute bottom-4 left-4 right-4 flex justify-between text-[7px] text-zinc-600 uppercase font-black tracking-widest border-t border-zinc-900/60 pt-2.5">
-                    <span>SYS_MODE: OFFLINE</span>
-                    <span>SIGNAL: LOSS_OF_CARRIER</span>
-                    <span>TARGET: {activeStream.title}</span>
+                    <p className="text-[9px] text-zinc-500 max-w-xs leading-relaxed">
+                      Live encoder feed currently unassigned. Toggle system bypass or select a past transmission below.
+                    </p>
+                    <div className="mt-4 p-3 bg-zinc-950 border border-zinc-900 rounded-none text-[8px] text-zinc-400 font-mono flex flex-col gap-1">
+                      <span>SIGNAL: LOSS_OF_CARRIER</span>
+                      <span>TARGET: {activeStream.title}</span>
+                    </div>
                   </div>
                 </div>
               )}
             </div>
 
             {/* Bottom Info deck */}
-            <div className="bg-black/50 border border-zinc-900/60 p-3.5 rounded-xl z-10 text-left">
+            <div className="bg-black border border-zinc-900 p-3.5 rounded-none z-10 text-left">
               <span className="text-[7px] text-zinc-500 uppercase tracking-widest font-bold">STREAM DIAGNOSTICS</span>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-2 text-[8px] text-zinc-400 font-bold uppercase tracking-wider">
                 <div className="flex flex-col gap-0.5">
@@ -455,7 +448,7 @@ export default function LiveClient({ initialSettings, history }: LiveClientProps
           </div>
 
           {/* Terminal Live Chat Container (1/3 width) */}
-          <div className="bg-zinc-950 border border-zinc-900 rounded-3xl p-4 md:p-6 shadow-2xl flex flex-col justify-between h-[450px] lg:h-auto select-none">
+          <div className="bg-black border border-zinc-900 rounded-none p-4 md:p-6 flex flex-col justify-between h-[450px] lg:h-auto select-none">
             {/* Terminal Top info */}
             <div className="w-full border-b border-zinc-900 pb-2 flex justify-between items-center text-[7.5px] text-zinc-500 uppercase tracking-widest font-bold">
               <span>CHAT FEED TERMINAL</span>
@@ -508,7 +501,7 @@ export default function LiveClient({ initialSettings, history }: LiveClientProps
                 PAST TRANSMISSION ARCHIVES
               </span>
               <div className="h-[1px] flex-grow bg-zinc-900" />
-              <span className="text-[7.5px] text-primary font-black uppercase tracking-widest border border-primary/20 px-2 py-0.5 rounded bg-primary/5">
+              <span className="text-[7.5px] text-primary font-black uppercase tracking-widest border border-primary/20 px-2 py-0.5 rounded-none bg-primary/5">
                 {history.length} VODS AVAILABLE
               </span>
             </div>
@@ -533,15 +526,15 @@ export default function LiveClient({ initialSettings, history }: LiveClientProps
                       });
                     }}
                     className={cn(
-                      "group bg-zinc-950/80 border rounded-2xl p-4 flex flex-col justify-between gap-4 cursor-pointer transition-all duration-300 relative overflow-hidden",
+                      "group bg-black border rounded-none p-4 flex flex-col justify-between gap-4 cursor-pointer transition-all duration-300 relative overflow-hidden",
                       isSelected
-                        ? "border-primary shadow-[0_0_15px_rgba(216,22,63,0.15)] scale-[1.01]"
-                        : "border-zinc-900 hover:border-zinc-800 hover:bg-zinc-900/40"
+                        ? "border-primary scale-[1.01]"
+                        : "border-zinc-900 hover:border-zinc-800"
                     )}
                   >
                     {/* Color bars placeholder thumb */}
-                    <div className="relative w-full aspect-video rounded-xl bg-zinc-950 border border-zinc-900 overflow-hidden flex flex-col items-center justify-center">
-                      <div className="flex h-1.5 w-24 rounded-sm overflow-hidden mb-2 border border-zinc-900/60 opacity-40">
+                    <div className="relative w-full aspect-video rounded-none bg-black border border-zinc-900 overflow-hidden flex flex-col items-center justify-center">
+                      <div className="flex h-1.5 w-24 rounded-none overflow-hidden mb-2 border border-zinc-900/60 opacity-40">
                         <div className="w-[14.28%] h-full bg-zinc-100" />
                         <div className="w-[14.28%] h-full bg-yellow-400" />
                         <div className="w-[14.28%] h-full bg-cyan-400" />
@@ -553,7 +546,7 @@ export default function LiveClient({ initialSettings, history }: LiveClientProps
                       <span className="text-[6.5px] text-zinc-600 font-bold uppercase tracking-wider">PREVIEW_NOT_LOADED</span>
                       {isSelected && (
                         <div className="absolute inset-0 bg-primary/5 flex items-center justify-center">
-                          <span className="text-primary text-[8px] font-black tracking-widest border border-primary bg-zinc-950 px-2 py-1 rounded">
+                          <span className="text-primary text-[8px] font-black tracking-widest border border-primary bg-black px-2 py-1 rounded-none">
                             NOW PLAYING
                           </span>
                         </div>

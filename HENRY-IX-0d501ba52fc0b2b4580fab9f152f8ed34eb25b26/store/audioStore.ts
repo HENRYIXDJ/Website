@@ -68,6 +68,7 @@ export interface AudioStoreState {
   isStacked: boolean;
   isCDJView: boolean;
   visualLatencyOffset: number;
+  isEcoMode: boolean;
   detectedBpms: Record<string, number>;
 
   // ---------- Actions ----------
@@ -82,6 +83,7 @@ export interface AudioStoreState {
   setIsCDJView: (val: boolean) => void;
   setVisualLatencyOffset: (val: number) => void;
   setDetectedBpm: (trackId: string, bpm: number) => void;
+  setIsEcoMode: (val: boolean) => void;
 
   // Legacy-compat: full decks setter (accepts updater fn or object)
   setDecks: (updater: Record<number, DeckState> | ((prev: Record<number, DeckState>) => Record<number, DeckState>)) => void;
@@ -270,6 +272,7 @@ export const useAudioStore = create<AudioStoreState>()(
     isStacked: false,
     isCDJView: false,
     visualLatencyOffset: 45,
+    isEcoMode: typeof navigator !== 'undefined' && !!navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4,
     detectedBpms: {},
 
     // Atomic deck patch — only touches the specified deck
@@ -297,6 +300,7 @@ export const useAudioStore = create<AudioStoreState>()(
           [trackId]: bpm
         }
       })),
+    setIsEcoMode: (val: boolean) => set({ isEcoMode: val }),
 
     // Legacy-compat: accepts an updater function or a plain object
     setDecks: updater => {

@@ -95,7 +95,7 @@ export function GigSchedule({
       </div>
 
       {/* Skewomorphic CDJ Countdown Panel */}
-      <div className="w-full bg-zinc-950 border border-zinc-900 rounded-2xl p-4 md:p-6 shadow-2xl relative overflow-hidden mb-12 flex flex-col items-center">
+      <div className="w-full bg-black border border-zinc-900 rounded-none p-4 md:p-6 relative overflow-hidden mb-12 flex flex-col items-center">
         {/* Carbon texture backdrop */}
         <div className="absolute inset-0 opacity-[0.015] pointer-events-none z-0" style={{
           backgroundImage: 'radial-gradient(#fff 1.5px, transparent 1.5px)',
@@ -116,11 +116,11 @@ export function GigSchedule({
             { label: 'MINUTES', value: timeLeft.minutes },
             { label: 'SECONDS', value: timeLeft.seconds }
           ].map(token => (
-            <div key={token.label} className="flex flex-col items-center p-2.5 bg-black border border-zinc-900 rounded-lg relative">
+            <div key={token.label} className="flex flex-col items-center p-2.5 bg-black border border-zinc-900 rounded-none relative">
               <span className="font-mono text-[8px] text-zinc-500 font-bold uppercase tracking-wider mb-1">
                 {token.label}
               </span>
-              <span className="font-black text-xl md:text-2xl lg:text-3xl text-primary font-mono tracking-widest drop-shadow-[0_0_10px_rgba(216,22,63,0.5)]">
+              <span className="font-black text-xl md:text-2xl lg:text-3xl text-primary font-mono tracking-widest">
                 {formattedTimeToken(token.value)}
               </span>
             </div>
@@ -141,12 +141,12 @@ export function GigSchedule({
               viewport={{ once: true }}
               onMouseEnter={() => playTick()}
               className={cn(
-                "group flex flex-col md:flex-row items-start md:items-center justify-between p-4 rounded-xl border bg-zinc-950/80 border-zinc-900/60 hover:bg-zinc-900/40 hover:border-zinc-800 transition-all duration-300 gap-4"
+                "group flex flex-col md:flex-row items-start md:items-center justify-between p-4 rounded-none border bg-black border-zinc-900 hover:border-zinc-800 transition-all duration-300 gap-4"
               )}
             >
               {/* Date Box */}
               <div className="flex items-center gap-4">
-                <div className="flex flex-col items-center justify-center w-12 h-12 bg-black border border-zinc-900 rounded-lg shrink-0">
+                <div className="flex flex-col items-center justify-center w-12 h-12 bg-black border border-zinc-900 rounded-none shrink-0">
                   <span className="font-black text-white text-base tracking-wide font-mono leading-none">
                     {stop.date}
                   </span>
@@ -170,10 +170,10 @@ export function GigSchedule({
               <button
                 onClick={() => handleTicketClick(stop)}
                 className={cn(
-                  "px-6 py-2 rounded-md font-mono text-[9px] font-black tracking-widest uppercase transition-all duration-200 border cursor-pointer w-full md:w-36 text-center select-none active:scale-95",
+                  "px-6 py-2 rounded-none font-mono text-[9px] font-black tracking-widest uppercase transition-all duration-200 border cursor-pointer w-full md:w-36 text-center select-none active:scale-95",
                   isSoldOut
-                    ? "bg-zinc-950/80 border-zinc-900 text-zinc-600 cursor-not-allowed"
-                    : "bg-primary border-primary/25 text-black hover:bg-red-600 hover:shadow-[0_0_12px_rgba(216,22,63,0.35)]"
+                    ? "bg-black border-zinc-900 text-zinc-600 cursor-not-allowed"
+                    : "bg-primary border-primary text-black hover:bg-white"
                 )}
               >
                 {stop.status === 'SOLD OUT' ? 'SOLD OUT' : 'GET TICKETS'}

@@ -6,10 +6,26 @@ let _isMuted = false;
 export const getMutedGlobal = () => _isMuted;
 export const setMutedGlobal = (muted: boolean) => { _isMuted = muted; };
 
+let sharedAudioCtx: AudioContext | null = null;
+const getSharedAudioCtx = (): AudioContext | null => {
+  if (typeof window === 'undefined') return null;
+  if (!sharedAudioCtx) {
+    const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext;
+    if (AudioCtxClass) {
+      sharedAudioCtx = new AudioCtxClass();
+    }
+  }
+  if (sharedAudioCtx && sharedAudioCtx.state === 'suspended') {
+    sharedAudioCtx.resume().catch(() => {});
+  }
+  return sharedAudioCtx;
+};
+
 export const playClick = (freq = 800, type = 'sine', duration = 0.03) => {
   if (typeof window === 'undefined' || _isMuted) return;
   try {
-    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const ctx = getSharedAudioCtx();
+    if (!ctx) return;
     
     // Matrix Cyber Synth Voice: Detuned dual oscillator with pitch drop and resonant filter sweep
     const osc1 = ctx.createOscillator();
@@ -61,7 +77,8 @@ export const playClick = (freq = 800, type = 'sine', duration = 0.03) => {
 export const playTick = () => {
   if (typeof window === 'undefined' || _isMuted) return;
   try {
-    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const ctx = getSharedAudioCtx();
+    if (!ctx) return;
     
     const osc = ctx.createOscillator();
     const mod = ctx.createOscillator();
@@ -101,7 +118,8 @@ export const playTick = () => {
 export const playDegauss = () => {
   if (typeof window === 'undefined' || _isMuted) return;
   try {
-    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const ctx = getSharedAudioCtx();
+    if (!ctx) return;
     const duration = 0.95;
     
     // Sub-bass heavy drop
@@ -167,7 +185,8 @@ export const playDegauss = () => {
 export const playLockoutBlip = () => {
   if (typeof window === 'undefined' || _isMuted) return;
   try {
-    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const ctx = getSharedAudioCtx();
+    if (!ctx) return;
     const duration = 0.35;
     const osc1 = ctx.createOscillator();
     const osc2 = ctx.createOscillator();
@@ -205,7 +224,8 @@ export const playLockoutBlip = () => {
 export const playNavSwoosh = () => {
   if (typeof window === 'undefined' || _isMuted) return;
   try {
-    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const ctx = getSharedAudioCtx();
+    if (!ctx) return;
     const duration = 0.55;
     
     // We create a noise buffer for a textured digital swoosh
@@ -242,7 +262,8 @@ export const playNavSwoosh = () => {
 export const playTabClick = () => {
   if (typeof window === 'undefined' || _isMuted) return;
   try {
-    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const ctx = getSharedAudioCtx();
+    if (!ctx) return;
     const duration = 0.08;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();

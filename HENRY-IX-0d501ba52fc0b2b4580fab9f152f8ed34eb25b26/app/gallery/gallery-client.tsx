@@ -300,7 +300,7 @@ export default function GalleryClient() {
   return (
     <main className="fixed inset-0 pt-12 md:pt-24 pb-2 px-2 md:px-3 w-full h-full flex flex-col bg-transparent selection:bg-primary/30 selection:text-primary font-mono select-none overflow-hidden">
       {/* Fullscreen 12-Screen CCTV Matrix (4 Columns x 3 Rows on Desktop) */}
-      <div className="flex-1 w-full h-full p-1 md:p-1.5 bg-black/90 rounded-xl border border-zinc-900 shadow-2xl grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 grid-rows-6 sm:grid-rows-4 lg:grid-rows-3 gap-1 md:gap-1.5 overflow-hidden">
+      <div className="flex-1 w-full h-full p-1 md:p-1.5 bg-black rounded-none border border-zinc-900 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 grid-rows-6 sm:grid-rows-4 lg:grid-rows-3 gap-1 md:gap-1.5 overflow-hidden">
         {albums.map((album, screenIndex) => {
           const activeMediaIndex = currentMediaIndices[screenIndex] % (album.items.length || 1);
           const mediaItem = album.items[activeMediaIndex] || album.items[0];
@@ -313,7 +313,7 @@ export default function GalleryClient() {
               transition={{ duration: 0.3, delay: screenIndex * 0.02 }}
               onClick={() => openCarousel(screenIndex)}
               onMouseEnter={() => playTick()}
-              className="group relative w-full h-full bg-zinc-950 border border-zinc-900/90 rounded-md md:rounded-lg overflow-hidden cursor-pointer select-none transition-all duration-300 hover:border-primary/60 hover:shadow-[0_0_15px_rgba(216,22,63,0.3)]"
+              className="group relative w-full h-full bg-zinc-950 border border-zinc-900 rounded-none overflow-hidden cursor-pointer select-none transition-all duration-300 hover:border-primary/60"
             >
               {/* Media Display */}
               {mediaItem && (
@@ -332,33 +332,24 @@ export default function GalleryClient() {
               {/* CCTV #D30F31 Color Tint Overlay (Removes on hover) */}
               <div className="absolute inset-0 bg-[#D30F31] mix-blend-multiply opacity-85 pointer-events-none z-10 transition-opacity duration-400 group-hover:opacity-0" />
 
-              {/* Scanlines Overlay (Removes on hover) */}
-              <div 
-                className="absolute inset-0 pointer-events-none z-20 opacity-70 transition-opacity duration-400 group-hover:opacity-0"
-                style={{
-                  background: `linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.4) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03))`,
-                  backgroundSize: '100% 4px, 6px 100%'
-                }}
-              />
-
               {/* Screen Meta HUD Overlay Header */}
               <div className="absolute top-1.5 left-1.5 right-1.5 flex justify-between items-center z-30 pointer-events-none text-[7.5px] md:text-[8.5px] tracking-wider uppercase font-mono">
-                <span className="bg-black/80 border border-primary/40 text-primary font-bold px-1 py-0.5 rounded-sm shadow-md">
+                <span className="bg-black border border-primary/40 text-primary font-bold px-1 py-0.5 rounded-none">
                   {album.camTag}
                 </span>
-                <span className="bg-black/80 text-zinc-100 font-bold px-1 py-0.5 rounded-sm truncate max-w-[100px] sm:max-w-[150px] shadow-md border border-zinc-900">
+                <span className="bg-black text-zinc-100 font-bold px-1 py-0.5 rounded-none truncate max-w-[100px] sm:max-w-[150px] border border-zinc-900">
                   {album.title}
                 </span>
               </div>
 
               {/* REC Indicator Footer */}
-              <div className="absolute bottom-1.5 right-1.5 z-30 pointer-events-none flex items-center gap-1 bg-black/80 px-1 py-0.5 rounded border border-zinc-900/80">
+              <div className="absolute bottom-1.5 right-1.5 z-30 pointer-events-none flex items-center gap-1 bg-black px-1 py-0.5 rounded-none border border-zinc-900">
                 <div className="w-1.5 h-1.5 rounded-full bg-[#D30F31] animate-pulse" />
                 <span className="text-[#D30F31] text-[7.5px] font-black tracking-widest">REC</span>
               </div>
 
               {/* Count Indicator Footer */}
-              <div className="absolute bottom-1.5 left-1.5 z-30 pointer-events-none bg-black/80 px-1 py-0.5 rounded text-[7.5px] text-zinc-400 font-bold border border-zinc-900/80">
+              <div className="absolute bottom-1.5 left-1.5 z-30 pointer-events-none bg-black px-1 py-0.5 rounded-none text-[7.5px] text-zinc-400 font-bold border border-zinc-900">
                 FILES // {album.items.length}
               </div>
             </motion.div>
@@ -374,19 +365,19 @@ export default function GalleryClient() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.25 }}
-            className="fixed inset-0 z-[100] flex flex-col justify-center items-center bg-black/95 backdrop-blur-xl p-4 md:p-8 select-none font-mono"
+            className="fixed inset-0 z-[100] flex flex-col justify-center items-center bg-black/95 p-4 md:p-8 select-none font-mono"
             onClick={closeCarousel}
           >
             {/* Top Navigation Bar */}
             <div className="absolute top-4 left-4 right-4 md:top-8 md:left-8 md:right-8 z-50 flex justify-between items-center">
-              <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 px-3 py-1.5 rounded-lg text-xs font-bold text-primary tracking-widest">
+              <div className="flex items-center gap-2 bg-black border border-zinc-900 px-3 py-1.5 rounded-none text-xs font-bold text-primary tracking-widest">
                 <span className="w-2 h-2 rounded-full bg-[#D30F31] animate-pulse" />
                 <span>{selectedAlbum.camTag} // {selectedAlbum.title}</span>
               </div>
 
               <button
                 onClick={closeCarousel}
-                className="w-10 h-10 rounded-full bg-zinc-950 border border-zinc-800 hover:border-primary/50 text-zinc-400 hover:text-white flex items-center justify-center cursor-pointer transition-colors active:scale-90"
+                className="w-10 h-10 rounded-none bg-black border border-zinc-900 hover:border-primary/50 text-zinc-400 hover:text-white flex items-center justify-center cursor-pointer transition-colors active:scale-90"
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -402,7 +393,7 @@ export default function GalleryClient() {
               {/* Carousel Prev Nav Button */}
               <button
                 onClick={handlePrevMedia}
-                className="absolute left-2 md:left-4 z-50 p-3 md:p-4 rounded-xl bg-zinc-950/80 border border-primary/40 hover:bg-primary hover:text-black text-white cursor-pointer transition-all duration-200 active:scale-95 shadow-xl"
+                className="absolute left-2 md:left-4 z-50 p-3 md:p-4 rounded-none bg-black border border-primary/40 hover:bg-primary hover:text-black text-white cursor-pointer transition-all duration-200 active:scale-95"
               >
                 <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
@@ -416,7 +407,7 @@ export default function GalleryClient() {
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.96, opacity: 0 }}
                 transition={{ type: 'tween', duration: 0.2, ease: 'easeOut' }}
-                className="relative w-full h-full flex items-center justify-center rounded-xl overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.9)] bg-black/40 border border-zinc-900"
+                className="relative w-full h-full flex items-center justify-center rounded-none overflow-hidden bg-black border border-zinc-900"
               >
                 <Image
                   src={currentItem.src}
@@ -432,7 +423,7 @@ export default function GalleryClient() {
               {/* Carousel Next Nav Button */}
               <button
                 onClick={handleNextMedia}
-                className="absolute right-2 md:right-4 z-50 p-3 md:p-4 rounded-xl bg-zinc-950/80 border border-primary/40 hover:bg-primary hover:text-black text-white cursor-pointer transition-all duration-200 active:scale-95 shadow-xl"
+                className="absolute right-2 md:right-4 z-50 p-3 md:p-4 rounded-none bg-black border border-primary/40 hover:bg-primary hover:text-black text-white cursor-pointer transition-all duration-200 active:scale-95"
               >
                 <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />

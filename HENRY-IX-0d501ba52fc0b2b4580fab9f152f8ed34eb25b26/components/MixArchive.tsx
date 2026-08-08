@@ -3,10 +3,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { motion, useMotionValue, AnimatePresence } from 'framer-motion';
-import { Play, Pause, X, Cpu } from 'lucide-react';
+import { Play, Pause, X, Cpu, Search } from 'lucide-react';
 import { useAudioStore } from '@/store/audioStore';
 import { cn } from '@/lib/utils';
-import { LEDEqualizer, RotaryKnob } from '@/components/DJComponents';
+import { RotaryKnob } from '@/components/DJComponents';
 import { audioEngine } from '@/lib/AudioEngine';
 import { midiEngine } from '@/lib/midiEngine';
 import { MIDILearnModal } from './MIDILearnModal';
@@ -138,6 +138,34 @@ export default function MixArchive({
     return `deck${id}`;
   };
 
+  const setIsEcoMode = useAudioStore(s => s.setIsEcoMode);
+
+  // --- Automatic Device Frame Pacing & Performance Monitor ---
+  useEffect(() => {
+    let frameCount = 0;
+    let lastTime = performance.now();
+    let animId: number;
+
+    const monitorFps = () => {
+      frameCount++;
+      const now = performance.now();
+      if (now - lastTime >= 2000) {
+        const fps = (frameCount * 1000) / (now - lastTime);
+        if (fps < 45) {
+          setIsEcoMode(true);
+        } else if (fps > 55) {
+          setIsEcoMode(false);
+        }
+        frameCount = 0;
+        lastTime = now;
+      }
+      animId = requestAnimationFrame(monitorFps);
+    };
+
+    animId = requestAnimationFrame(monitorFps);
+    return () => cancelAnimationFrame(animId);
+  }, [setIsEcoMode]);
+
   // --- Visualizer and Keyboard Modal states ---
   const [visualizerMode] = useState<'ambient' | 'circular' | 'grid'>(() => {
     if (typeof window !== 'undefined') {
@@ -148,6 +176,7 @@ export default function MixArchive({
     }
     return 'ambient';
   });
+  const [librarySearchQuery, setLibrarySearchQuery] = useState('');
   const [isShortcutsModalOpen, setIsShortcutsModalOpen] = useState(false);
 
   // --- Virtual USB Drag and Drop states ---
@@ -634,27 +663,6 @@ export default function MixArchive({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [setCrossfader, setDecks]);
 
-  // Average the parameters of all playing decks for the central mixer display
-  const playingDecks = Object.values(decks).filter((d: any) => d.isPlaying);
-  let activeBpm = 120;
-  let activeEqHi = 50;
-  let activeEqMid = 50;
-  let activeEqLow = 50;
-  
-  if (playingDecks.length > 0) {
-    activeBpm = playingDecks.reduce((sum: number, d: any) => sum + (d.bpm * (1 + (d.pitch || 0) / 100)), 0) / playingDecks.length;
-    activeEqHi = playingDecks.reduce((sum: number, d: any) => sum + d.eqHi, 0) / playingDecks.length;
-    activeEqMid = playingDecks.reduce((sum: number, d: any) => sum + d.eqMid, 0) / playingDecks.length;
-    activeEqLow = playingDecks.reduce((sum: number, d: any) => sum + d.eqLow, 0) / playingDecks.length;
-  } else {
-    // If no deck is playing, track the active selected left deck's EQs/BPM
-    const leftDeck = decks[leftActiveDeck] || decks[1];
-    activeBpm = leftDeck.bpm * (1 + (leftDeck.pitch || 0) / 100);
-    activeEqHi = leftDeck.eqHi;
-    activeEqMid = leftDeck.eqMid;
-    activeEqLow = leftDeck.eqLow;
-  }
-
   function handleMouseMove({ currentTarget, clientX, clientY }: React.MouseEvent) {
     const { left, top } = currentTarget.getBoundingClientRect();
     mouseX.set(clientX - left);
@@ -721,9 +729,9 @@ export default function MixArchive({
             </span>
           </div>
         ) : (
-          <div className="flex flex-1 min-h-0 w-full">
+          <div className="flex flex-1 min-h-0 w-full bg-black">
             {/* Left Column: Playlist Folders Tree */}
-            <div className="w-[35%] border-r border-zinc-900 bg-black/25 flex flex-col p-1.5 min-w-0 h-full overflow-hidden select-none">
+            <div className="w-[35%] border-r border-zinc-900 bg-black flex flex-col p-1.5 min-w-0 h-full overflow-hidden select-none">
               <span className="text-[6.5px] text-zinc-600 uppercase font-black tracking-widest px-1 mb-1 shrink-0">Source</span>
               
               <div className="flex-1 overflow-y-auto custom-scrollbar flex flex-col gap-0.5 min-h-0 pr-0.5">
@@ -733,8 +741,8 @@ export default function MixArchive({
                     playClick(800, 'sine', 0.02);
                   }}
                   className={cn(
-                    "w-full text-left py-1 px-1.5 rounded transition-all text-ellipsis overflow-hidden whitespace-nowrap cursor-pointer hover:bg-zinc-900/40 text-[8px] uppercase font-bold shrink-0",
-                    activeFolder === 'all' ? "bg-zinc-900 text-white border-l-2" : "text-zinc-500 hover:text-zinc-300"
+                    "w-full text-left py-1 px-1.5 rounded-none transition-all text-ellipsis overflow-hidden whitespace-nowrap cursor-pointer text-[8px] uppercase font-bold shrink-0",
+                    activeFolder === 'all' ? "bg-black text-white border-l-2" : "text-zinc-500 hover:text-zinc-300"
                   )}
                   style={{ borderLeftColor: activeFolder === 'all' ? themeColor : 'transparent' }}
                 >
@@ -748,8 +756,8 @@ export default function MixArchive({
                       playClick(800, 'sine', 0.02);
                     }}
                     className={cn(
-                      "w-full text-left py-1 px-1.5 rounded transition-all text-ellipsis overflow-hidden whitespace-nowrap cursor-pointer hover:bg-zinc-900/40 text-[8px] uppercase font-bold shrink-0",
-                      activeFolder === group.title ? "bg-zinc-900 text-white border-l-2" : "text-zinc-500 hover:text-zinc-300"
+                      "w-full text-left py-1 px-1.5 rounded-none transition-all text-ellipsis overflow-hidden whitespace-nowrap cursor-pointer text-[8px] uppercase font-bold shrink-0",
+                      activeFolder === group.title ? "bg-black text-white border-l-2" : "text-zinc-500 hover:text-zinc-300"
                     )}
                     style={{ borderLeftColor: activeFolder === group.title ? themeColor : 'transparent' }}
                   >
@@ -759,13 +767,13 @@ export default function MixArchive({
               </div>
               
               {/* Custom upload helper in sidebar */}
-              <div className="mt-auto border-t border-zinc-900/60 pt-1.5 shrink-0">
+              <div className="mt-auto border-t border-zinc-900 pt-1.5 shrink-0">
                 <button
                   onClick={() => {
                     const fileInput = fileInputRefs.current[deckId];
                     if (fileInput) fileInput.click();
                   }}
-                  className="w-full text-center py-1 bg-zinc-900 hover:bg-zinc-800 rounded border border-zinc-800 text-[7px] tracking-widest font-black transition-colors uppercase cursor-pointer"
+                  className="w-full text-center py-1 bg-black hover:bg-zinc-950 rounded-none border border-zinc-900 text-[7px] tracking-widest font-black transition-colors uppercase cursor-pointer"
                 >
                   📁 CUSTOM LOAD
                 </button>
@@ -785,16 +793,16 @@ export default function MixArchive({
             </div>
 
             {/* Right Column: Track Table List */}
-            <div className="flex-1 flex flex-col min-w-0 bg-black/10 overflow-hidden">
+            <div className="flex-1 flex flex-col min-w-0 bg-black overflow-hidden">
               {/* Table Headers */}
-              <div className="grid grid-cols-[12%_63%_25%] border-b border-zinc-900/80 px-2 py-1 text-[7.5px] text-zinc-600 font-bold uppercase tracking-widest bg-black/30 shrink-0">
+              <div className="grid grid-cols-[12%_63%_25%] border-b border-zinc-900 px-2 py-1 text-[7.5px] text-zinc-600 font-bold uppercase tracking-widest bg-black shrink-0">
                 <span>#</span>
                 <span>Track Title</span>
                 <span className="text-right">BPM</span>
               </div>
 
               {/* Table Rows */}
-              <div className="flex-1 overflow-y-auto custom-scrollbar p-1 flex flex-col gap-0.5 min-h-0">
+              <div className="flex-1 overflow-y-auto custom-scrollbar p-1 flex flex-col gap-0.5 min-h-0 bg-black">
                 {tracks.length === 0 ? (
                   <div className="flex-grow flex items-center justify-center text-zinc-600 text-[8px] italic py-4">
                     No tracks available
@@ -811,13 +819,13 @@ export default function MixArchive({
                           playTrack(mix, deckId);
                         }}
                         className={cn(
-                          "grid grid-cols-[12%_63%_25%] items-center px-1.5 py-1.5 rounded cursor-pointer transition-colors duration-200 hover:bg-zinc-900/30 select-none group border border-transparent",
+                          "grid grid-cols-[12%_63%_25%] items-center px-1.5 py-1.5 rounded-none cursor-pointer transition-colors duration-200 select-none group border border-transparent",
                           isLoaded 
-                            ? "bg-zinc-900 text-white font-black" 
-                            : "text-zinc-400 hover:text-zinc-200"
+                            ? "bg-black text-white font-black border-zinc-800" 
+                            : "text-zinc-400 hover:text-zinc-200 hover:bg-black"
                         )}
                         style={{ 
-                          borderColor: isLoaded ? `${themeColor}20` : 'transparent',
+                          borderColor: isLoaded ? `${themeColor}60` : 'transparent',
                           color: isLoaded ? themeColor : undefined 
                         }}
                       >
@@ -855,7 +863,7 @@ export default function MixArchive({
     return (
       <div 
         className={cn(
-          "w-full flex items-stretch bg-zinc-950 border border-zinc-900/60 rounded-xl overflow-hidden shadow-lg h-full",
+          "w-full flex items-stretch bg-black border border-zinc-900 rounded-none overflow-hidden h-full",
           isMobile ? "h-[40px] min-h-[40px] shrink-0" : "min-h-[48px] max-h-[80px]"
         )}
         style={{ borderLeft: `3px solid ${themeColor}` }}
@@ -915,60 +923,7 @@ export default function MixArchive({
 
   const renderMixer = () => {
     return (
-      <div className={cn(
-        "rounded-xl p-2.5 px-3 flex flex-col justify-between bg-zinc-950/75 backdrop-blur-md border min-h-[180px] h-full flex-grow relative transition-all duration-300 shadow-2xl z-10 w-full",
-        isDepth ? "border-zinc-800/80" : "border-black/20"
-      )}>
-        <div className="absolute inset-0 opacity-[0.01] pointer-events-none z-0" style={{
-          backgroundImage: 'radial-gradient(#fff 1px, transparent 1px)',
-          backgroundSize: '12px 12px'
-        }} />
-
-        {/* Mixer plate tag with Hardware MIDI status button */}
-        <div className="w-full flex justify-between items-center border-b border-zinc-900/60 pb-1 z-10 shrink-0 select-none">
-          <div className="flex items-center gap-1.5">
-            <span className="font-mono text-[8px] text-primary tracking-[0.2em] font-bold">
-              MIXER CORE v4.1 // DJM-900NXS2
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setIsMIDIOpen(true)}
-              className={cn(
-                "px-2 py-0.5 rounded text-[7px] font-mono font-black tracking-widest uppercase transition-all border cursor-pointer flex items-center gap-1.5",
-                midiDeviceName 
-                  ? "bg-emerald-950/60 border-emerald-800/60 text-emerald-400 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.3)]"
-                  : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-zinc-200 hover:border-zinc-700"
-              )}
-            >
-              <Cpu className="w-2.5 h-2.5" />
-              {midiDeviceName ? `LINKED: ${midiDeviceName}` : 'MIDI HARDWARE LINK'}
-            </button>
-            <span className="font-mono text-[6px] text-zinc-600 tracking-[0.1em] font-bold">
-              PRO DJ LINK
-            </span>
-          </div>
-        </div>
-
-        {/* LED EQ screen */}
-        <div className="w-full my-0.5 z-10 shrink-0">
-          <LEDEqualizer 
-            isPlaying={Object.values(decks).some((d: any) => d.isPlaying)} 
-            bpm={activeBpm} 
-            eqHi={activeEqHi}
-            eqMid={activeEqMid}
-            eqLow={activeEqLow}
-            leftDeckId={leftActiveDeck}
-            rightDeckId={rightActiveDeck}
-            leftPlaying={decks[leftActiveDeck]?.isPlaying}
-            rightPlaying={decks[rightActiveDeck]?.isPlaying}
-            leftTrim={decks[leftActiveDeck]?.trim ?? 50}
-            leftVolume={decks[leftActiveDeck]?.volume ?? 100}
-            rightTrim={decks[rightActiveDeck]?.trim ?? 50}
-            rightVolume={decks[rightActiveDeck]?.volume ?? 100}
-          />
-        </div>
-
+      <div className="rounded-none p-2.5 px-3 flex flex-col justify-between bg-black border border-zinc-900 min-h-[180px] h-full flex-grow relative transition-all duration-300 z-10 w-full">
         {/* Mixer Channels Grid */}
         <div className={cn(
           "grid gap-1.5 md:gap-2.5 my-2 items-stretch justify-center z-10 flex-grow min-h-0 select-none",
@@ -990,8 +945,8 @@ export default function MixArchive({
                 key={id}
                 style={{ containerType: 'inline-size' }}
                 className={cn(
-                  "w-full flex flex-col items-center justify-between gap-2 py-2 px-1 rounded-xl transition-all border h-full min-h-0",
-                  isActive ? "bg-zinc-900/30 border-zinc-800/80" : "border-transparent opacity-60 hover:opacity-90"
+                  "w-full flex flex-col items-center justify-between gap-2 py-2 px-1 rounded-none transition-all border bg-black h-full min-h-0",
+                  isActive ? "border-zinc-800 opacity-100" : "border-zinc-900 opacity-60 hover:opacity-90"
                 )}
               >
                 <span 
@@ -1165,142 +1120,245 @@ export default function MixArchive({
   const [expandedFamily, setExpandedFamily] = useState<string | null>(null);
 
   const renderTracklist = () => {
+    const query = librarySearchQuery.trim().toLowerCase();
+
     if (expandedFamily) {
       const group = mixGroups.find(g => g.title === expandedFamily);
       if (!group) {
         setExpandedFamily(null);
         return null;
       }
+
+      const filteredTracks = group.mixes.filter((track: any) => {
+        if (!query) return true;
+        return (
+          track.title?.toLowerCase().includes(query) ||
+          track.tracklist?.toLowerCase().includes(query)
+        );
+      });
       
       return (
         <div className="w-full h-full p-4 overflow-y-auto custom-scrollbar flex flex-col gap-6">
-          <div className="flex flex-col md:flex-row items-start md:items-center gap-4 border-b border-zinc-900 pb-4">
-            <button 
-              onClick={() => { setExpandedFamily(null); playClick(900, 'sine', 0.02); }}
-              onMouseEnter={() => playTick()}
-              className="px-4 py-2 bg-zinc-950 hover:bg-zinc-900 text-zinc-400 hover:text-zinc-200 font-mono text-[10px] uppercase tracking-widest font-black rounded-md border border-zinc-800 transition-colors flex items-center gap-2 active:scale-95"
-            >
-              <span className="text-primary">&lt;</span> BACK TO ARCHIVE
-            </button>
-            <h2 className="text-2xl md:text-4xl font-sans font-bold text-primary tracking-widest uppercase glitch" data-text={group.title}>{group.title}</h2>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
-            {group.mixes.map((track: any) => {
-              const isPlaying = activeVisualizer.isPlaying && (
-                decks[leftActiveDeck]?.title === track.title || 
-                decks[rightActiveDeck]?.title === track.title
-              );
-              const playingOnDecks: number[] = [];
-              if (decks[1]?.title === track.title && decks[1]?.isPlaying) playingOnDecks.push(1);
-              if (decks[2]?.title === track.title && decks[2]?.isPlaying) playingOnDecks.push(2);
-              if (decks[3]?.title === track.title && decks[3]?.isPlaying) playingOnDecks.push(3);
-              if (decks[4]?.title === track.title && decks[4]?.isPlaying) playingOnDecks.push(4);
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-zinc-900 pb-4">
+            <div className="flex items-center gap-4">
+              <button 
+                onClick={() => { setExpandedFamily(null); playClick(900, 'sine', 0.02); }}
+                onMouseEnter={() => playTick()}
+                className="px-4 py-2 bg-black hover:bg-zinc-950 text-zinc-400 hover:text-zinc-200 font-mono text-[10px] uppercase tracking-widest font-black rounded-none border border-zinc-900 transition-colors flex items-center gap-2 active:scale-95 cursor-pointer"
+              >
+                <span className="text-primary">&lt;</span> BACK TO ARCHIVE
+              </button>
+              <h2 className="text-xl md:text-3xl font-avathe font-bold text-primary tracking-widest uppercase glitch" data-text={group.title}>{group.title}</h2>
+            </div>
 
-              return (
-                <div 
-                  key={track.id}
-                  onMouseEnter={() => playTick()}
-                  className={cn(
-                    "group flex flex-col gap-4 p-4 rounded-xl border bg-zinc-950/80 hover:bg-zinc-900/60 transition-all duration-300",
-                    playingOnDecks.length > 0 ? "border-primary/40 shadow-[0_0_20px_rgba(216,22,63,0.1)]" : "border-zinc-800"
-                  )}
+            {/* Real-time Search Input inside Expanded View */}
+            <div className="relative w-full md:w-80">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 pointer-events-none" />
+              <input 
+                type="text"
+                value={librarySearchQuery}
+                onChange={(e) => setLibrarySearchQuery(e.target.value)}
+                placeholder="SEARCH TRACKS IN SERIES..."
+                className="w-full pl-9 pr-8 py-1.5 bg-black border border-zinc-900 rounded-none text-xs font-mono text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-primary/50 transition-colors"
+              />
+              {librarySearchQuery && (
+                <button 
+                  onClick={() => setLibrarySearchQuery('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white text-xs font-mono cursor-pointer"
                 >
-                  <div className="relative w-full aspect-square rounded-lg overflow-hidden border border-zinc-800/80 shadow-2xl">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img 
-                      src={getSessionImage(track.title, track.artworkUrl)} 
-                      alt={track.title}
-                      className={cn(
-                        "w-full h-full object-cover transition-transform duration-700 group-hover:scale-105",
-                        playingOnDecks.length > 0 && "animate-[pulse_4s_ease-in-out_infinite]"
-                      )}
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent pointer-events-none" />
-                    
-                    {/* Detached Play Button */}
-                    <div 
-                      onClick={() => {
-                        if (isPlaying && playingOnDecks.length > 0) {
-                          playingOnDecks.forEach(id => togglePlayGlobal(id));
-                        } else {
-                          playTrack(track, leftActiveDeck);
-                        }
-                        playClick(1000, 'sine', 0.04);
-                      }}
-                      className={cn(
-                        "absolute bottom-4 right-4 w-14 h-14 rounded-full flex items-center justify-center cursor-pointer shadow-xl backdrop-blur-md transition-all duration-300 border-2",
-                        isPlaying 
-                          ? "bg-primary text-black border-primary/20 scale-110 shadow-[0_0_15px_rgba(216,22,63,0.5)]" 
-                          : "bg-black/40 text-white border-white/10 hover:bg-white hover:text-black hover:scale-110"
-                      )}
-                    >
-                      {isPlaying ? <Pause className="fill-current w-6 h-6" /> : <Play className="fill-current w-6 h-6 ml-1" />}
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col gap-1 px-1">
-                    <h3 className="font-bold text-lg md:text-xl text-white uppercase tracking-wide truncate">{track.title}</h3>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-zinc-500 uppercase tracking-widest font-mono">
-                        {track.isLocalFile ? "Local Wave / M4A" : "SoundCloud Stream"}
-                      </span>
-                      {playingOnDecks.length > 0 && (
-                        <span className="text-primary font-bold animate-pulse text-[10px] tracking-widest">
-                          LIVE [D{playingOnDecks.join(', ')}]
-                        </span>
-                      )}
-                    </div>
-                    {track.tracklist ? (
-                      <div className="mt-3 border-t border-zinc-900 pt-3 max-h-36 overflow-y-auto custom-scrollbar flex flex-col gap-1 z-20 relative">
-                        <span className="text-[8px] font-mono text-zinc-500 uppercase tracking-widest font-black mb-1 select-none">
-                          Tracklist (Click to Seek)
-                        </span>
-                        {parseTracklist(track.tracklist).map((item, idx) => (
-                          <div key={idx} className="text-[10px] text-zinc-400 font-mono flex gap-2 items-center leading-normal">
-                            {item.isTimestamp ? (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  const playingDeckId = playingOnDecks[0] || leftActiveDeck;
-                                  seekDeckToTime(playingDeckId, item.seconds);
-                                }}
-                                className="text-primary hover:text-red-400 cursor-pointer font-bold select-none hover:underline shrink-0"
-                              >
-                                {item.timestampText}
-                              </button>
-                            ) : null}
-                            <span className="truncate select-text">{item.text}</span>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-xs text-zinc-400 mt-2 line-clamp-2">
-                        {getTrackDescription(track.title, track.isLocalFile)}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+                  ✕
+                </button>
+              )}
+            </div>
           </div>
+
+          {filteredTracks.length === 0 ? (
+            <div className="text-center py-16 text-zinc-500 font-mono text-xs">
+              NO TRACKS FOUND MATCHING &quot;{librarySearchQuery}&quot;
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
+              {filteredTracks.map((track: any) => {
+                const isPlaying = activeVisualizer.isPlaying && (
+                  decks[leftActiveDeck]?.title === track.title || 
+                  decks[rightActiveDeck]?.title === track.title
+                );
+                const playingOnDecks: number[] = [];
+                if (decks[1]?.title === track.title && decks[1]?.isPlaying) playingOnDecks.push(1);
+                if (decks[2]?.title === track.title && decks[2]?.isPlaying) playingOnDecks.push(2);
+                if (decks[3]?.title === track.title && decks[3]?.isPlaying) playingOnDecks.push(3);
+                if (decks[4]?.title === track.title && decks[4]?.isPlaying) playingOnDecks.push(4);
+
+                return (
+                  <div 
+                    key={track.id}
+                    onMouseEnter={() => playTick()}
+                    className={cn(
+                      "group flex flex-col gap-4 p-4 rounded-none border bg-black hover:bg-zinc-950 transition-all duration-300 relative",
+                      playingOnDecks.length > 0 ? "border-primary/40 shadow-[0_0_20px_rgba(216,22,63,0.1)]" : "border-zinc-900"
+                    )}
+                  >
+                    <div className="relative w-full aspect-square rounded-none overflow-hidden border border-zinc-900 shadow-2xl">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img 
+                        src={getSessionImage(track.title, track.artworkUrl)} 
+                        alt={track.title}
+                        className={cn(
+                          "w-full h-full object-cover transition-transform duration-700 group-hover:scale-105",
+                          playingOnDecks.length > 0 && "animate-[pulse_4s_ease-in-out_infinite]"
+                        )}
+                      />
+                      
+                      {/* Detached Play Button */}
+                      <div 
+                        onClick={() => {
+                          if (isPlaying && playingOnDecks.length > 0) {
+                            playingOnDecks.forEach(id => togglePlayGlobal(id));
+                          } else {
+                            playTrack(track, leftActiveDeck);
+                          }
+                          playClick(1000, 'sine', 0.04);
+                        }}
+                        className={cn(
+                          "absolute bottom-4 right-4 w-14 h-14 rounded-none flex items-center justify-center cursor-pointer shadow-xl transition-all duration-300 border-2 z-20",
+                          isPlaying 
+                            ? "bg-primary text-black border-primary/20 scale-110 shadow-[0_0_15px_rgba(216,22,63,0.5)]" 
+                            : "bg-black/40 text-white border-white/10 hover:bg-white hover:text-black hover:scale-110"
+                        )}
+                      >
+                        {isPlaying ? <Pause className="fill-current w-6 h-6" /> : <Play className="fill-current w-6 h-6 ml-1" />}
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-1 px-1">
+                      <h3 className="font-bold text-lg md:text-xl text-white uppercase tracking-wide truncate">{track.title}</h3>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-zinc-500 uppercase tracking-widest font-mono">
+                          {track.isLocalFile ? "Local Wave / M4A" : "SoundCloud Stream"}
+                        </span>
+                        {playingOnDecks.length > 0 && (
+                          <span className="text-primary font-bold animate-pulse text-[10px] tracking-widest">
+                            LIVE [D{playingOnDecks.join(', ')}]
+                          </span>
+                        )}
+                      </div>
+
+                      {/* 1-Click Explicit Deck Load Target Buttons (D1 - D4) */}
+                      <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-zinc-900/80">
+                        <span className="text-[8px] font-mono text-zinc-500 font-bold uppercase tracking-wider select-none">LOAD TO:</span>
+                        {([1, 2, 3, 4] as const).map(targetDeckId => {
+                          const isDeckPlaying = decks[targetDeckId]?.title === track.title && decks[targetDeckId]?.isPlaying;
+                          const targetColor = 
+                            targetDeckId === 1 ? 'border-red-500/50 text-red-400 hover:bg-red-950/60' :
+                            targetDeckId === 2 ? 'border-cyan-500/50 text-cyan-400 hover:bg-cyan-950/60' :
+                            targetDeckId === 3 ? 'border-emerald-500/50 text-emerald-400 hover:bg-emerald-950/60' :
+                            'border-yellow-500/50 text-yellow-400 hover:bg-yellow-950/60';
+
+                          return (
+                            <button
+                              key={targetDeckId}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                playTrack(track, targetDeckId);
+                                playClick(900, 'sine', 0.03);
+                              }}
+                              className={cn(
+                                "px-2 py-0.5 rounded border text-[8px] font-mono font-black uppercase transition-all cursor-pointer",
+                                isDeckPlaying ? "bg-primary text-black border-primary font-black shadow-[0_0_8px_rgba(216,22,63,0.4)]" : cn("bg-zinc-950/80", targetColor)
+                              )}
+                            >
+                              D{targetDeckId}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {track.tracklist ? (
+                        <div className="mt-3 border-t border-zinc-900 pt-3 max-h-36 overflow-y-auto custom-scrollbar flex flex-col gap-1 z-20 relative">
+                          <span className="text-[8px] font-mono text-zinc-500 uppercase tracking-widest font-black mb-1 select-none">
+                            Tracklist (Click to Seek)
+                          </span>
+                          {parseTracklist(track.tracklist).map((item, idx) => (
+                            <div key={idx} className="text-[10px] text-zinc-400 font-mono flex gap-2 items-center leading-normal">
+                              {item.isTimestamp ? (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const playingDeckId = playingOnDecks[0] || leftActiveDeck;
+                                    seekDeckToTime(playingDeckId, item.seconds);
+                                  }}
+                                  className="text-primary hover:text-red-400 cursor-pointer font-bold select-none hover:underline shrink-0"
+                                >
+                                  {item.timestampText}
+                                </button>
+                              ) : null}
+                              <span className="truncate select-text">{item.text}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-xs text-zinc-400 mt-2 line-clamp-2">
+                          {getTrackDescription(track.title, track.isLocalFile)}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       );
     }
 
+    const filteredGroups = mixGroups.filter((group: any) => {
+      if (!query) return true;
+      if (group.title?.toLowerCase().includes(query)) return true;
+      return group.mixes?.some((mix: any) => mix.title?.toLowerCase().includes(query));
+    });
+
     return (
-      <div className="w-full h-full p-4 md:p-8 overflow-y-auto custom-scrollbar flex flex-col gap-12">
-        <h2 className="text-2xl md:text-4xl font-sans font-bold text-primary tracking-widest uppercase glitch" data-text="01 / MIX ARCHIVE">01 / MIX ARCHIVE</h2>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-16 md:gap-24 px-4 pb-12 pt-8">
-          {mixGroups.map((group: any) => (
-            <VinylStack 
-              key={group.title} 
-              group={group} 
-              onClick={() => { setExpandedFamily(group.title); playClick(900, 'sine', 0.02); }}
-              playTick={playTick}
+      <div className="w-full h-full p-4 md:p-8 overflow-y-auto custom-scrollbar flex flex-col gap-8">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-zinc-900 pb-4">
+          <h2 className="text-2xl md:text-4xl font-avathe font-bold text-primary tracking-widest uppercase glitch" data-text="01 / MIX ARCHIVE">01 / MIX ARCHIVE</h2>
+          
+          {/* Real-time Global Library Search Input */}
+          <div className="relative w-full md:w-80">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 pointer-events-none" />
+            <input 
+              type="text"
+              value={librarySearchQuery}
+              onChange={(e) => setLibrarySearchQuery(e.target.value)}
+              placeholder="SEARCH LIBRARY MIXES..."
+              className="w-full pl-9 pr-8 py-1.5 bg-zinc-950 border border-zinc-800 rounded-lg text-xs font-mono text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-primary/50 transition-colors"
             />
-          ))}
+            {librarySearchQuery && (
+              <button 
+                onClick={() => setLibrarySearchQuery('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white text-xs font-mono cursor-pointer"
+              >
+                ✕
+              </button>
+            )}
+          </div>
         </div>
+
+        {filteredGroups.length === 0 ? (
+          <div className="text-center py-16 text-zinc-500 font-mono text-xs">
+            NO MIX SERIES FOUND MATCHING &quot;{librarySearchQuery}&quot;
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-16 md:gap-24 px-4 pb-12 pt-8">
+            {filteredGroups.map((group: any) => (
+              <VinylStack 
+                key={group.title} 
+                group={group} 
+                onClick={() => { setExpandedFamily(group.title); playClick(900, 'sine', 0.02); }}
+                playTick={playTick}
+              />
+            ))}
+          </div>
+        )}
       </div>
     );
   };
@@ -1722,9 +1780,6 @@ export default function MixArchive({
                     backgroundImage: `url(${getSessionImage(deck1.title, deck1.artworkUrl)})`
                   }}
                 >
-                  {/* Glossy Overlay */}
-                  <div className="absolute inset-0 bg-gradient-to-tr from-white/10 via-transparent to-black/30" />
-                  
                   {/* Center Spindle Hole */}
                   <div className="w-2.5 h-2.5 rounded-full bg-zinc-950 border border-zinc-800 shadow z-10 flex items-center justify-center">
                     <div className="w-0.5 h-0.5 rounded-full bg-zinc-900" />
@@ -1779,8 +1834,7 @@ export default function MixArchive({
                 className="relative rounded-full aspect-square border border-zinc-800 bg-zinc-950 flex items-center justify-center shadow-[0_0_12px_rgba(0,0,0,0.8)] transition-all select-none cursor-pointer"
                 style={{
                   height: '118px',
-                  width: '118px',
-                  backgroundImage: 'radial-gradient(circle, #27272a 35%, #18181b 36%, #18181b 50%, #09090b 51%, #09090b 70%, #27272a 71%)'
+                  width: '118px'
                 }}
                 onClick={() => {
                   playClick(800, 'sine', 0.02);
@@ -1810,9 +1864,6 @@ export default function MixArchive({
                     backgroundImage: `url(${getSessionImage(deck2.title, deck2.artworkUrl)})`
                   }}
                 >
-                  {/* Glossy Overlay */}
-                  <div className="absolute inset-0 bg-gradient-to-tr from-white/10 via-transparent to-black/30" />
-                  
                   {/* Center Spindle Hole */}
                   <div className="w-2.5 h-2.5 rounded-full bg-zinc-950 border border-zinc-800 shadow z-10 flex items-center justify-center">
                     <div className="w-0.5 h-0.5 rounded-full bg-zinc-900" />
@@ -2044,9 +2095,8 @@ export default function MixArchive({
         ref={archiveRef} 
         onMouseMove={handleMouseMove}
         className={cn(
-          "relative w-full rounded-xl border border-dashed flex flex-col gap-2 p-2 md:p-2.5 h-full",
-          activeView === 'cdj' ? "overflow-hidden" : "overflow-y-auto overflow-x-hidden",
-          isDepth ? "border-zinc-800/80 bg-zinc-950/25 backdrop-blur-sm shadow-2xl" : "border-black/20 bg-black/10 backdrop-blur-sm"
+          "relative w-full rounded-none border flex flex-col gap-2 p-2 md:p-2.5 h-full bg-black border-zinc-900",
+          activeView === 'cdj' ? "overflow-hidden" : "overflow-y-auto overflow-x-hidden"
         )}
       >
 
@@ -2072,7 +2122,7 @@ export default function MixArchive({
         {isMobile && activeView === 'tracklist' && (
           <button 
             onClick={() => setIsMobileMenuOpen(true)}
-            className="absolute top-4 left-4 z-40 p-2 bg-zinc-950/80 border border-zinc-900 rounded-md text-zinc-400 hover:text-white backdrop-blur shadow-xl"
+            className="absolute top-4 left-4 z-40 p-2 bg-zinc-950/80 border border-zinc-900 rounded-none text-zinc-400 hover:text-white shadow-xl"
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
           </button>
@@ -2087,14 +2137,14 @@ export default function MixArchive({
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 onClick={() => setIsMobileMenuOpen(false)}
-                className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
+                className="fixed inset-0 z-40 bg-black/80"
               />
               <motion.div 
                 initial={{ x: '-100%' }}
                 animate={{ x: 0 }}
                 exit={{ x: '-100%' }}
                 transition={{ type: "spring", bounce: 0, duration: 0.4 }}
-                className="fixed top-0 left-0 bottom-0 w-64 bg-zinc-950 border-r border-zinc-900 z-50 p-4 flex flex-col gap-6 shadow-2xl"
+                className="fixed top-0 left-0 bottom-0 w-64 bg-black border-r border-zinc-900 z-50 p-4 flex flex-col gap-6 shadow-2xl"
               >
                 <div className="flex justify-between items-center pb-4 border-b border-zinc-900">
                   <span className="text-primary font-black uppercase tracking-[0.2em] text-[10px]">
@@ -2117,11 +2167,11 @@ export default function MixArchive({
                         setIsMobileMenuOpen(false);
                       }}
                       className={cn(
-                        "p-3 rounded-md font-mono text-xs tracking-widest font-black uppercase transition-colors text-left relative overflow-hidden",
-                        activeView === view ? "bg-primary text-black" : "bg-zinc-900 text-zinc-400 hover:text-zinc-200"
+                        "p-3 rounded-none font-mono text-xs tracking-widest font-black uppercase transition-colors text-left relative overflow-hidden",
+                        activeView === view ? "bg-primary text-black" : "bg-zinc-950 text-zinc-400 hover:text-zinc-200 border border-zinc-900"
                       )}
                     >
-                      <span className="relative z-10">{view === 'cdj' ? 'DECK VIEW' : 'TRACKLIST VIEW'}</span>
+                      <span className="relative z-10">{view === 'cdj' ? 'CDJ Mode' : 'Library Mode'}</span>
                     </button>
                   ))}
                 </div>
@@ -2130,16 +2180,11 @@ export default function MixArchive({
           )}
         </AnimatePresence>
 
-        {/* Persistent Retro-Futuristic Header with Toggle Button (Hidden on Mobile) */}
+        {/* Persistent Retro-Futuristic Header with View Switcher & Controls */}
         {!isMobile && (
-          <div className="w-full relative flex justify-center items-center z-30 font-mono select-none px-3 py-2 shrink-0 border-b border-zinc-900 bg-black/60 backdrop-blur rounded-lg mb-1">
-            <div className="absolute left-3 flex items-center gap-3">
-              <span className="w-2 h-2 rounded-full bg-primary animate-pulse shadow-[0_0_8px_#D8163F]" />
-              <span className="text-primary font-black uppercase tracking-[0.3em] text-[10px] md:text-xs">
-                HENRY IX // CDJ PORTFOLIO
-              </span>
-            </div>
-            <div className="relative flex p-1 bg-zinc-950/80 border border-zinc-900/80 rounded-lg backdrop-blur-md">
+          <div className="w-full relative flex justify-between items-center z-30 font-mono select-none px-3 py-2 shrink-0 border-b border-zinc-900 bg-black rounded-none mb-1">
+            {/* Left: CDJ Mode vs Library Mode Switcher */}
+            <div className="relative flex p-1 bg-zinc-950 border border-zinc-900 rounded-none">
               {(['cdj', 'tracklist'] as const).map((view) => (
                 <button
                   key={view}
@@ -2150,44 +2195,46 @@ export default function MixArchive({
                     }
                   }}
                   className={cn(
-                    "relative px-4 py-1.5 rounded-md font-mono text-[9px] md:text-[10px] tracking-widest font-black uppercase transition-colors cursor-pointer flex items-center justify-center gap-2 w-32 md:w-36",
+                    "relative px-4 py-1.5 rounded-none font-mono text-[9px] md:text-[10px] tracking-widest font-black uppercase transition-colors cursor-pointer flex items-center justify-center gap-2 w-32 md:w-36",
                     activeView === view ? "text-black" : "text-zinc-400 hover:text-zinc-200"
                   )}
                 >
                   {activeView === view && (
                     <motion.div
                       layoutId="view-toggle-highlight"
-                      className="absolute inset-0 bg-primary rounded-md shadow-[0_0_10px_rgba(216,22,63,0.4)]"
+                      className="absolute inset-0 bg-primary rounded-none shadow-[0_0_10px_rgba(216,22,63,0.4)]"
                       transition={{ type: "spring", bounce: 0.2, duration: 0.5 }}
                     />
                   )}
-                  <span className="glitch relative z-10" data-text={view === 'cdj' ? 'DECK VIEW' : 'TRACKLIST VIEW'}>{view === 'cdj' ? 'DECK VIEW' : 'TRACKLIST VIEW'}</span>
+                  <span className="glitch relative z-10" data-text={view === 'cdj' ? 'CDJ Mode' : 'Library Mode'}>
+                    {view === 'cdj' ? 'CDJ Mode' : 'Library Mode'}
+                  </span>
                 </button>
               ))}
             </div>
 
-            {/* Control Panel in Header */}
-            <div className="absolute right-3 flex items-center gap-1.5 md:gap-2">
+            {/* Right: Control Panel in Header */}
+            <div className="flex items-center gap-1.5 md:gap-2">
               {/* Decks selection */}
               {activeView === 'cdj' && (
                 <>
                   <span className="text-[7px] md:text-[8px] text-zinc-500 font-bold uppercase tracking-wider select-none">
                     DECKS:
                   </span>
-                  <div className="relative flex p-0.5 bg-zinc-950/80 border border-zinc-900 rounded-md backdrop-blur-md">
+                  <div className="relative flex p-0.5 bg-zinc-950 border border-zinc-900 rounded-none">
                     {([2, 4] as const).map((count) => (
                       <button
                         key={count}
                         onClick={() => handleDeckCountChange(count)}
                         className={cn(
-                          "relative px-2 py-0.5 rounded font-mono text-[7.5px] md:text-[8px] font-black uppercase transition-colors cursor-pointer flex items-center justify-center w-6 md:w-8 h-5",
+                          "relative px-2 py-0.5 rounded-none font-mono text-[7.5px] md:text-[8px] font-black uppercase transition-colors cursor-pointer flex items-center justify-center w-6 md:w-8 h-5",
                           deckCount === count ? "text-zinc-950 font-black" : "text-zinc-500 hover:text-zinc-300"
                         )}
                       >
                         {deckCount === count && (
                           <motion.div
                             layoutId="deck-count-highlight"
-                            className="absolute inset-0 bg-primary rounded shadow-[0_0_8px_rgba(216,22,63,0.3)]"
+                            className="absolute inset-0 bg-primary rounded-none shadow-[0_0_8px_rgba(216,22,63,0.3)]"
                             transition={{ type: "spring", bounce: 0.2, duration: 0.4 }}
                           />
                         )}
@@ -2198,22 +2245,34 @@ export default function MixArchive({
                 </>
               )}
 
-
-
-              {/* Keyboard Shortcuts Trigger */}
+              {/* Controller Link & Key Mapping Triggers */}
               {activeView === 'cdj' && (
                 <div className="flex items-center gap-1.5 select-none">
+                  <button
+                    onClick={() => {
+                      setIsMIDIOpen(true);
+                      playClick(900, 'sine', 0.02);
+                    }}
+                    className={cn(
+                      "px-2.5 py-1 rounded-none text-[7.5px] md:text-[8px] font-mono font-bold tracking-wider uppercase transition-all border cursor-pointer flex items-center gap-1.5 active:scale-95",
+                      midiDeviceName 
+                        ? "bg-emerald-950 border-emerald-800 text-emerald-400 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.3)]"
+                        : "bg-zinc-950 hover:bg-zinc-900 border-zinc-900 hover:border-zinc-800 text-zinc-400 hover:text-zinc-200"
+                    )}
+                  >
+                    <Cpu className="w-3 h-3" />
+                    {midiDeviceName ? `LINKED: ${midiDeviceName}` : 'Controller Link'}
+                  </button>
+
                   <button
                     onClick={() => {
                       setIsShortcutsModalOpen(true);
                       playClick(900, 'sine', 0.02);
                     }}
-                    className="px-2 py-1 bg-zinc-900/60 hover:bg-zinc-900 border border-zinc-900 hover:border-zinc-800 rounded-md text-zinc-400 hover:text-zinc-200 transition-all cursor-pointer flex items-center gap-1 active:scale-95 text-[7.5px] md:text-[8px] font-bold"
+                    className="px-2.5 py-1 bg-zinc-950 hover:bg-zinc-900 border border-zinc-900 hover:border-zinc-800 rounded-none text-zinc-400 hover:text-zinc-200 transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 text-[7.5px] md:text-[8px] font-bold tracking-wider uppercase"
                   >
-                    <span>⌨️</span> KEYBOARD
+                    <span>⌨️</span> Key Mapping
                   </button>
-
-
                 </div>
               )}
             </div>
@@ -2234,7 +2293,7 @@ export default function MixArchive({
                 min-height: 0;
               }
               
-              /* Mobile Mode (Screens < 1024px) */
+              /* Mobile / Tablet Mode (Screens < 1024px) */
               @media (max-width: 1023px) {
                 .dj-grid-container {
                   display: grid;
@@ -2248,8 +2307,8 @@ export default function MixArchive({
                 }
               }
 
-              /* Desktop Mode (Screens >= 1024px) */
-              @media (min-width: 1024px) {
+              /* Standard Desktop & Laptop Mode (1024px to 1399px) */
+              @media (min-width: 1024px) and (max-width: 1399px) {
                 .dj-grid-container {
                   gap: 8px;
                   ${isStacked ? `
@@ -2261,7 +2320,29 @@ export default function MixArchive({
                     grid-template-rows: 1fr;
                     grid-template-areas: "deck1 mixer deck2";
                   ` : `
-                    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(160px, 1.1fr) minmax(0, 1fr) minmax(0, 1fr);
+                    grid-template-columns: minmax(0, 1fr) minmax(180px, 1.2fr) minmax(0, 1fr);
+                    grid-template-rows: 1fr 1fr;
+                    grid-template-areas: 
+                      "deck3 mixer deck4"
+                      "deck1 mixer deck2";
+                  `}
+                }
+              }
+
+              /* Ultra-Wide Desktop Mode (>= 1400px) */
+              @media (min-width: 1400px) {
+                .dj-grid-container {
+                  gap: 8px;
+                  ${isStacked ? `
+                    grid-template-columns: minmax(0, 1fr) minmax(180px, 1.1fr) minmax(0, 1fr);
+                    grid-template-rows: 1fr;
+                    grid-template-areas: "deckL mixer deckR";
+                  ` : deckCount === 2 ? `
+                    grid-template-columns: minmax(0, 1.8fr) minmax(220px, 1.2fr) minmax(0, 1.8fr);
+                    grid-template-rows: 1fr;
+                    grid-template-areas: "deck1 mixer deck2";
+                  ` : `
+                    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(180px, 1.1fr) minmax(0, 1fr) minmax(0, 1fr);
                     grid-template-rows: 1fr;
                     grid-template-areas: "deck3 deck1 mixer deck2 deck4";
                   `}
@@ -2319,10 +2400,10 @@ export default function MixArchive({
                       <div className={cn(
                         "transition-all duration-300 min-h-0",
                         isMobile 
-                          ? "h-[85px] shrink-0" 
+                          ? "h-[75px] shrink-0" 
                           : deckCount === 4 && !isStacked 
-                            ? "h-[90px] xl:h-[105px] shrink-0" 
-                            : "h-[120px] xl:h-[135px] shrink-0"
+                            ? "h-[75px] xl:h-[90px] 2xl:h-[105px] shrink-0" 
+                            : "h-[85px] xl:h-[105px] 2xl:h-[125px] shrink-0"
                       )}>
                         {renderDeckBrowser(id)}
                       </div>
@@ -2331,7 +2412,7 @@ export default function MixArchive({
                       <div className="shrink-0">
                         {isStacked ? renderStackedWaveform(id) : (
                           <div 
-                            className="bg-zinc-950/75 backdrop-blur-md border border-zinc-900/60 rounded-xl p-2 md:p-2.5 flex flex-col gap-2 w-full shadow-md border-l-2 select-none" 
+                            className="bg-black border border-zinc-900 rounded-none p-2 md:p-2.5 flex flex-col gap-2 w-full shadow-md border-l-2 select-none" 
                             style={{ borderLeftColor: themeColor }}
                           >
                             {/* LCD State Log Info Header (combined) */}
@@ -2432,14 +2513,14 @@ export default function MixArchive({
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsShortcutsModalOpen(false)}
-              className="fixed inset-0 bg-black/85 backdrop-blur-sm"
+              className="fixed inset-0 bg-black/85"
             />
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               transition={{ type: "spring", duration: 0.4 }}
-              className="relative w-full max-w-3xl border border-zinc-900 bg-zinc-950/95 rounded-2xl p-6 shadow-2xl font-mono text-zinc-300 z-10 select-none"
+              className="relative w-full max-w-3xl border border-zinc-900 bg-black rounded-none p-6 shadow-2xl font-mono text-zinc-300 z-10 select-none"
             >
               <button
                 onClick={() => setIsShortcutsModalOpen(false)}
@@ -2457,10 +2538,10 @@ export default function MixArchive({
                 <div className="flex flex-col gap-4 border-r border-zinc-900/60 pr-4">
                   <span className="text-emerald-500 font-bold tracking-widest text-[8px] uppercase">Deck 3 (Far Left)</span>
                   <div className="flex flex-col gap-3">
-                    <div className="flex justify-between items-center"><span className="text-zinc-500">Play / Pause</span><kbd className="px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-emerald-400 font-bold">Q</kbd></div>
-                    <div className="flex justify-between items-center"><span className="text-zinc-500">Cue</span><kbd className="px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-emerald-400 font-bold">A</kbd></div>
-                    <div className="flex justify-between items-center"><span className="text-zinc-500">Sync</span><kbd className="px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-emerald-400 font-bold">W</kbd></div>
-                    <div className="flex justify-between items-center"><span className="text-zinc-500">Hot Cues A-D</span><kbd className="px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-emerald-400 font-bold">E - Y</kbd></div>
+                    <div className="flex justify-between items-center"><span className="text-zinc-500">Play / Pause</span><kbd className="px-1.5 py-0.5 rounded-none bg-zinc-950 border border-zinc-900 text-emerald-400 font-bold">Q</kbd></div>
+                    <div className="flex justify-between items-center"><span className="text-zinc-500">Cue</span><kbd className="px-1.5 py-0.5 rounded-none bg-zinc-950 border border-zinc-900 text-emerald-400 font-bold">A</kbd></div>
+                    <div className="flex justify-between items-center"><span className="text-zinc-500">Sync</span><kbd className="px-1.5 py-0.5 rounded-none bg-zinc-950 border border-zinc-900 text-emerald-400 font-bold">W</kbd></div>
+                    <div className="flex justify-between items-center"><span className="text-zinc-500">Hot Cues A-D</span><kbd className="px-1.5 py-0.5 rounded-none bg-zinc-950 border border-zinc-900 text-emerald-400 font-bold">E - Y</kbd></div>
                   </div>
                 </div>
 
@@ -2468,10 +2549,10 @@ export default function MixArchive({
                 <div className="flex flex-col gap-4 border-r border-zinc-900/60 pr-4">
                   <span className="text-primary font-bold tracking-widest text-[8px] uppercase">Deck 1 (Mid Left)</span>
                   <div className="flex flex-col gap-3">
-                    <div className="flex justify-between items-center"><span className="text-zinc-500">Play / Pause</span><kbd className="px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-primary font-bold">Space</kbd></div>
-                    <div className="flex justify-between items-center"><span className="text-zinc-500">Cue</span><kbd className="px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-primary font-bold">C</kbd></div>
-                    <div className="flex justify-between items-center"><span className="text-zinc-500">Sync</span><kbd className="px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-primary font-bold">S</kbd></div>
-                    <div className="flex justify-between items-center"><span className="text-zinc-500">Hot Cues A-D</span><kbd className="px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-primary font-bold">1 - 4</kbd></div>
+                    <div className="flex justify-between items-center"><span className="text-zinc-500">Play / Pause</span><kbd className="px-1.5 py-0.5 rounded-none bg-zinc-950 border border-zinc-900 text-primary font-bold">Space</kbd></div>
+                    <div className="flex justify-between items-center"><span className="text-zinc-500">Cue</span><kbd className="px-1.5 py-0.5 rounded-none bg-zinc-950 border border-zinc-900 text-primary font-bold">C</kbd></div>
+                    <div className="flex justify-between items-center"><span className="text-zinc-500">Sync</span><kbd className="px-1.5 py-0.5 rounded-none bg-zinc-950 border border-zinc-900 text-primary font-bold">S</kbd></div>
+                    <div className="flex justify-between items-center"><span className="text-zinc-500">Hot Cues A-D</span><kbd className="px-1.5 py-0.5 rounded-none bg-zinc-950 border border-zinc-900 text-primary font-bold">1 - 4</kbd></div>
                   </div>
                 </div>
 
@@ -2479,10 +2560,10 @@ export default function MixArchive({
                 <div className="flex flex-col gap-4 border-r border-zinc-900/60 pr-4">
                   <span className="text-cyan-400 font-bold tracking-widest text-[8px] uppercase">Deck 2 (Mid Right)</span>
                   <div className="flex flex-col gap-3">
-                    <div className="flex justify-between items-center"><span className="text-zinc-500">Play / Pause</span><kbd className="px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-cyan-400 font-bold">Enter</kbd></div>
-                    <div className="flex justify-between items-center"><span className="text-zinc-500">Cue</span><kbd className="px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-cyan-400 font-bold">L</kbd></div>
-                    <div className="flex justify-between items-center"><span className="text-zinc-500">Sync</span><kbd className="px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-cyan-400 font-bold">D</kbd></div>
-                    <div className="flex justify-between items-center"><span className="text-zinc-500">Hot Cues A-D</span><kbd className="px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-cyan-400 font-bold">7 - 0</kbd></div>
+                    <div className="flex justify-between items-center"><span className="text-zinc-500">Play / Pause</span><kbd className="px-1.5 py-0.5 rounded-none bg-zinc-950 border border-zinc-900 text-cyan-400 font-bold">Enter</kbd></div>
+                    <div className="flex justify-between items-center"><span className="text-zinc-500">Cue</span><kbd className="px-1.5 py-0.5 rounded-none bg-zinc-950 border border-zinc-900 text-cyan-400 font-bold">L</kbd></div>
+                    <div className="flex justify-between items-center"><span className="text-zinc-500">Sync</span><kbd className="px-1.5 py-0.5 rounded-none bg-zinc-950 border border-zinc-900 text-cyan-400 font-bold">D</kbd></div>
+                    <div className="flex justify-between items-center"><span className="text-zinc-500">Hot Cues A-D</span><kbd className="px-1.5 py-0.5 rounded-none bg-zinc-950 border border-zinc-900 text-cyan-400 font-bold">7 - 0</kbd></div>
                   </div>
                 </div>
 
@@ -2490,10 +2571,10 @@ export default function MixArchive({
                 <div className="flex flex-col gap-4 pl-2">
                   <span className="text-yellow-500 font-bold tracking-widest text-[8px] uppercase">Deck 4 (Far Right)</span>
                   <div className="flex flex-col gap-3">
-                    <div className="flex justify-between items-center"><span className="text-zinc-500">Play / Pause</span><kbd className="px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-yellow-500 font-bold">P</kbd></div>
-                    <div className="flex justify-between items-center"><span className="text-zinc-500">Cue</span><kbd className="px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-yellow-500 font-bold">K</kbd></div>
-                    <div className="flex justify-between items-center"><span className="text-zinc-500">Sync</span><kbd className="px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-yellow-500 font-bold">O</kbd></div>
-                    <div className="flex justify-between items-center"><span className="text-zinc-500">Hot Cues A-D</span><kbd className="px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-yellow-500 font-bold">U - ]</kbd></div>
+                    <div className="flex justify-between items-center"><span className="text-zinc-500">Play / Pause</span><kbd className="px-1.5 py-0.5 rounded-none bg-zinc-950 border border-zinc-900 text-yellow-500 font-bold">P</kbd></div>
+                    <div className="flex justify-between items-center"><span className="text-zinc-500">Cue</span><kbd className="px-1.5 py-0.5 rounded-none bg-zinc-950 border border-zinc-900 text-yellow-500 font-bold">K</kbd></div>
+                    <div className="flex justify-between items-center"><span className="text-zinc-500">Sync</span><kbd className="px-1.5 py-0.5 rounded-none bg-zinc-950 border border-zinc-900 text-yellow-500 font-bold">O</kbd></div>
+                    <div className="flex justify-between items-center"><span className="text-zinc-500">Hot Cues A-D</span><kbd className="px-1.5 py-0.5 rounded-none bg-zinc-950 border border-zinc-900 text-yellow-500 font-bold">U - ]</kbd></div>
                   </div>
                 </div>
               </div>
@@ -2513,7 +2594,7 @@ export default function MixArchive({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[200] bg-black/85 backdrop-blur-xl flex flex-col items-center justify-center font-mono p-6"
+            className="fixed inset-0 z-[200] bg-black/85 flex flex-col items-center justify-center font-mono p-6"
             onDragOver={(e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -2536,7 +2617,7 @@ export default function MixArchive({
             }}
           >
             {/* USB Enclosure Card */}
-            <div className="w-full max-w-xl bg-zinc-950 border-2 border-dashed border-zinc-900 rounded-3xl p-8 shadow-2xl flex flex-col items-center gap-6 relative overflow-hidden">
+            <div className="w-full max-w-xl bg-black border-2 border-dashed border-zinc-900 rounded-none p-8 flex flex-col items-center gap-6 relative overflow-hidden">
               
               {/* Spinning Pioneer Record visual indicator */}
               <div className="w-20 h-20 rounded-full border-2 border-zinc-800 flex items-center justify-center relative animate-[spin_6s_linear_infinite]">
@@ -2585,10 +2666,10 @@ export default function MixArchive({
                       }
                     }}
                     className={cn(
-                      "border-2 border-dashed rounded-2xl p-6 flex flex-col items-center justify-center gap-2.5 transition-all duration-200 cursor-pointer h-36 text-center select-none",
+                      "border-2 border-dashed rounded-none p-6 flex flex-col items-center justify-center gap-2.5 transition-all duration-200 cursor-pointer h-36 text-center select-none",
                       dragTargetDeck === target.id
-                        ? "bg-primary/10 border-primary text-primary shadow-[0_0_15px_rgba(216,22,63,0.25)] scale-[1.02]"
-                        : "bg-black/40 border-zinc-900 text-zinc-400 hover:border-zinc-800 hover:text-zinc-300"
+                        ? "bg-primary/10 border-primary text-primary scale-[1.02]"
+                        : "bg-black border-zinc-900 text-zinc-400 hover:border-zinc-800 hover:text-zinc-300"
                     )}
                   >
                     <span className="text-[9px] font-black tracking-widest uppercase">
@@ -2620,13 +2701,13 @@ export default function MixArchive({
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setActiveTracklistDeckId(null)}
-              className="fixed inset-0 bg-black/85 backdrop-blur-sm"
+              className="fixed inset-0 bg-black/85"
             />
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 15 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 15 }}
-              className="relative w-full max-w-sm border border-zinc-900 bg-zinc-950/95 rounded-xl p-4 shadow-2xl font-mono text-zinc-300 z-10 select-none max-h-[75vh] flex flex-col"
+              className="relative w-full max-w-sm border border-zinc-900 bg-black rounded-none p-4 font-mono text-zinc-300 z-10 select-none max-h-[75vh] flex flex-col"
             >
               {/* Close Button */}
               <button

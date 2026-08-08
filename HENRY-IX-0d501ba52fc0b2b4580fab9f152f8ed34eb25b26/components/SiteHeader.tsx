@@ -99,7 +99,7 @@ export default function SiteHeader() {
             setIsOpen(!isOpen);
           }}
           onMouseEnter={() => playTick()}
-          className="xl:hidden flex items-center gap-2 px-3 py-1.5 rounded border border-zinc-800 bg-zinc-900/40 text-zinc-400 hover:text-white hover:border-zinc-700 font-mono text-[9px] tracking-widest uppercase transition-all duration-150 select-none cursor-pointer"
+          className="xl:hidden flex items-center gap-2 px-3 py-1.5 rounded-none border border-zinc-900 bg-black text-zinc-400 hover:text-white hover:border-zinc-700 font-mono text-[9px] tracking-widest uppercase transition-all duration-150 select-none cursor-pointer"
         >
           <span>MENU</span>
           <motion.span
@@ -119,7 +119,7 @@ export default function SiteHeader() {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -8, scale: 0.96 }}
               transition={{ duration: 0.15, ease: 'easeOut' }}
-              className="absolute left-0 top-[2.5rem] w-48 max-h-[75vh] overflow-y-auto custom-scrollbar bg-black/95 backdrop-blur-md border border-zinc-800/80 rounded-md z-50 shadow-[0_10px_30px_rgba(0,0,0,0.9),_0_0_20px_rgba(216,22,63,0.05)]"
+              className="absolute left-0 top-[2.5rem] w-48 max-h-[75vh] overflow-y-auto custom-scrollbar bg-black border border-zinc-900 rounded-none z-50 shadow-[0_10px_30px_rgba(0,0,0,0.9)]"
             >
               <div className="flex flex-col py-1 font-mono">
                 {/* Integrated Social Links inside the Mobile Dropdown (At Top) */}
@@ -186,7 +186,7 @@ export default function SiteHeader() {
         {!isHomePage && (
           <Link
             href="/"
-            className="glitch font-sans font-bold text-2xl md:text-3xl tracking-wider leading-none text-primary cursor-pointer select-none"
+            className="glitch font-avathe font-bold text-2xl md:text-3xl tracking-wider leading-none text-primary cursor-pointer select-none"
             data-text="HENRY IX"
           >
             HENRY IX

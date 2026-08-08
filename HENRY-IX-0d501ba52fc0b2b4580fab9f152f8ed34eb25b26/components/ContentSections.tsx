@@ -34,7 +34,7 @@ export function Schedule({ isDepth }: { isDepth: boolean }) {
         <motion.div 
           animate={{ scale: [1, 1.1, 1], opacity: [0.3, 0.6, 0.3] }}
           transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-          className="w-3 h-3 rounded-full bg-primary mb-10 shadow-[0_0_12px_rgba(216,22,63,0.6)]"
+          className="w-3 h-3 rounded-full bg-primary mb-10"
         />
 
         <motion.h3 
@@ -42,7 +42,7 @@ export function Schedule({ isDepth }: { isDepth: boolean }) {
           whileInView={{ y: 0, opacity: 1, scale: 1 }}
           viewport={{ once: true }}
           transition={{ type: "spring", stiffness: 300, damping: 25, delay: 0.15 }}
-          className="glitch font-sans font-bold tracking-wider leading-none text-center select-none text-primary w-full flex flex-col items-center"
+          className="glitch font-avathe font-bold tracking-wider leading-none text-center select-none text-primary w-full flex flex-col items-center"
           data-text="COMING SOON"
         >
           <span className="text-[clamp(2.5rem,10vh,11vw)]">COMING</span>
@@ -75,7 +75,7 @@ export function MerchVault({ isDepth }: { isDepth: boolean }) {
         initial={{ opacity: 0, y: 20 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, margin: "-50px" }}
-        className="w-full h-64 border border-dashed border-zinc-800 rounded-lg flex flex-col items-center justify-center gap-4 text-zinc-600 bg-zinc-950/30"
+        className="w-full h-64 border border-dashed border-zinc-900 rounded-none flex flex-col items-center justify-center gap-4 text-zinc-600 bg-black"
       >
         <Cloud className="w-10 h-10 opacity-50 animate-bounce" />
         <span className="font-mono text-xs tracking-widest uppercase text-primary">Vault Sealed</span>
@@ -140,7 +140,7 @@ export function MailingList({ isDepth }: { isDepth: boolean }) {
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
               transition={{ type: "spring", stiffness: 400, damping: 15 }}
-              className="w-12 h-12 rounded-full bg-primary flex items-center justify-center shadow-[0_0_15px_rgba(216,22,63,0.4)]"
+              className="w-12 h-12 rounded-full bg-primary flex items-center justify-center"
             >
               <svg className="w-6 h-6 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
@@ -168,16 +168,16 @@ export function MailingList({ isDepth }: { isDepth: boolean }) {
                   if (Math.random() < 0.3) playTick();
                 }}
                 placeholder="EMAIL ADDRESS" 
-                className="w-full bg-zinc-900/50 border border-zinc-800 rounded px-4 py-3 text-xs font-mono tracking-[0.2em] focus:outline-none focus:border-primary transition-colors text-white placeholder-zinc-600"
+                className="w-full bg-black border border-zinc-900 rounded-none px-4 py-3 text-xs font-mono tracking-[0.2em] focus:outline-none focus:border-primary transition-colors text-white placeholder-zinc-600"
               />
               
               {/* Terminal glowing validation status bar */}
               <div className="font-mono text-[9px] uppercase tracking-widest mt-1.5 flex items-center gap-1.5 select-none pl-1">
                 <span className={cn(
-                  "px-1 py-0.5 rounded text-[8px] font-bold",
-                  validation.status === 'waiting' && "bg-zinc-800/80 text-zinc-400 border border-zinc-700/30",
-                  validation.status === 'success' && "bg-emerald-950/80 text-emerald-400 border border-emerald-800/30 animate-pulse shadow-[0_0_5px_rgba(16,185,129,0.2)]",
-                  validation.status === 'warning' && "bg-amber-950/80 text-amber-400 border border-amber-800/30",
+                  "px-1 py-0.5 rounded-none text-[8px] font-bold",
+                  validation.status === 'waiting' && "bg-zinc-950 text-zinc-400 border border-zinc-900",
+                  validation.status === 'success' && "bg-emerald-950 text-emerald-400 border border-emerald-800 animate-pulse shadow-[0_0_5px_rgba(16,185,129,0.2)]",
+                  validation.status === 'warning' && "bg-amber-950 text-amber-400 border border-amber-800",
                 )}>
                   {validation.status === 'waiting' && '[WAITING]'}
                   {validation.status === 'success' && '[SUCCESS]'}
@@ -193,7 +193,7 @@ export function MailingList({ isDepth }: { isDepth: boolean }) {
               </div>
 
               {status === 'error' && (
-                <div className="text-red-400 font-mono text-[9px] uppercase tracking-widest mt-2 bg-red-950/20 border border-red-800/30 px-3 py-1.5 rounded w-full text-left">
+                <div className="text-red-400 font-mono text-[9px] uppercase tracking-widest mt-2 bg-red-950/20 border border-red-800/30 px-3 py-1.5 rounded-none w-full text-left">
                   [CRITICAL]: {errorMessage}
                 </div>
               )}
@@ -202,7 +202,7 @@ export function MailingList({ isDepth }: { isDepth: boolean }) {
             <button 
               type="submit" 
               disabled={status === 'loading'}
-              className="bg-primary text-black font-mono font-bold uppercase tracking-[0.2em] px-8 py-3 rounded hover:bg-white hover:text-black hover:shadow-[0_0_15px_rgba(216,22,63,0.3)] transition-all text-xs h-11 magnetic-snap shrink-0 cursor-pointer disabled:opacity-50"
+              className="bg-primary text-black font-mono font-bold uppercase tracking-[0.2em] px-8 py-3 rounded-none hover:bg-white hover:text-black transition-all text-xs h-11 magnetic-snap shrink-0 cursor-pointer disabled:opacity-50"
             >
               {status === 'loading' ? 'Joining...' : 'Join'}
             </button>
@@ -439,12 +439,12 @@ export function ContactForm({ isDepth }: { isDepth: boolean }) {
           </div>
 
           {status === 'success' && (
-            <div className="text-green-400 font-mono text-xs tracking-widest bg-emerald-950/20 border border-emerald-800/30 px-4 py-3 rounded animate-pulse">
+            <div className="text-green-400 font-mono text-xs tracking-widest bg-emerald-950/20 border border-emerald-800/30 px-4 py-3 rounded-none animate-pulse">
               [SUCCESS]: TRANSMISSION ESTABLISHED. MESSAGE PACKET HAS DEPARTED GATEWAY.
             </div>
           )}
           {status === 'error' && (
-            <div className="text-red-400 font-mono text-xs tracking-widest bg-red-950/20 border border-red-800/30 px-4 py-3 rounded">
+            <div className="text-red-400 font-mono text-xs tracking-widest bg-red-950/20 border border-red-800/30 px-4 py-3 rounded-none">
               [CRITICAL_FAILURE]: TRANSMISSION TERMINATED. REASON: {errorMessage}
             </div>
           )}
@@ -457,7 +457,7 @@ export function ContactForm({ isDepth }: { isDepth: boolean }) {
               whileTap={{ scale: 0.98 }}
               onClick={() => playClick(850, 'sine', 0.05)}
               className={cn(
-                "w-full sm:w-1/2 py-4 px-8 font-mono text-[10px] tracking-[0.2em] uppercase font-bold flex items-center justify-center gap-3 transition-colors border border-zinc-800 rounded magnetic-snap cursor-pointer",
+                "w-full sm:w-1/2 py-4 px-8 font-mono text-[10px] tracking-[0.2em] uppercase font-bold flex items-center justify-center gap-3 transition-colors border border-zinc-800 rounded-none magnetic-snap cursor-pointer",
                 isDepth ? "bg-transparent text-white hover:border-primary hover:text-primary" : "bg-transparent text-black border-black/20 hover:border-primary"
               )}
             >
@@ -470,7 +470,7 @@ export function ContactForm({ isDepth }: { isDepth: boolean }) {
               whileHover={{ scale: status === 'loading' ? 1 : 1.02 }}
               whileTap={{ scale: status === 'loading' ? 1 : 0.98 }}
               className={cn(
-                "w-full sm:w-1/2 py-4 px-8 font-mono text-[10px] tracking-[0.2em] uppercase font-bold flex items-center justify-center gap-3 transition-colors rounded magnetic-snap cursor-pointer",
+                "w-full sm:w-1/2 py-4 px-8 font-mono text-[10px] tracking-[0.2em] uppercase font-bold flex items-center justify-center gap-3 transition-colors rounded-none magnetic-snap cursor-pointer",
                 isDepth ? "bg-zinc-100 text-black hover:bg-primary hover:text-white disabled:opacity-50" : "bg-black text-white hover:bg-primary disabled:opacity-50"
               )}
             >
@@ -506,7 +506,7 @@ export function SocialLinks({ isDepth }: { isDepth: boolean }) {
             rel="noopener noreferrer"
             onClick={() => playClick(800, 'sine', 0.05)}
             className={cn(
-              "font-mono text-xs tracking-widest uppercase py-2 px-4 rounded border transition-colors hover:bg-zinc-900",
+              "font-mono text-xs tracking-widest uppercase py-2 px-4 rounded-none border transition-colors hover:bg-zinc-900",
               isDepth ? "border-zinc-800 text-zinc-400 hover:text-white hover:border-primary" : "border-black/20 text-zinc-600 hover:text-black hover:border-black"
             )}
           >

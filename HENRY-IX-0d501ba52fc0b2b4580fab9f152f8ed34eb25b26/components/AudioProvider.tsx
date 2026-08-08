@@ -275,7 +275,7 @@ export function FloatingPlayer() {
       {displayDecks.map(deckId => {
         const deck = decks[deckId];
         return (
-          <div key={deckId} className="flex items-center bg-zinc-950/95 backdrop-blur border border-zinc-800 p-2 rounded-full text-white shadow-lg shadow-black/50 overflow-hidden group">
+          <div key={deckId} className="flex items-center bg-black border border-zinc-900 p-2 rounded-none text-white shadow-lg shadow-black/50 overflow-hidden group">
             <div className="flex flex-col overflow-hidden whitespace-nowrap text-right w-[160px] pr-3">
               <span className="text-[9px] text-primary font-bold font-mono uppercase tracking-widest leading-tight">
                 Deck {deckId}

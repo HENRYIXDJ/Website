@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Sliders, Cpu, CheckCircle2, AlertCircle } from 'lucide-react';
+import { X, Sliders, Cpu } from 'lucide-react';
 import { midiEngine, MIDIDeviceInfo } from '@/lib/midiEngine';
 import { ALL_HARDWARE_PRESETS } from '@/lib/midiPresets';
 
@@ -14,7 +14,6 @@ interface MIDILearnModalProps {
 export function MIDILearnModal({ isOpen, onClose }: MIDILearnModalProps) {
   const [devices, setDevices] = useState<MIDIDeviceInfo[]>([]);
   const [selectedPresetId, setSelectedPresetId] = useState<string>('pioneer_xdj_rx3');
-  const [lastEvent, setLastEvent] = useState<{ channel: number; status: string; number: number; value: number } | null>(null);
   const [learningCommandId, setLearningCommandId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -26,13 +25,8 @@ export function MIDILearnModal({ isOpen, onClose }: MIDILearnModalProps) {
       setDevices(devs);
     });
 
-    const unsubRaw = midiEngine.subscribeRawEvents((raw) => {
-      setLastEvent(raw);
-    });
-
     return () => {
       unsubDevices();
-      unsubRaw();
     };
   }, [isOpen]);
 
@@ -61,15 +55,15 @@ export function MIDILearnModal({ isOpen, onClose }: MIDILearnModalProps) {
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85">
         <motion.div 
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.95 }}
-          className="bg-zinc-950 border border-zinc-800 rounded-2xl w-full max-w-3xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]"
+          className="bg-black border border-zinc-900 rounded-none w-full max-w-3xl overflow-hidden flex flex-col max-h-[85vh]"
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-5 py-3.5 border-b border-zinc-900 bg-zinc-900/40">
+          <div className="flex items-center justify-between px-5 py-3.5 border-b border-zinc-900 bg-black">
             <div className="flex items-center gap-2.5">
               <Cpu className="w-5 h-5 text-primary animate-pulse" />
               <div>
@@ -83,85 +77,65 @@ export function MIDILearnModal({ isOpen, onClose }: MIDILearnModalProps) {
             </div>
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors cursor-pointer"
+              className="p-1.5 rounded-none text-zinc-400 hover:text-zinc-100 hover:bg-black transition-colors cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
 
-          <div className="p-5 overflow-y-auto flex-1 flex flex-col gap-4 text-xs font-mono">
+          <div className="p-5 overflow-y-auto flex-1 flex flex-col gap-4 text-xs font-mono bg-black">
             {/* Devices Status Panel */}
-            <div className="bg-zinc-900/60 border border-zinc-800/80 rounded-xl p-3.5 flex flex-col gap-2">
+            <div className="bg-black border border-zinc-900 rounded-none p-3.5 flex flex-col gap-2">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold text-zinc-300 uppercase tracking-wider flex items-center gap-2">
                   <Sliders className="w-4 h-4 text-primary" /> Connected USB DJ Hardware
                 </span>
-                <span className="text-[9px] px-2 py-0.5 rounded border border-emerald-800/40 bg-emerald-950/40 text-emerald-400 font-bold uppercase">
+                <span className="text-[9px] px-2 py-0.5 rounded-none border border-emerald-800/40 bg-emerald-950/40 text-emerald-400 font-bold uppercase">
                   {devices.length > 0 ? `${devices.length} Hardware Connected` : 'Listening on WebMIDI...'}
                 </span>
               </div>
 
-              {devices.length > 0 ? (
-                <div className="flex flex-col gap-1.5 mt-1">
+              {devices.length === 0 ? (
+                <p className="text-[10px] text-zinc-500 italic">
+                  Plug in any USB MIDI controller (Pioneer CDJ/DDJ, Traktor Kontrol, Akai, Novation, or custom WebMIDI hardware) and press buttons/faders to auto-bind.
+                </p>
+              ) : (
+                <div className="flex flex-wrap gap-2 mt-1">
                   {devices.map(dev => (
-                    <div key={dev.id} className="flex items-center justify-between bg-zinc-950 border border-zinc-800/60 p-2 rounded-lg text-[10px]">
-                      <div className="flex items-center gap-2 text-zinc-200 font-bold">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                        <span>{dev.name}</span>
-                        {dev.manufacturer && <span className="text-zinc-500 font-normal">({dev.manufacturer})</span>}
-                      </div>
-                      <span className="text-emerald-400 text-[9px] font-bold uppercase">Active LINK</span>
+                    <div key={dev.id} className="bg-black border border-zinc-900 rounded-none px-3 py-1 flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                      <span className="font-bold text-zinc-200 text-[11px]">{dev.name}</span>
+                      <span className="text-[9px] text-zinc-500">({dev.manufacturer || 'MIDI Core'})</span>
                     </div>
                   ))}
                 </div>
-              ) : (
-                <div className="flex items-center gap-2 text-[10px] text-zinc-400 bg-zinc-950 p-2.5 rounded-lg border border-zinc-900">
-                  <AlertCircle className="w-4 h-4 text-yellow-500 shrink-0" />
-                  <span>No USB MIDI DJ Deck detected. Plug in your Pioneer CDJ / XDJ / DDJ via USB and ensure browser MIDI permission is enabled.</span>
-                </div>
               )}
             </div>
 
-            {/* Hardware Preset Selector */}
-            <div className="flex flex-col gap-1.5">
-              <label className="text-[10px] uppercase font-bold text-zinc-400 tracking-wider">
-                Hardware Mapping Preset
-              </label>
-              <select
-                value={selectedPresetId}
-                onChange={(e) => handleSelectPreset(e.target.value)}
-                className="bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-zinc-100 text-xs font-mono font-bold focus:outline-none focus:border-primary cursor-pointer"
-              >
-                {ALL_HARDWARE_PRESETS.map(preset => (
-                  <option key={preset.id} value={preset.id}>
-                    {preset.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Live MIDI Inspector */}
-            <div className="bg-black/60 border border-zinc-900 rounded-xl p-3 flex items-center justify-between text-[10px]">
-              <span className="text-zinc-400">Live MIDI Signal Inspector:</span>
-              {lastEvent ? (
-                <span className="text-emerald-400 font-bold tracking-widest bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-800/40">
-                  CH {lastEvent.channel + 1} | {lastEvent.status.toUpperCase()} #{lastEvent.number} | VAL {lastEvent.value}
+            {/* Presets & Mapping Controls */}
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-zinc-300 uppercase tracking-wider">
+                  Hardware Presets & Controls Mapping
                 </span>
-              ) : (
-                <span className="text-zinc-600">Awaiting hardware input...</span>
-              )}
-            </div>
-
-            {/* Mapping Table */}
-            <div className="flex flex-col gap-1.5 mt-2">
-              <div className="flex justify-between items-center text-[10px] text-zinc-400 font-bold uppercase tracking-wider">
-                <span>Active Mappings ({currentPreset.name})</span>
-                <span className="text-[9px] text-zinc-500">Click Learn & Move hardware knob/fader</span>
+                
+                <div className="flex items-center gap-2">
+                  <select
+                    value={selectedPresetId}
+                    onChange={(e) => handleSelectPreset(e.target.value)}
+                    className="bg-black border border-zinc-900 rounded-none px-3 py-2 text-zinc-100 text-xs font-mono font-bold focus:outline-none focus:border-primary cursor-pointer"
+                  >
+                    {ALL_HARDWARE_PRESETS.map(p => (
+                      <option key={p.id} value={p.id}>{p.name} ({p.mappings.length} binds)</option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
-              <div className="border border-zinc-900 rounded-xl bg-zinc-950 overflow-hidden max-h-56 overflow-y-auto">
+              {/* MIDI Monitor & Mapping List Table */}
+              <div className="border border-zinc-900 rounded-none bg-black overflow-hidden max-h-56 overflow-y-auto">
                 <table className="w-full text-left text-[10px]">
-                  <thead className="bg-zinc-900/60 border-b border-zinc-900 text-zinc-400 font-bold uppercase">
+                  <thead className="bg-black border-b border-zinc-900 text-zinc-400 font-bold uppercase">
                     <tr>
                       <th className="p-2">Control Action</th>
                       <th className="p-2">Deck</th>
@@ -172,7 +146,7 @@ export function MIDILearnModal({ isOpen, onClose }: MIDILearnModalProps) {
                   </thead>
                   <tbody className="divide-y divide-zinc-900 text-zinc-300">
                     {currentPreset.mappings.map(map => (
-                      <tr key={map.id} className="hover:bg-zinc-900/30">
+                      <tr key={map.id} className="hover:bg-black">
                         <td className="p-2 font-bold text-zinc-100">{map.type} {map.pad ? `[PAD ${map.pad}]` : ''}</td>
                         <td className="p-2 text-zinc-400">{map.deckId ? `DECK ${map.deckId}` : 'MASTER'}</td>
                         <td className="p-2 text-zinc-400">CH {map.channel + 1} ({map.status.toUpperCase()})</td>
@@ -180,10 +154,10 @@ export function MIDILearnModal({ isOpen, onClose }: MIDILearnModalProps) {
                         <td className="p-2 text-right">
                           <button
                             onClick={() => handleStartLearn(map.id)}
-                            className={`px-2 py-1 rounded text-[9px] font-bold uppercase cursor-pointer border transition-colors ${
+                            className={`px-2 py-1 rounded-none text-[9px] font-bold uppercase cursor-pointer border transition-colors ${
                               learningCommandId === map.id 
                                 ? 'bg-primary text-white border-primary animate-pulse'
-                                : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border-zinc-800'
+                                : 'bg-black hover:bg-black text-zinc-300 border-zinc-900'
                             }`}
                           >
                             {learningCommandId === map.id ? 'Listening...' : 'Learn'}
@@ -198,13 +172,13 @@ export function MIDILearnModal({ isOpen, onClose }: MIDILearnModalProps) {
           </div>
 
           {/* Footer */}
-          <div className="px-5 py-3 border-t border-zinc-900 bg-zinc-900/40 flex items-center justify-between">
+          <div className="px-5 py-3 border-t border-zinc-900 bg-black flex items-center justify-between">
             <span className="text-[9px] text-zinc-500 font-mono">
               WebMIDI 14-Bit High Resolution Pitch & 2&apos;s Complement Jogwheel Physics Active
             </span>
             <button
               onClick={onClose}
-              className="px-4 py-1.5 bg-primary hover:bg-primary/90 text-white font-mono text-xs font-bold uppercase rounded-lg shadow-lg cursor-pointer transition-colors"
+              className="px-4 py-1.5 bg-primary hover:bg-white text-black font-mono text-xs font-bold uppercase rounded-none cursor-pointer transition-colors"
             >
               Done
             </button>
