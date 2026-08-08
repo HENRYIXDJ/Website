@@ -7,6 +7,10 @@ import { playClick } from '@/lib/audioUtils';
 import { cn } from '@/lib/utils';
 import { getSessionImage } from '@/lib/mixes';
 import { Play, Pause } from 'lucide-react';
+import { HotCuePads } from './HotCuePads';
+import { JogWheelPlatter } from './JogWheelPlatter';
+import { PitchFader } from './PitchFader';
+import { HardwareScreenHud } from './HardwareScreenHud';
 
 interface CDJHardwareProps {
   deckId: 1 | 2 | 3 | 4;
@@ -453,6 +457,7 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
     
     if (audio) {
       const newTime = Math.max(0, audio.currentTime + jumpSec);
+      // eslint-disable-next-line react-hooks/immutability
       audio.currentTime = newTime;
       setDeck(deckId, { progress: newTime });
     }
@@ -510,62 +515,16 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
     >
       
       {/* 1. RGB Hot Cues Row (A-H) */}
-      <div className={cn("w-full flex items-center justify-between border-b border-zinc-800", (cdjWidth < 360 || cdjHeight < 310) ? "pb-1 gap-1" : "pb-2 gap-1.5")}>
-        <div className={cn("grid grid-cols-8 flex-grow", (cdjWidth < 360 || cdjHeight < 310) ? "gap-1" : "gap-1.5")}>
-          {(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'] as const).map(pad => {
-            const hasCue = deck?.hotCues?.[pad] !== null && deck?.hotCues?.[pad] !== undefined;
-            
-            // Flat 2D RGB coloring matching Pioneer hot cues
-            const padColors = 
-              pad === 'A' ? 'border-red-500 text-red-400 bg-black hover:bg-red-950/40' :
-              pad === 'B' ? 'border-orange-500 text-orange-400 bg-black hover:bg-orange-950/40' :
-              pad === 'C' ? 'border-yellow-500 text-yellow-400 bg-black hover:bg-yellow-950/40' :
-              pad === 'D' ? 'border-green-500 text-green-400 bg-black hover:bg-green-950/40' :
-              pad === 'E' ? 'border-cyan-500 text-cyan-400 bg-black hover:bg-cyan-950/40' :
-              pad === 'F' ? 'border-blue-500 text-blue-400 bg-black hover:bg-blue-950/40' :
-              pad === 'G' ? 'border-purple-500 text-purple-400 bg-black hover:bg-purple-950/40' :
-              'border-pink-500 text-pink-400 bg-black hover:bg-pink-950/40';
-
-            return (
-              <button
-                key={pad}
-                onPointerDown={() => handleHotCuePress(pad)}
-                className={cn(
-                  "rounded-none font-mono tracking-widest font-black uppercase border transition-all cursor-pointer flex items-center justify-center relative",
-                  (cdjWidth < 360 || cdjHeight < 310) ? "h-5 text-[7px]" : "h-7 text-[9.5px]",
-                  hasCue 
-                    ? padColors
-                    : "bg-zinc-950/60 border-zinc-800 text-zinc-600 hover:text-zinc-400 hover:border-zinc-700"
-                )}
-              >
-                {pad}
-                {hasCue && !(cdjWidth < 360 || cdjHeight < 310) && (
-                  <span className="absolute bottom-0.5 right-1 text-[5px] text-zinc-500 font-mono">
-                    {deck.hotCues[pad]!.toFixed(1)}s
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-        
-        {/* Hot Cue Delete Trigger */}
-        <button
-          onPointerDown={() => {
-            playClick(440, 'sine', 0.05);
-            setDeleteMode(!deleteMode);
-          }}
-          className={cn(
-            "rounded-none font-mono tracking-[0.2em] font-black uppercase border cursor-pointer leading-none shrink-0 transition-all",
-            (cdjWidth < 360 || cdjHeight < 310) ? "px-1.5 h-5 text-[6px]" : "px-2.5 h-7 text-[7.5px]",
-            deleteMode 
-              ? "bg-red-500 border-red-400 text-black animate-pulse" 
-              : "bg-black border-zinc-800 text-zinc-500 hover:text-zinc-300"
-          )}
-        >
-          DELETE
-        </button>
-      </div>
+      <HotCuePads
+        hotCues={deck?.hotCues || {}}
+        isCompact={cdjWidth < 360 || cdjHeight < 310}
+        deleteMode={deleteMode}
+        onToggleDeleteMode={() => {
+          playClick(440, 'sine', 0.05);
+          setDeleteMode(!deleteMode);
+        }}
+        onHotCuePress={(pad) => handleHotCuePress(pad)}
+      />
 
       {/* Symmetrical Layout Split below Hot Cues */}
       <div className={cn("w-full flex items-stretch justify-between flex-grow min-h-0", (cdjWidth < 360 || cdjHeight < 310) ? "gap-1.5" : "gap-3")}>
@@ -908,164 +867,35 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
             </div>
 
             {/* Center: Tactile Jog Wheel */}
-            <div className="flex-grow flex items-center justify-center relative select-none min-h-0 min-w-0">
-              
-              {/* FLAT 2D JOG WHEEL */}
-              <div 
-                onPointerDown={handleRimDown}
-                onPointerMove={handleRimMove}
-                onPointerUp={handleRimUp}
-                className="rounded-full border-2 border-zinc-800 bg-black flex items-center justify-center cursor-pointer relative"
-                style={{
-                  width: `${jogSize}px`,
-                  height: `${jogSize}px`,
-                  transform: (cdjWidth < 360 || cdjHeight < 310) ? 'translate(0px, 0px)' : 'translate(-8px, -12px)'
-                }}
-              >
-                {/* Grooves & Position Stripes */}
-                <div className="absolute inset-3 border border-dashed border-zinc-700/60 rounded-full pointer-events-none" />
-                <div className="absolute inset-7 border border-zinc-700/40 rounded-full pointer-events-none" />
-                <div className="absolute inset-11 border border-dashed border-zinc-700/60 rounded-full pointer-events-none" />
-
-                {/* Platter Marker Needle Ring */}
-                <div 
-                  className="absolute top-0 w-0.5 h-4 pointer-events-none z-20 transition-colors duration-300"
-                  style={{ backgroundColor: deck?.isPlaying ? themeColor : 'rgb(244, 63, 94)' }}
-                />
-
-                {/* Inner Platter (Spinning artwork in vinyl mode) */}
-                <div 
-                  onPointerDown={handlePlatterDown}
-                  onPointerMove={handlePlatterMove}
-                  onPointerUp={handlePlatterUp}
-                  className={cn(
-                    "rounded-full border border-zinc-900 overflow-hidden relative bg-contain bg-center bg-no-repeat bg-black select-none pointer-events-none z-10 flex items-center justify-center",
-                    (deck?.isPlaying && !deck?.isCueStuttering) && "animate-[spin_1.8s_linear_infinite]" // 33.3 RPM
-                  )}
-                  style={{ 
-                    width: `${innerPlatterSize}px`,
-                    height: `${innerPlatterSize}px`,
-                    backgroundImage: `url(${sessionImg})` 
-                  }}
-                >
-                  {/* Center Spindle Hole */}
-                  <div className="w-2.5 h-2.5 rounded-full bg-black border border-zinc-800 z-10 flex items-center justify-center">
-                    <div className="w-1 h-1 rounded-full bg-zinc-900" />
-                  </div>
-                </div>
-              </div>
-            </div>
+            <JogWheelPlatter
+              jogSize={jogSize}
+              innerPlatterSize={innerPlatterSize}
+              isCompact={cdjWidth < 360 || cdjHeight < 310}
+              isPlaying={!!deck?.isPlaying}
+              isCueStuttering={!!deck?.isCueStuttering}
+              themeColor={themeColor}
+              sessionImg={sessionImg}
+              onRimDown={handleRimDown}
+              onRimMove={handleRimMove}
+              onRimUp={handleRimUp}
+              onPlatterDown={handlePlatterDown}
+              onPlatterMove={handlePlatterMove}
+              onPlatterUp={handlePlatterUp}
+            />
           </div>
         </div>
 
         {/* Right Side Column: Tall Tempo Slider and Buttons */}
         <div className={cn("flex flex-col justify-between shrink-0 select-none bg-black border border-zinc-900 rounded-none h-full", (cdjWidth < 360 || cdjHeight < 310) ? "w-12 p-1 gap-1.5" : "w-20 p-2 gap-2")}>
-          
-          {/* Top Panel: Rate display */}
-          <div className={cn("flex flex-col border-b border-zinc-800/50 select-none w-full shrink-0", (cdjWidth < 360 || cdjHeight < 310) ? "pb-0.5 gap-0" : "pb-1 gap-0.5")}>
-            {(cdjWidth < 360 || cdjHeight < 310) ? (
-              <div className="text-[5.5px] font-mono text-zinc-400 font-bold text-center leading-none">
-                {deck?.pitch >= 0 ? `+${(deck?.pitch || 0).toFixed(1)}%` : `${(deck?.pitch || 0).toFixed(1)}%`}
-              </div>
-            ) : (
-              <div className="flex items-center justify-between text-[5px] font-mono text-zinc-600 font-bold uppercase tracking-wider">
-                <span>RATE</span>
-                <span className="text-zinc-400 font-mono text-[7px]">
-                  {deck?.pitch >= 0 ? `+${(deck?.pitch || 0).toFixed(2)}%` : `${(deck?.pitch || 0).toFixed(2)}%`}
-                </span>
-              </div>
-            )}
-          </div>
-
-          {/* Bottom Panel: The Tall Tempo Slider */}
-          <div className="flex-grow flex flex-col justify-center items-center min-h-0 w-full relative pt-1">
-            <div 
-              ref={faderContainerRef} 
-              className={cn("relative bg-black border border-zinc-900 rounded-none flex items-center justify-center border-b-2", (cdjWidth < 360 || cdjHeight < 310) ? "w-2.5 h-[95%]" : "w-4 h-[90%]")} 
-              style={{ borderBottomColor: themeColor }}
-            >
-              
-              {/* Pitch detent center tick LED */}
-              <div 
-                className={cn(
-                  "absolute top-1/2 -translate-y-1/2 rounded-full z-10 transition-colors duration-300",
-                  (cdjWidth < 360 || cdjHeight < 310) ? "right-0.5 w-0.5 h-0.5" : "right-0.5 w-1 h-1",
-                  deck?.pitch === 0 ? "bg-cyan-400" : "bg-zinc-800"
-                )}
-              />
-
-              {/* Slider Scale Line */}
-              <div className="w-[1px] h-[80%] bg-zinc-800 pointer-events-none" />
-
-              {/* Physical Handle position based on percentage mapping */}
-              <div 
-                className={cn("absolute bg-black border border-zinc-800 rounded-none flex items-center justify-center cursor-ns-resize pointer-events-none z-10", (cdjWidth < 360 || cdjHeight < 310) ? "w-3.5 h-4" : "w-5 h-7")}
-                style={{
-                  top: `calc(${(((deck?.pitch || 0) + 8) / 16) * 90}% + 5%)`,
-                  transform: 'translateY(-50%)'
-                }}
-              >
-                <div className={(cdjWidth < 360 || cdjHeight < 310) ? "w-2.5 h-[1px]" : "w-3.5 h-[1px]"} style={{ backgroundColor: themeColor }} />
-              </div>
-
-              {/* Overlaid invisible fader input */}
-              <input 
-                type="range"
-                min="-8"
-                max="8"
-                step="0.002"
-                value={-(deck?.pitch || 0)} // Invert UI logic for HTML element
-                onChange={(e) => {
-                  if (isLocked) return;
-                  const now = performance.now();
-                  const rawVal = parseFloat(e.target.value);
-                  const targetPitch = -rawVal; // Re-invert to get actual percent value
-                  
-                  const dt = now - lastUpdateRef.current.time;
-                  const dp = Math.abs(targetPitch - lastUpdateRef.current.value);
-                  const velocity = dt > 0 ? dp / dt : 0;
-                  
-                  lastUpdateRef.current = { time: now, value: targetPitch };
-
-                  let finalPitch = targetPitch;
-                  const center = 0.0;
-                  const snapThreshold = 0.35;
-
-                  // High-precision magnetic locking to center
-                  if (Math.abs(targetPitch - center) < snapThreshold) {
-                    if (velocity < 0.035) {
-                      finalPitch = center;
-                      if (deck?.pitch !== center) {
-                        playClick(880, 'sine', 0.015);
-                      }
-                    }
-                  } else {
-                    // Snap to nearest whole integer if dragging slow
-                    const nearestInt = Math.round(targetPitch);
-                    if (velocity < 0.015 && Math.abs(targetPitch - nearestInt) < 0.1) {
-                      finalPitch = nearestInt;
-                    }
-                  }
-
-                  setDeck(deckId, { pitch: finalPitch, syncEnabled: false });
-                }}
-                onDoubleClick={(e) => {
-                  if (!isLocked) {
-                    e.preventDefault();
-                    setDeck(deckId, { pitch: 0, syncEnabled: false });
-                    playClick(850, 'sine', 0.015);
-                  }
-                }}
-                title="Adjust Pitch Slider"
-                style={{
-                  writingMode: 'vertical-lr',
-                  direction: 'rtl'
-                }}
-                disabled={isLocked}
-                className={cn("absolute inset-0 opacity-0 cursor-pointer z-20 touch-none", (cdjWidth < 360 || cdjHeight < 310) ? "w-[30px] -left-2.5 h-full" : "w-[60px] -left-5 h-full")}
-              />
-            </div>
-          </div>
+          <PitchFader
+            pitch={deck?.pitch || 0}
+            isCompact={cdjWidth < 360 || cdjHeight < 310}
+            isLocked={isLocked}
+            themeColor={themeColor}
+            onPitchChange={(targetPitch) => {
+              setDeck(deckId, { pitch: targetPitch, syncEnabled: false });
+            }}
+          />
 
           {/* Pitch Bend Buttons */}
           {!(cdjWidth < 360 || cdjHeight < 310) && (

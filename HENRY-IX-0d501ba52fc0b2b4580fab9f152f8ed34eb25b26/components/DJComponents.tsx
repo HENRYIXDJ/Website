@@ -373,14 +373,17 @@ const logLines = [
 ];
 
 export function Preloader({ onComplete, onEnter }: { onComplete: () => void; onEnter?: () => void }) {
-  const [stage, setStage] = useState(0);
+  const [stage, setStage] = useState(() => {
+    if (typeof window !== 'undefined' && sessionStorage.getItem('hasVisited')) {
+      return 4;
+    }
+    return 0;
+  });
   const [displayedLogs, setDisplayedLogs] = useState<string[]>([]);
 
-  // Post-hydration: skip preloader for returning users, or start warning-less logs for new users
   useEffect(() => {
     if (typeof window !== 'undefined') {
       if (sessionStorage.getItem('hasVisited')) {
-        setStage(4);
         onComplete();
       } else {
         if (onEnter) onEnter();

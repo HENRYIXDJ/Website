@@ -50,9 +50,11 @@ export function AsciiDitherGlitch({
     }, 35);
   };
 
-  useEffect(() => {
+  const [prevText, setPrevText] = useState(text);
+  if (text !== prevText) {
+    setPrevText(text);
     setDisplayText(text);
-  }, [text]);
+  }
 
   return (
     <Component

@@ -372,7 +372,7 @@ export default function GalleryClient() {
             <div className="absolute top-4 left-4 right-4 md:top-8 md:left-8 md:right-8 z-50 flex justify-between items-center">
               <div className="flex items-center gap-2 bg-black border border-zinc-900 px-3 py-1.5 rounded-none text-xs font-bold text-primary tracking-widest">
                 <span className="w-2 h-2 rounded-full bg-[#D30F31] animate-pulse" />
-                <span>{selectedAlbum.camTag} // {selectedAlbum.title}</span>
+                <span>{selectedAlbum.camTag} {'//'} {selectedAlbum.title}</span>
               </div>
 
               <button

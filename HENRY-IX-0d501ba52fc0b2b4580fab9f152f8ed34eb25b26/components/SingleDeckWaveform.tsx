@@ -675,7 +675,6 @@ export function SingleDeckWaveform({
       const dur = isFinite(drag.duration) && !isNaN(drag.duration) ? drag.duration : 300;
       const newTime = Math.max(0, Math.min(dur, drag.startTime - deltaSec));
       if (audio && isFinite(newTime) && !isNaN(newTime)) {
-        // eslint-disable-next-line react-hooks/immutability
         audio.currentTime = newTime;
       }
       useAudioStore.getState().setDeck(deckId, { progress: newTime });

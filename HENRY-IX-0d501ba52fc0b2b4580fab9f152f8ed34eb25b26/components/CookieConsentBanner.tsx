@@ -11,25 +11,27 @@ const STORAGE_KEY = 'henryix_cookie_consent_v1';
 export default function CookieConsentBanner() {
   const [isVisible, setIsVisible] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [preferences, setPreferences] = useState<CookiePreferences>({
-    necessary: true,
-    analytics: false,
-    marketing: false,
+  const [preferences, setPreferences] = useState<CookiePreferences>(() => {
+    if (typeof window === 'undefined') return { necessary: true, analytics: false, marketing: false };
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      return saved ? JSON.parse(saved) : { necessary: true, analytics: false, marketing: false };
+    } catch {
+      return { necessary: true, analytics: false, marketing: false };
+    }
   });
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        setPreferences(JSON.parse(saved));
-      } else {
-        // Show banner after short delay for non-intrusive entry
+      if (!saved) {
         const timer = setTimeout(() => setIsVisible(true), 1200);
         return () => clearTimeout(timer);
       }
-    } catch (e) {
-      setIsVisible(true);
+    } catch {
+      const timer = setTimeout(() => setIsVisible(true), 1200);
+      return () => clearTimeout(timer);
     }
   }, []);
 

@@ -25,10 +25,12 @@ export default function CookiePreferencesModal({
   initialPreferences = { necessary: true, analytics: false, marketing: false }
 }: CookiePreferencesModalProps) {
   const [prefs, setPrefs] = useState<CookiePreferences>(initialPreferences);
+  const [prevOpen, setPrevOpen] = useState(isOpen);
 
-  useEffect(() => {
-    setPrefs(initialPreferences);
-  }, [initialPreferences, isOpen]);
+  if (isOpen !== prevOpen) {
+    setPrevOpen(isOpen);
+    if (isOpen) setPrefs(initialPreferences);
+  }
 
   const handleSave = () => {
     playClick(900, 'sine', 0.03);
