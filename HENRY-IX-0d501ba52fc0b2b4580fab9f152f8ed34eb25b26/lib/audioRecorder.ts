@@ -44,6 +44,10 @@ class SetRecorderEngine {
       this.streamDestination = ctx.createMediaStreamDestination();
       masterNode.connect(this.streamDestination);
 
+      if (!this.streamDestination) {
+        return false;
+      }
+
       const mimeType = 
         format === 'mp3' && MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' :
         MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : '';

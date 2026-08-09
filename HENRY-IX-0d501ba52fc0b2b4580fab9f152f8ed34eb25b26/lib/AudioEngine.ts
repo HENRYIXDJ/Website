@@ -140,6 +140,14 @@ export class AudioEngine {
     }
   }
 
+  public getAudioContext(): AudioContext | null {
+    return this.audioCtx || this.initAudioDSP();
+  }
+
+  public getMasterGainNode(): AnalyserNode | null {
+    return this.masterAnalyser;
+  }
+
   /**
    * Ensure a specific deck's DSP nodes and audio elements are set up
    */
@@ -518,6 +526,37 @@ export class AudioEngine {
       audioB.currentTime = targetTimeB;
       useAudioStore.getState().setDeck(targetDeckId, { progress: targetTimeB });
     }
+  }
+
+  /**
+   * Sample-Accurate Quantized Beat Jump (+1, +2, +4, +8, +16, +32, -4, -8, etc.)
+   */
+  beatJump(deckId: number, beats: number) {
+    const audio = this.audioElements[deckId];
+    const deck = useAudioStore.getState().decks[deckId];
+    if (!audio || !deck) return;
+
+    const bpm = deck.bpm || 120;
+    const timeShift = beats * (60 / bpm);
+    const targetTime = Math.max(0, Math.min((deck.duration || audio.duration || 300), audio.currentTime + timeShift));
+    
+    audio.currentTime = targetTime;
+    useAudioStore.getState().setDeck(deckId, { progress: targetTime });
+  }
+
+  /**
+   * Pitch Bend Nudge (+/- percent) for jogwheel Outer Ring dragging & keyboard nudging
+   */
+  pitchNudge(deckId: number, nudgePercent: number) {
+    const audio = this.audioElements[deckId];
+    const deck = useAudioStore.getState().decks[deckId];
+    if (!audio || !deck) return;
+
+    const basePitch = deck.pitch || 0;
+    const nudgedPitch = basePitch + nudgePercent;
+    const playbackRate = Math.max(0.5, Math.min(2.0, 1 + nudgedPitch / 100));
+
+    audio.playbackRate = playbackRate;
   }
 
   seekToFirstBeatOneOfBar(deckId: number, firstBeatOffset: number, bpm: number) {
