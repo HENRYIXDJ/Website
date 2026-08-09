@@ -2,10 +2,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Maximize2, Minimize2, Search, X, Music } from 'lucide-react';
+import { Maximize2, Minimize2, Search, X, Music, Folder, FolderOpen, Upload, ChevronUp, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { playClick } from '@/lib/audioUtils';
-import { detectCamelotKey, isHarmonicallyCompatible, calculateEnergyRating } from '@/lib/proTrackAnalysis';
+import { detectCamelotKey, isHarmonicallyCompatible } from '@/lib/proTrackAnalysis';
 import { useAudioStore } from '@/store/audioStore';
 import { DeckBadge, DeckId } from './DeckBadge';
 
@@ -21,6 +21,8 @@ interface DeckBrowserPanelProps {
   themeColor?: string;
   isExpandedView?: boolean;
   onCloseExpanded?: () => void;
+  isCollapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
 
 export function DeckBrowserPanel({
@@ -35,6 +37,8 @@ export function DeckBrowserPanel({
   themeColor = '#D8163F',
   isExpandedView = false,
   onCloseExpanded,
+  isCollapsed = false,
+  onToggleCollapse,
 }: DeckBrowserPanelProps) {
   const decks = useAudioStore(s => s.decks);
   const otherDeckId = activeDeckId === 1 ? 2 : 1;
@@ -43,6 +47,12 @@ export function DeckBrowserPanel({
 
   const [isExpanded, setIsExpanded] = useState(isExpandedView);
   const [searchQuery, setSearchQuery] = useState('');
+  const [showFoldersSidebar, setShowFoldersSidebar] = useState(true);
+  const [selectedTargetDeck, setSelectedTargetDeck] = useState<DeckId>(activeDeckId);
+
+  useEffect(() => {
+    setSelectedTargetDeck(activeDeckId);
+  }, [activeDeckId]);
 
   // ESC key handler to exit expanded view
   useEffect(() => {
@@ -60,12 +70,99 @@ export function DeckBrowserPanel({
     ? (mixGroups || []).flatMap(g => g.mixes || [])
     : ((mixGroups || []).find(g => g.title.toLowerCase() === browserFolder.toLowerCase())?.mixes || []);
 
-  // Filter tracks by search query if typed
   const filteredTracks = searchQuery.trim()
     ? tracks.filter(t => t.title.toLowerCase().includes(searchQuery.toLowerCase()))
     : tracks;
 
   const deckTargetIds: DeckId[] = deckCount === 4 ? [1, 2, 3, 4] : [1, 2];
+
+  // Minimized bottom bar view
+  if (isCollapsed) {
+    return (
+      <div 
+        className="w-full bg-black border-t border-zinc-900 px-2 py-1 flex items-center justify-between gap-2 text-zinc-300 font-mono text-[8.5px] select-none shrink-0"
+        style={{ borderTopColor: themeColor }}
+      >
+        <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar no-scrollbar">
+          <div className="flex items-center gap-1 shrink-0 text-zinc-500 font-bold uppercase tracking-wider text-[7.5px] bg-zinc-950 px-1.5 py-0.5 border border-zinc-900">
+            <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: themeColor }} />
+            <span>CRATE BAR</span>
+          </div>
+
+          {/* Folder Pills */}
+          <button
+            onClick={() => { playClick(900, 'sine', 0.02); onFolderSelect('all'); }}
+            className={cn(
+              "px-2 py-0.5 font-bold uppercase tracking-tight shrink-0 border transition-all text-[8px]",
+              browserFolder === 'all'
+                ? "bg-primary text-black border-primary font-black"
+                : "bg-zinc-950 text-zinc-400 hover:text-white border-zinc-900"
+            )}
+          >
+            ALL ({ (mixGroups || []).flatMap(g => g.mixes || []).length })
+          </button>
+
+          {(mixGroups || []).map(group => (
+            <button
+              key={group.title}
+              onClick={() => { playClick(900, 'sine', 0.02); onFolderSelect(group.title); }}
+              className={cn(
+                "px-2 py-0.5 font-bold uppercase tracking-tight shrink-0 border transition-all text-[8px] truncate max-w-[110px]",
+                browserFolder.toLowerCase() === group.title.toLowerCase()
+                  ? "bg-primary text-black border-primary font-black"
+                  : "bg-zinc-950 text-zinc-400 hover:text-white border-zinc-900"
+              )}
+            >
+              {group.title}
+            </button>
+          ))}
+        </div>
+
+        {/* Right side controls: USB Loader & Expand Toggle */}
+        <div className="flex items-center gap-2 shrink-0">
+          {/* USB / Local File Loader Button */}
+          {onLoadLocalFile && (
+            <label className="py-0.5 px-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-amber-400 hover:text-amber-300 font-bold uppercase text-[7.5px] tracking-wider transition-colors cursor-pointer flex items-center gap-1 shrink-0">
+              <Upload className="w-2.5 h-2.5" />
+              <span>LOAD USB / FILE</span>
+              <input
+                type="file"
+                accept="audio/*"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file && onLoadLocalFile) onLoadLocalFile(file, selectedTargetDeck);
+                }}
+                className="hidden"
+              />
+            </label>
+          )}
+
+          {/* Search bar */}
+          <div className="hidden sm:flex items-center gap-1 bg-zinc-950 border border-zinc-900 px-1.5 py-0.5 text-[8px] w-24 md:w-32">
+            <Search className="w-2.5 h-2.5 text-zinc-500" />
+            <input
+              type="text"
+              placeholder="SEARCH..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="bg-transparent text-white font-mono text-[8px] focus:outline-none w-full tracking-wider placeholder-zinc-600"
+            />
+          </div>
+
+          <button
+            onClick={() => {
+              playClick(900, 'sine', 0.03);
+              onToggleCollapse?.();
+            }}
+            className="py-0.5 px-2 bg-primary text-black font-black uppercase text-[8px] tracking-wider transition-all cursor-pointer flex items-center gap-1 shrink-0 shadow-neon-glow"
+          >
+            <ChevronUp className="w-3 h-3" />
+            <span>OPEN CRATE (B)</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -74,16 +171,29 @@ export function DeckBrowserPanel({
         style={{ borderTop: `2px solid ${themeColor}` }}
       >
         {/* Tracklist & Playlist Browser Header */}
-        <div className="flex justify-between items-center bg-black/90 border-b border-zinc-900 px-3 py-1.5 shrink-0 text-[8px] text-zinc-400 tracking-wider uppercase font-bold">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: themeColor }} />
-            <span>MASTER MUSIC CRATE BROWSER</span>
-            <span className="text-[7.5px] text-zinc-500 bg-zinc-900 border border-zinc-800 px-1.5 py-0.2">
+        <div className="flex justify-between items-center bg-black/90 border-b border-zinc-900 px-2.5 py-1.5 shrink-0 text-[8px] text-zinc-400 tracking-wider uppercase font-bold">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: themeColor }} />
+            <span className="truncate font-black">MASTER MUSIC CRATE BROWSER</span>
+            <span className="text-[7.5px] text-zinc-500 bg-zinc-900 border border-zinc-800 px-1.5 py-0.2 shrink-0">
               {filteredTracks.length} TRACKS
             </span>
+
+            {/* Folder sidebar toggle button */}
+            <button
+              onClick={() => setShowFoldersSidebar(!showFoldersSidebar)}
+              title="Toggle Folders Sidebar"
+              className={cn(
+                "py-0.5 px-1.5 text-[7.5px] border uppercase font-bold tracking-wider transition-colors cursor-pointer flex items-center gap-1",
+                showFoldersSidebar ? "bg-zinc-900 border-zinc-700 text-white" : "bg-black border-zinc-900 text-zinc-500 hover:text-zinc-300"
+              )}
+            >
+              {showFoldersSidebar ? <FolderOpen className="w-2.5 h-2.5 text-amber-400" /> : <Folder className="w-2.5 h-2.5" />}
+              <span className="hidden sm:inline">FOLDERS</span>
+            </button>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             {/* Inline Search Bar */}
             <div className="flex items-center gap-1 bg-black border border-zinc-800 px-1.5 py-0.5 rounded-none text-[8px]">
               <Search className="w-2.5 h-2.5 text-zinc-500" />
@@ -92,7 +202,7 @@ export function DeckBrowserPanel({
                 placeholder="SEARCH CRATE..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                className="bg-transparent text-white font-mono text-[8px] focus:outline-none w-24 tracking-wider placeholder-zinc-600"
+                className="bg-transparent text-white font-mono text-[8px] focus:outline-none w-20 sm:w-28 tracking-wider placeholder-zinc-600"
               />
               {searchQuery && (
                 <button onClick={() => setSearchQuery('')} className="text-zinc-500 hover:text-white">
@@ -100,6 +210,21 @@ export function DeckBrowserPanel({
                 </button>
               )}
             </div>
+
+            {/* Collapse Panel Button */}
+            {onToggleCollapse && (
+              <button
+                onClick={() => {
+                  playClick(900, 'sine', 0.02);
+                  onToggleCollapse();
+                }}
+                title="Collapse Crate Bar"
+                className="py-0.5 px-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-400 hover:text-white text-[7.5px] font-bold uppercase transition-colors cursor-pointer flex items-center gap-0.5 shrink-0"
+              >
+                <ChevronDown className="w-3 h-3" />
+                <span className="hidden sm:inline">HIDE</span>
+              </button>
+            )}
 
             {/* Expand Fullscreen Browser Button */}
             <button
@@ -117,67 +242,51 @@ export function DeckBrowserPanel({
         </div>
 
         <div className="flex-1 flex min-h-0 divide-x divide-zinc-900 bg-black">
-          {/* Left Column: Playlist Folders Tree */}
-          <div className="w-[28%] min-w-[130px] max-w-[220px] flex flex-col p-1.5 gap-1 overflow-y-auto custom-scrollbar shrink-0 bg-zinc-950">
-            <span className="text-[7.5px] text-zinc-500 font-bold uppercase tracking-wider px-1 mb-0.5">CRATES & FOLDERS</span>
-            
-            <button
-              onClick={() => {
-                playClick(900, 'sine', 0.02);
-                onFolderSelect('all');
-              }}
-              title="ALL TRACKS"
-              className={cn(
-                "w-full text-left px-2 py-1.5 rounded-none text-[8.5px] font-bold uppercase transition-all cursor-pointer flex items-center gap-1.5 min-w-0 overflow-hidden border",
-                browserFolder === 'all'
-                  ? "bg-zinc-900 text-white border-l-2 border-primary"
-                  : "bg-black text-zinc-400 hover:text-zinc-200 border-zinc-900"
-              )}
-            >
-              <span className="shrink-0 text-[10px]">📂</span>
-              <span className="truncate tracking-tight font-black">ALL TRACKS</span>
-            </button>
+          {/* Left Column: Playlist Folders Tree (Togglable) */}
+          {showFoldersSidebar && (
+            <div className="w-[26%] min-w-[120px] max-w-[200px] flex flex-col p-1.5 gap-1 overflow-y-auto custom-scrollbar shrink-0 bg-zinc-950">
+              <span className="text-[7.5px] text-zinc-500 font-bold uppercase tracking-wider px-1 mb-0.5">CRATES & FOLDERS</span>
+              
+              <button
+                onClick={() => {
+                  playClick(900, 'sine', 0.02);
+                  onFolderSelect('all');
+                }}
+                title="ALL TRACKS"
+                className={cn(
+                  "w-full text-left px-2 py-1.5 rounded-none text-[8.5px] font-bold uppercase transition-all cursor-pointer flex items-center gap-1.5 min-w-0 overflow-hidden border",
+                  browserFolder === 'all'
+                    ? "bg-zinc-900 text-white border-l-2 border-primary"
+                    : "bg-black text-zinc-400 hover:text-zinc-200 border-zinc-900"
+                )}
+              >
+                <span className="shrink-0 text-[10px]">📂</span>
+                <span className="truncate tracking-tight font-black">ALL TRACKS</span>
+              </button>
 
-            <div className="flex flex-col gap-0.5 mt-1 border-t border-zinc-900 pt-1">
-              {(mixGroups || []).map((group) => (
-                <button
-                  key={group.title}
-                  onClick={() => {
-                    playClick(900, 'sine', 0.02);
-                    onFolderSelect(group.title);
-                  }}
-                  title={group.title}
-                  className={cn(
-                    "w-full text-left px-2 py-1.5 rounded-none text-[8.5px] font-bold uppercase transition-all cursor-pointer flex items-center gap-1.5 min-w-0 overflow-hidden border",
-                    browserFolder.toLowerCase() === group.title.toLowerCase()
-                      ? "bg-zinc-900 text-white border-l-2 border-primary"
-                      : "bg-black text-zinc-500 hover:text-zinc-300 border-zinc-900"
-                  )}
-                >
-                  <span className="shrink-0 text-[10px]">📁</span>
-                  <span className="truncate tracking-tight font-bold">{group.title}</span>
-                </button>
-              ))}
-            </div>
-            
-            {/* Custom Local File Loader */}
-            {onLoadLocalFile && (
-              <div className="mt-auto border-t border-zinc-900 pt-1 shrink-0">
-                <label className="w-full text-center py-1.5 bg-black hover:bg-zinc-900 rounded-none border border-zinc-800 text-[7.5px] text-zinc-400 hover:text-white tracking-widest font-black transition-colors uppercase cursor-pointer flex items-center justify-center gap-1">
-                  <span>📁 LOAD FILE</span>
-                  <input
-                    type="file"
-                    accept="audio/*"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file && onLoadLocalFile) onLoadLocalFile(file, activeDeckId);
+              <div className="flex flex-col gap-0.5 mt-1 border-t border-zinc-900 pt-1">
+                {(mixGroups || []).map((group) => (
+                  <button
+                    key={group.title}
+                    onClick={() => {
+                      playClick(900, 'sine', 0.02);
+                      onFolderSelect(group.title);
                     }}
-                    className="hidden"
-                  />
-                </label>
+                    title={group.title}
+                    className={cn(
+                      "w-full text-left px-2 py-1.5 rounded-none text-[8.5px] font-bold uppercase transition-all cursor-pointer flex items-center gap-1.5 min-w-0 overflow-hidden border",
+                      browserFolder.toLowerCase() === group.title.toLowerCase()
+                        ? "bg-zinc-900 text-white border-l-2 border-primary"
+                        : "bg-black text-zinc-500 hover:text-zinc-300 border-zinc-900"
+                    )}
+                  >
+                    <span className="shrink-0 text-[10px]">📁</span>
+                    <span className="truncate tracking-tight font-bold">{group.title}</span>
+                  </button>
+                ))}
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* Right Column: Master Track File Browser Table */}
           <div className="flex-1 flex flex-col h-full bg-black min-w-0">
@@ -254,6 +363,48 @@ export function DeckBrowserPanel({
             </div>
           </div>
         </div>
+
+        {/* BOTTOM USB / LOCAL FILE LOADER BAR */}
+        {onLoadLocalFile && (
+          <div className="bg-zinc-950 border-t border-zinc-900 px-3 py-1 flex items-center justify-between gap-3 shrink-0 text-[8px]">
+            <div className="flex items-center gap-2">
+              <span className="text-zinc-500 font-bold uppercase tracking-wider text-[7.5px]">TARGET DECK:</span>
+              <div className="flex items-center gap-1">
+                {deckTargetIds.map(dId => (
+                  <button
+                    key={`target-pick-${dId}`}
+                    onClick={() => setSelectedTargetDeck(dId)}
+                    className={cn(
+                      "w-4 h-4 rounded-none text-[7.5px] font-black font-mono transition-all border flex items-center justify-center cursor-pointer",
+                      selectedTargetDeck === dId
+                        ? dId === 1 ? "bg-red-600 text-white border-red-400 shadow-neon-glow" :
+                          dId === 2 ? "bg-cyan-500 text-black border-cyan-300 shadow-neon-glow" :
+                          dId === 3 ? "bg-emerald-600 text-white border-emerald-400 shadow-neon-glow" :
+                          "bg-amber-500 text-black border-amber-300 shadow-neon-glow"
+                        : "bg-black text-zinc-500 border-zinc-800 hover:text-white"
+                    )}
+                  >
+                    D{dId}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <label className="py-1 px-3 bg-zinc-900 hover:bg-primary hover:text-black border border-zinc-800 text-amber-400 font-black tracking-widest uppercase text-[8px] transition-all cursor-pointer flex items-center gap-1.5 shadow-md">
+              <Upload className="w-3 h-3" />
+              <span>📁 LOAD USB / FILE INTO DECK {selectedTargetDeck}</span>
+              <input
+                type="file"
+                accept="audio/*"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file && onLoadLocalFile) onLoadLocalFile(file, selectedTargetDeck);
+                }}
+                className="hidden"
+              />
+            </label>
+          </div>
+        )}
       </div>
 
       {/* FULLSCREEN EXPANDED MASTER CRATE OVERLAY */}
@@ -279,7 +430,7 @@ export function DeckBrowserPanel({
                       <span className="text-[9px] px-2 py-0.5 bg-primary text-black font-black">FULL_SCREEN_CRATE</span>
                     </h2>
                     <p className="text-[10px] text-zinc-500 font-mono">
-                      Select folder, search library, and click square D1/D2/D3/D4 buttons to load to target deck
+                      Select folder, search library, or load USB files directly to target decks (D1–D4)
                     </p>
                   </div>
                 </div>
@@ -370,15 +521,43 @@ export function DeckBrowserPanel({
                   </div>
 
                   {onLoadLocalFile && (
-                    <div className="mt-auto pt-4 border-t border-zinc-900">
-                      <label className="w-full text-center py-3 bg-black hover:bg-zinc-900 rounded-none border border-zinc-800 text-xs text-zinc-300 hover:text-white tracking-widest font-black transition-colors uppercase cursor-pointer flex items-center justify-center gap-2">
-                        <span>📁 IMPORT LOCAL FILE</span>
+                    <div className="mt-auto pt-4 border-t border-zinc-900 flex flex-col gap-2">
+                      <div className="flex items-center justify-between text-[10px] text-zinc-500 font-bold uppercase tracking-wider">
+                        <span>TARGET DECK:</span>
+                        <div className="flex items-center gap-1">
+                          {deckTargetIds.map(dId => (
+                            <button
+                              key={`expanded-target-${dId}`}
+                              onClick={() => setSelectedTargetDeck(dId)}
+                              className={cn(
+                                "w-5 h-5 text-[9px] font-black font-mono transition-all border flex items-center justify-center cursor-pointer",
+                                selectedTargetDeck === dId
+                                  ? dId === 1 ? "bg-red-600 text-white border-red-400" :
+                                    dId === 2 ? "bg-cyan-500 text-black border-cyan-300" :
+                                    dId === 3 ? "bg-emerald-600 text-white border-emerald-400" :
+                                    "bg-amber-500 text-black border-amber-300"
+                                  : "bg-black text-zinc-500 border-zinc-800"
+                              )}
+                            >
+                              D{dId}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <label className="w-full text-center py-3 bg-zinc-900 hover:bg-primary hover:text-black rounded-none border border-zinc-800 text-xs text-amber-400 font-black tracking-widest transition-all uppercase cursor-pointer flex items-center justify-center gap-2 shadow-lg">
+                        <Upload className="w-4 h-4" />
+                        <span>📁 LOAD USB / FILE TO D{selectedTargetDeck}</span>
                         <input
                           type="file"
                           accept="audio/*"
                           onChange={(e) => {
                             const file = e.target.files?.[0];
-                            if (file && onLoadLocalFile) onLoadLocalFile(file, activeDeckId);
+                            if (file && onLoadLocalFile) {
+                              onLoadLocalFile(file, selectedTargetDeck);
+                              setIsExpanded(false);
+                              onCloseExpanded?.();
+                            }
                           }}
                           className="hidden"
                         />

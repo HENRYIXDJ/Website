@@ -691,6 +691,18 @@ export default function MixArchive({
   const [masterBrowserFolder, setMasterBrowserFolder] = useState<string>('all');
   const [targetDeckForBrowser, setTargetDeckForBrowser] = useState<DeckId>(1);
   const [isMasterCrateExpanded, setIsMasterCrateExpanded] = useState<boolean>(false);
+  const [isCrateCollapsed, setIsCrateCollapsed] = useState<boolean>(true);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const targetTag = (e.target as HTMLElement)?.tagName;
+      if ((e.key === 'b' || e.key === 'B') && !['INPUT', 'TEXTAREA'].includes(targetTag)) {
+        setIsCrateCollapsed(prev => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const renderDeckBrowser = (deckId: 1 | 2 | 3 | 4) => {
     const themeColor = 
@@ -1663,8 +1675,11 @@ export default function MixArchive({
 
             </div>
 
-            {/* Single Master Music Crate Browser */}
-            <div className="w-full h-[36vh] max-h-[360px] min-h-[180px] shrink-0 border-t border-zinc-900 bg-black p-1">
+            {/* Single Master Music Crate Browser (Collapsible) */}
+            <div className={cn(
+              "w-full shrink-0 border-t border-zinc-900 bg-black transition-all duration-300",
+              isCrateCollapsed ? "h-auto p-0" : "h-[36vh] max-h-[360px] min-h-[180px] p-1"
+            )}>
               <DeckBrowserPanel
                 deckCount={deckCount}
                 activeDeckId={targetDeckForBrowser || 1}
@@ -1677,6 +1692,8 @@ export default function MixArchive({
                 themeColor="var(--color-primary)"
                 isExpandedView={isMasterCrateExpanded}
                 onCloseExpanded={() => setIsMasterCrateExpanded(false)}
+                isCollapsed={isCrateCollapsed}
+                onToggleCollapse={() => setIsCrateCollapsed(prev => !prev)}
               />
             </div>
           </>
