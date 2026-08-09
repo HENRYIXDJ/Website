@@ -26,9 +26,21 @@ export function ContactForm({ isDepth = false }: ContactFormProps) {
     setStatus('sending');
     playClick(900, 'sine', 0.05);
 
-    setTimeout(() => {
-      setStatus('sent');
-    }, 800);
+    try {
+      const res = await fetch('/api/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      });
+
+      if (res.ok) {
+        setStatus('sent');
+      } else {
+        setStatus('error');
+      }
+    } catch {
+      setStatus('error');
+    }
   };
 
   return (

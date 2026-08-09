@@ -402,10 +402,12 @@ export function Preloader({
     }
   }, [stage, onComplete]);
 
-  // Start stage 0: Play CRT turn-on click and display horizontal line once consent is not pending
+  // Start stage 0: Play CRT turn-on click and display horizontal line
   useEffect(() => {
-    if (stage === 0 && !isConsentPending) {
-      playClick(800, 'sine', 0.05);
+    if (stage === 0) {
+      if (!isConsentPending) {
+        playClick(800, 'sine', 0.05);
+      }
       const t = setTimeout(() => {
         setStage(1);
       }, 200);

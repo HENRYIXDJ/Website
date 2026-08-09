@@ -64,7 +64,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={`${avathe.variable} ${ocra.variable} ${ibmPlexMono.variable}`}>
       <head>
         <link rel="preload" href="https://w.soundcloud.com/player/api.js" as="script" />
-        <BotIdClient protect={[{ path: '/', method: 'POST' }, { path: '/contact', method: 'POST' }]} />
+        {process.env.NODE_ENV === 'production' && (
+          <BotIdClient protect={[{ path: '/', method: 'POST' }, { path: '/contact', method: 'POST' }]} />
+        )}
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}

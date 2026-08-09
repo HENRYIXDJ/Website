@@ -11,6 +11,27 @@
   "r2_buckets": [
     { "binding": "R2_BUCKET", "bucket_name": "websiteassets" }
   ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "website-db",
+      "database_id": "a8ce1faa-6c50-418b-bcf6-a844b3df4b26"
+    }
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "CACHE",
+      "id": "2ca64efe3eb943acbe1e61b43a842055"
+    }
+  ],
+  "queues": {
+    "producers": [
+      { "binding": "EMAIL_QUEUE", "queue": "contact-emails" }
+    ],
+    "consumers": [
+      { "queue": "contact-emails", "max_batch_size": 10 }
+    ]
+  },
   "observability": {
     "logs": {
       "enabled": true,

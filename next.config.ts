@@ -1,9 +1,7 @@
 import type {NextConfig} from 'next';
 import { withBotId } from 'botid/next/config';
-import path from 'path';
 
 const nextConfig: NextConfig = {
-  outputFileTracingRoot: path.join(__dirname),
   reactStrictMode: true,
   eslint: {
     ignoreDuringBuilds: true,
@@ -11,7 +9,6 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  // Allow access to remote image placeholder.
   images: {
     unoptimized: true,
     remotePatterns: [
@@ -62,39 +59,6 @@ const nextConfig: NextConfig = {
       },
     ];
   },
-  webpack: (config, {dev, webpack, nextRuntime, isServer}) => {
-    if (!isServer) {
-      if (config.resolve.alias) {
-        delete config.resolve.alias['react'];
-        delete config.resolve.alias['react$'];
-      }
-      config.resolve.alias = {
-        ...config.resolve.alias,
-        react$: path.resolve(__dirname, 'lib/react-shim.js'),
-      };
-    }
-
-    if (isServer) {
-      config.plugins.push(
-        new webpack.NormalModuleReplacementPlugin(
-          /[\\/]app[\\/]studio[\\/]\[\[\.\.\.index\]\][\\/]page\.tsx$/,
-          path.resolve(__dirname, 'lib/studio-mock.js')
-        )
-      );
-    }
-
-    // HMR is disabled in AI Studio via DISABLE_HMR env var.
-    // Do not modify—file watching is disabled to prevent flickering during agent edits.
-    if (dev && process.env.DISABLE_HMR === 'true') {
-      config.watchOptions = {
-        ignored: /.*/,
-      };
-    }
-    config.plugins.push(new webpack.DefinePlugin({
-      'require.main.filename': JSON.stringify('/tmp/dummy.js'),
-    }));
-    return config;
-  },
 };
 
-export default withBotId(nextConfig);
+export default process.env.NODE_ENV === 'production' ? withBotId(nextConfig) : nextConfig;

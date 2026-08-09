@@ -1,18 +1,18 @@
-# Dependency directories
-node_modules/
-**/node_modules/
+/.swc
+/.agents/
+/node_modules/
+/.next/
+/.vercel/
+/.open-next/
 
-# Next.js build output
-.next/
-**/.next/
-out/
-**/out/
-
-# Environment files
+# Local env files
+.env
 .env*.local
 .env.local
-**/.env*.local
+.env.development.local
+.env.test.local
+.env.production.local
 
-# SWC binaries
-.swc/
-**/.swc/
+*.tsbuildinfo
+scratch_*.txt
+

@@ -5,5 +5,7 @@ export const client = createClient({
   apiVersion,
   dataset,
   projectId,
-  useCdn,
+  useCdn: true,
+  timeout: 1500,
+  maxRetries: 0,
 })
