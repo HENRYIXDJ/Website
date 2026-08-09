@@ -106,7 +106,10 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       const actx = audioEngine.initAudioDSP();
       if (actx) {
         if (document.hidden) {
-          actx.suspend().catch(() => {});
+          const isAnyPlaying = Object.values(useAudioStore.getState().decks).some((d: any) => d?.isPlaying);
+          if (!isAnyPlaying) {
+            actx.suspend().catch(() => {});
+          }
         } else {
           actx.resume().catch(() => {});
         }

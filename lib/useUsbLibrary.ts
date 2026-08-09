@@ -72,7 +72,10 @@ export function useUsbLibrary() {
         : 'LOCAL MUSIC';
 
       setUsbFolderName(detectedName);
-      setUsbTracks(foundTracks);
+      setUsbTracks(prev => {
+        prev.forEach(t => { if (t.objectUrl) URL.revokeObjectURL(t.objectUrl); });
+        return foundTracks;
+      });
       setIsLoading(false);
     } catch (err) {
       console.error('Error scanning local files:', err);
@@ -144,7 +147,10 @@ export function useUsbLibrary() {
       };
 
       await scanDirectory(dirHandle);
-      setUsbTracks(foundTracks);
+      setUsbTracks(prev => {
+        prev.forEach(t => { if (t.objectUrl) URL.revokeObjectURL(t.objectUrl); });
+        return foundTracks;
+      });
       setIsLoading(false);
     } catch (err: any) {
       setIsLoading(false);

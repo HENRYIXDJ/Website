@@ -6,6 +6,7 @@
     "skipLibCheck": true,
     "strict": true,
     "noUnusedLocals": true,
+    "types": ["@cloudflare/workers-types"],
     "noEmit": true,
     "esModuleInterop": true,
     "module": "esnext",

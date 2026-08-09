@@ -15,7 +15,7 @@ function safeCompare(a: string, b: string): boolean {
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json().catch(() => ({}));
+    const body: any = await req.json().catch(() => ({}));
     const { secret, action, streamUrl } = body;
 
     const configuredSecret = process.env.LIVE_STATUS_SECRET;

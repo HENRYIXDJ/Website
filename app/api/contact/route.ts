@@ -3,7 +3,7 @@ import { saveContactSubmissionToD1, queueEmailPayload, verifyTurnstileToken } fr
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
+    const body: any = await req.json();
     const { name, email, subject, message, turnstileToken } = body;
 
     if (!name || !email || !message) {

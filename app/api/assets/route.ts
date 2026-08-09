@@ -106,7 +106,7 @@ async function handleAssetRequest(request: Request) {
   // Use native Cloudflare R2 binding if running inside Worker context
   let binding: any = null;
   try {
-    binding = getCloudflareContext().env.R2_BUCKET;
+    binding = (getCloudflareContext().env as any).R2_BUCKET;
   } catch (err) {
     binding = (process.env.R2_BUCKET as any) || (globalThis as any).R2_BUCKET;
   }

@@ -85,7 +85,7 @@ async function getGoogleAccessToken(
     throw new Error(`Failed to fetch Google access token: ${errText}`);
   }
 
-  const data = await response.json();
+  const data: any = await response.json();
   return data.access_token;
 }
 
@@ -189,7 +189,7 @@ export async function GET(request: NextRequest) {
   try {
     const cloudflareContext = getCloudflareContext();
     ctx = cloudflareContext.ctx;
-    r2Binding = cloudflareContext.env.R2_BUCKET;
+    r2Binding = (cloudflareContext.env as any).R2_BUCKET;
   } catch (err) {
     ctx = (globalThis as any).MINIFLARE_EXECUTION_CONTEXT || null;
     r2Binding = (process.env.R2_BUCKET as any) || (globalThis as any).R2_BUCKET;
@@ -274,7 +274,7 @@ export async function GET(request: NextRequest) {
       return null;
     }
 
-    const data = await res.json();
+    const data: any = await res.json();
     return data.files?.[0]?.id || null;
   }
 
@@ -307,7 +307,7 @@ export async function GET(request: NextRequest) {
       });
 
       if (filesRes.ok) {
-        const filesData = await filesRes.json();
+        const filesData: any = await filesRes.json();
         if (filesData.files) {
           for (const f of filesData.files) {
             if (f.id && f.name) {
@@ -335,7 +335,7 @@ export async function GET(request: NextRequest) {
       });
 
       if (foldersRes.ok) {
-        const foldersData = await foldersRes.json();
+        const foldersData: any = await foldersRes.json();
         if (foldersData.files) {
           for (const folder of foldersData.files) {
             if (folder.id && folder.name) {
@@ -545,7 +545,7 @@ export async function GET(request: NextRequest) {
       const errText = await mixTypeFoldersRes.text();
       throw new Error(`Failed to list mix type folders: ${errText}`);
     }
-    const mixTypeFoldersData = await mixTypeFoldersRes.json();
+    const mixTypeFoldersData: any = await mixTypeFoldersRes.json();
     const mixTypeFolders = mixTypeFoldersData.files || [];
     const syncResults: string[] = [];
 
@@ -562,7 +562,7 @@ export async function GET(request: NextRequest) {
         const errText = await mp3sRes.text();
         throw new Error(`Failed to list mp3 files: ${errText}`);
       }
-      const mp3sData = await mp3sRes.json();
+      const mp3sData: any = await mp3sRes.json();
       const mp3Files = mp3sData.files || [];
       for (const mp3 of mp3Files) {
         const fileName = mp3.name!;

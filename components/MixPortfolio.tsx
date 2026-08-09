@@ -103,7 +103,7 @@ export default function MixPortfolio({
   useEffect(() => {
     async function loadDynamicMixes() {
       try {
-        const data = await client.fetch<any[]>(`*[_type == "mixGroup"]{
+        const data = await safeSanityFetch<any[]>(`*[_type == "mixGroup"]{
           title,
           slug,
           description,
@@ -122,7 +122,7 @@ export default function MixPortfolio({
 
         if (data && data.length > 0) {
           const formatted = data
-            .map(group => {
+            .map((group: any) => {
               const filteredMixes = (group.mixes || [])
                 .filter((mix: any) => mix.audioFile || mix.soundcloudLink)
                 .map((mix: any) => ({
@@ -140,16 +140,16 @@ export default function MixPortfolio({
                 mixes: filteredMixes
               };
             })
-            .filter(group => group.mixes.length > 0);
+            .filter((group: any) => group.mixes.length > 0);
 
           setMixGroups(formatted);
 
           // Update decks dynamically from loaded mixes
-          const allMixes = formatted.flatMap(g => g.mixes);
+          const allMixes = formatted.flatMap((g: any) => g.mixes);
           
           setDecks((prevDecks: any) => {
             const updated = { ...prevDecks };
-            const kc1 = allMixes.find(m => m.title.includes('Knight Club') && m.title.includes('Session 1'));
+            const kc1 = allMixes.find((m: any) => m.title.includes('Knight Club') && m.title.includes('Session 1'));
             if (kc1 && updated[1]) {
               updated[1] = {
                 ...updated[1],
@@ -163,7 +163,7 @@ export default function MixPortfolio({
                 tracklist: kc1.tracklist
               };
             }
-            const kc2 = allMixes.find(m => m.title.includes('Knight Club') && m.title.includes('Session 2'));
+            const kc2 = allMixes.find((m: any) => m.title.includes('Knight Club') && m.title.includes('Session 2'));
             if (kc2 && updated[2]) {
               updated[2] = {
                 ...updated[2],
@@ -177,7 +177,7 @@ export default function MixPortfolio({
                 tracklist: kc2.tracklist
               };
             }
-            const kc3 = allMixes.find(m => m.title.includes('Knight Club') && m.title.includes('Session 3'));
+            const kc3 = allMixes.find((m: any) => m.title.includes('Knight Club') && m.title.includes('Session 3'));
             if (kc3 && updated[3]) {
               updated[3] = {
                 ...updated[3],
@@ -191,7 +191,7 @@ export default function MixPortfolio({
                 tracklist: kc3.tracklist
               };
             }
-            const kc4 = allMixes.find(m => m.title.includes('Knight Club') && m.title.includes('Session 4'));
+            const kc4 = allMixes.find((m: any) => m.title.includes('Knight Club') && m.title.includes('Session 4'));
             if (kc4 && updated[4]) {
               updated[4] = {
                 ...updated[4],
