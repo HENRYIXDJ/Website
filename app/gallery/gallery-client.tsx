@@ -299,8 +299,8 @@ export default function GalleryClient() {
 
   return (
     <main className="fixed inset-0 pt-12 md:pt-24 pb-2 px-2 md:px-3 w-full h-full flex flex-col bg-transparent selection:bg-primary/30 selection:text-primary font-mono select-none overflow-hidden">
-      {/* Fullscreen 12-Screen CCTV Matrix (4 Columns x 3 Rows on Desktop) */}
-      <div className="flex-1 w-full h-full p-1 md:p-1.5 bg-black rounded-none border border-zinc-900 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 grid-rows-6 sm:grid-rows-4 lg:grid-rows-3 gap-1 md:gap-1.5 overflow-hidden">
+      {/* Fullscreen 12-Screen CCTV Matrix (2 Cols x 6 Rows on Mobile, 4 Cols x 3 Rows on Desktop) */}
+      <div className="flex-1 w-full h-full p-1 md:p-1.5 bg-black rounded-none border border-zinc-900 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 auto-rows-fr sm:grid-rows-4 lg:grid-rows-3 gap-1 md:gap-1.5 overflow-y-auto md:overflow-hidden custom-scrollbar">
         {albums.map((album, screenIndex) => {
           const activeMediaIndex = currentMediaIndices[screenIndex] % (album.items.length || 1);
           const mediaItem = album.items[activeMediaIndex] || album.items[0];

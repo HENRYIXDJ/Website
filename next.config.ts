@@ -60,21 +60,19 @@ const nextConfig: NextConfig = {
     ];
   },
   webpack(config) {
-    let compilerRuntime: string;
-    try {
-      compilerRuntime = require.resolve('react/compiler-runtime');
-    } catch {
-      compilerRuntime = require('path').resolve(__dirname, 'lib/empty.js');
-    }
+    const webpack = require('webpack');
 
-    config.resolve.alias = {
-      ...config.resolve.alias,
-      'react/compiler-runtime': compilerRuntime,
-      'react/jsx-runtime': require.resolve('react/jsx-runtime'),
-      'react/jsx-dev-runtime': require.resolve('react/jsx-dev-runtime'),
-      'react$': require('path').resolve(__dirname, 'lib/react-shim.js'),
-      'react': require('path').resolve(__dirname, 'lib/react-shim.js'),
-    };
+    config.plugins.push(
+      new webpack.NormalModuleReplacementPlugin(
+        /^react$/,
+        (resource: any) => {
+          if (resource.context && (resource.context.includes('sanity') || resource.context.includes('@sanity'))) {
+            resource.request = require('path').resolve(__dirname, 'lib/react-shim.js');
+          }
+        }
+      )
+    );
+
     return config;
   },
 };
