@@ -28,10 +28,10 @@ import { DeckToolbar } from './DeckToolbar';
 import { DeckBrowserPanel } from './DeckBrowserPanel';
 import { DeckBadge, DeckId } from './DeckBadge';
 import { UsbDropzoneOverlay } from './UsbDropzoneOverlay';
-import { MobileDJDecks } from './MobileDJDecks';
 import { HardwareControllerView } from './HardwareControllerView';
 import dynamic from 'next/dynamic';
 
+const MobileDJDecks = dynamic(() => import('./MobileDJDecks').then(mod => mod.MobileDJDecks), { ssr: false });
 const CDJHardware = dynamic(() => import('./CDJHardware'), { ssr: false });
 const AudioVisualizerBackground = dynamic(() => import('./AudioVisualizerBackground'), { ssr: false });
 

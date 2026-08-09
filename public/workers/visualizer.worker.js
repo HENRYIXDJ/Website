@@ -114,9 +114,16 @@ function render() {
     const barCount = 48;
     const barWidth = width / barCount;
     const themeColor = isDepth ? 'rgba(216, 22, 63,' : 'rgba(24, 24, 27,';
+    const maxBarHeight = height * 0.22;
 
     ctx.save();
     ctx.globalAlpha = 0.07;
+
+    const grad = ctx.createLinearGradient(0, height, 0, height - maxBarHeight);
+    grad.addColorStop(0, `${themeColor} 0.8)`);
+    grad.addColorStop(0.5, `${themeColor} 0.3)`);
+    grad.addColorStop(1, `${themeColor} 0.0)`);
+    ctx.fillStyle = grad;
 
     for (let i = 0; i < barCount; i++) {
       const sampleIdx = Math.max(
@@ -124,16 +131,11 @@ function render() {
         Math.min(bufferLength - 1, Math.floor(Math.pow(i / barCount, 1.8) * Math.max(1, bufferLength - 10)))
       );
       const rawVal = isPlaying && frequencyData ? (frequencyData[sampleIdx] || 0) : 0;
-      let barHeight = (rawVal / 255) * (height * 0.22);
+      let barHeight = (rawVal / 255) * maxBarHeight;
       barHeight = isPlaying
         ? Math.max(4, barHeight + Math.sin(i * 0.15 + performance.now() * 0.005) * 2)
         : 4;
 
-      const grad = ctx.createLinearGradient(i * barWidth, height, i * barWidth, height - barHeight);
-      grad.addColorStop(0, `${themeColor} 0.8)`);
-      grad.addColorStop(0.5, `${themeColor} 0.3)`);
-      grad.addColorStop(1, `${themeColor} 0.0)`);
-      ctx.fillStyle = grad;
       ctx.fillRect(i * barWidth + 2, height - barHeight, barWidth - 4, barHeight);
     }
     ctx.restore();
