@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { S3Client, HeadObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
 import { createClient } from '@sanity/client';
+import { getCloudflareContext } from '@opennextjs/cloudflare';
 
 export const maxDuration = 300; // Allow up to 5 minutes for sync
 
@@ -186,8 +187,7 @@ export async function GET(request: NextRequest) {
   let ctx: any = null;
   let r2Binding: any = null;
   try {
-    const cfContext = eval("require")('@opennextjs/cloudflare');
-    const cloudflareContext = cfContext.getCloudflareContext();
+    const cloudflareContext = getCloudflareContext();
     ctx = cloudflareContext.ctx;
     r2Binding = cloudflareContext.env.R2_BUCKET;
   } catch (err) {

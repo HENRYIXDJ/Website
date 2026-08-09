@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
+import { getCloudflareContext } from '@opennextjs/cloudflare';
 
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
@@ -105,8 +106,7 @@ async function handleAssetRequest(request: Request) {
   // Use native Cloudflare R2 binding if running inside Worker context
   let binding: any = null;
   try {
-    const cfContext = eval("require")('@opennextjs/cloudflare');
-    binding = cfContext.getCloudflareContext().env.R2_BUCKET;
+    binding = getCloudflareContext().env.R2_BUCKET;
   } catch (err) {
     binding = (process.env.R2_BUCKET as any) || (globalThis as any).R2_BUCKET;
   }

@@ -1,18 +1,11 @@
 'use server';
 
-import { checkBotId } from 'botid/server';
 import { Resend } from 'resend';
 
 export async function signupAction(email: string) {
   try {
     if (!email || typeof email !== 'string' || !email.includes('@')) {
       return { error: 'Invalid email address transmission' };
-    }
-
-    const { isBot } = await checkBotId();
-    if (isBot) {
-      console.warn(`[BotID Attack Vector Blocked]: ${email} flagged as automated agent.`);
-      return { error: 'Access Denied: Automated agent detected by firewall' };
     }
 
     // Mock local signup process simulation
@@ -33,12 +26,6 @@ export async function contactAction(formData: { name: string; agency?: string; e
     const { name, agency, email, details } = formData;
     if (!name || !email || !details) {
       return { error: 'Name, email, and details are required.' };
-    }
-
-    const { isBot } = await checkBotId();
-    if (isBot) {
-      console.warn(`[BotID Contact Blocked]: ${email} flagged as automated agent.`);
-      return { error: 'Access Denied: Automated agent detected by firewall' };
     }
 
     const apiKey = process.env.RESEND_API_KEY;

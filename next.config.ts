@@ -1,5 +1,4 @@
 import type {NextConfig} from 'next';
-import { withBotId } from 'botid/next/config';
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
@@ -61,4 +60,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default process.env.NODE_ENV === 'production' ? withBotId(nextConfig) : nextConfig;
+export default nextConfig;

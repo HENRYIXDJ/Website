@@ -2,7 +2,6 @@ import type { Metadata } from 'next';
 import { IBM_Plex_Mono } from 'next/font/google';
 import localFont from 'next/font/local';
 import './globals.css';
-import { BotIdClient } from 'botid/client';
 import { AudioProvider } from '@/components/AudioProvider';
 import ClientLayoutWrappers from '@/components/ClientLayoutWrappers';
 
@@ -64,9 +63,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={`${avathe.variable} ${ocra.variable} ${ibmPlexMono.variable}`}>
       <head>
         <link rel="preload" href="https://w.soundcloud.com/player/api.js" as="script" />
-        {process.env.NODE_ENV === 'production' && (
-          <BotIdClient protect={[{ path: '/', method: 'POST' }, { path: '/contact', method: 'POST' }]} />
-        )}
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
