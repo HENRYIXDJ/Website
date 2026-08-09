@@ -282,3 +282,33 @@ export const playTabClick = () => {
     osc.stop(ctx.currentTime + duration);
   } catch (e) {}
 };
+
+export const SUPPORTED_AUDIO_ACCEPT = "audio/*,.mp3,.m4a,.aac,.flac,.wav,.aiff,.aif,.alac,.caf,.ogg,.opus,.webm,.mp4,.m4b";
+
+export function isSupportedAudioFile(file: File): { supported: boolean; isDrm?: boolean; reason?: string } {
+  if (!file || !file.name) return { supported: false };
+
+  const ext = file.name.split('.').pop()?.toLowerCase() || '';
+
+  // Check for iTunes / Apple Music DRM encrypted tracks (.m4p)
+  if (ext === 'm4p' || file.type === 'audio/x-m4p') {
+    return {
+      supported: false,
+      isDrm: true,
+      reason: 'DRM Protected Apple Music Track (.m4p): Subscription tracks downloaded from Apple Music are encrypted by Apple FairPlay DRM and cannot be decoded by web audio software. Please use standard MP3, M4A, AAC, AIFF, WAV, or ALAC files.'
+    };
+  }
+
+  // Audio extension regex supporting all standard iTunes, Apple Music, & DJ formats:
+  const isAudioExt = /\.(mp3|wav|m4a|aac|flac|aiff|aif|alac|caf|ogg|opus|webm|mp4|m4b)$/i.test(file.name);
+  const isAudioMime = file.type ? (file.type.startsWith('audio/') || file.type === 'video/mp4') : false;
+
+  if (isAudioExt || isAudioMime) {
+    return { supported: true };
+  }
+
+  return { 
+    supported: false, 
+    reason: `Unsupported file format (.${ext}). Supported audio formats: MP3, M4A, AAC, AIFF, AIF, WAV, FLAC, ALAC, OGG.` 
+  };
+}

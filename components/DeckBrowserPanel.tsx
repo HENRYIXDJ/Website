@@ -2,9 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Maximize2, Minimize2, Search, X, Music, Folder, FolderOpen, Upload, ChevronUp, ChevronDown } from 'lucide-react';
+import { Maximize2, Minimize2, Search, X, Music, Folder, FolderOpen, Upload, ChevronUp, ChevronDown, Lock, Unlock } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { playClick } from '@/lib/audioUtils';
+import { playClick, SUPPORTED_AUDIO_ACCEPT, isSupportedAudioFile } from '@/lib/audioUtils';
 import { detectCamelotKey, isHarmonicallyCompatible } from '@/lib/proTrackAnalysis';
 import { useAudioStore } from '@/store/audioStore';
 import { DeckBadge, DeckId } from './DeckBadge';
@@ -41,6 +41,8 @@ export function DeckBrowserPanel({
   onToggleCollapse,
 }: DeckBrowserPanelProps) {
   const decks = useAudioStore(s => s.decks);
+  const playLockEnabled = useAudioStore(s => s.playLockEnabled);
+  const setPlayLockEnabled = useAudioStore(s => s.setPlayLockEnabled);
   const otherDeckId = activeDeckId === 1 ? 2 : 1;
   const otherDeck = decks[otherDeckId];
   const masterKey = otherDeck?.isPlaying ? detectCamelotKey(otherDeck?.title || '', otherDeck?.bpm || 120).code : null;
@@ -127,10 +129,17 @@ export function DeckBrowserPanel({
               <span>LOAD USB / FILE</span>
               <input
                 type="file"
-                accept="audio/*"
+                accept={SUPPORTED_AUDIO_ACCEPT}
                 onChange={(e) => {
                   const file = e.target.files?.[0];
-                  if (file && onLoadLocalFile) onLoadLocalFile(file, selectedTargetDeck);
+                  if (file && onLoadLocalFile) {
+                    const check = isSupportedAudioFile(file);
+                    if (check.supported) {
+                      onLoadLocalFile(file, selectedTargetDeck);
+                    } else if (check.reason) {
+                      alert(check.reason);
+                    }
+                  }
                 }}
                 className="hidden"
               />
@@ -191,6 +200,25 @@ export function DeckBrowserPanel({
               {showFoldersSidebar ? <FolderOpen className="w-2.5 h-2.5 text-amber-400" /> : <Folder className="w-2.5 h-2.5" />}
               <span className="hidden sm:inline">FOLDERS</span>
             </button>
+
+            {/* Industry Standard Play Lock Safety Toggle */}
+            <button
+              onClick={() => {
+                playClick(800, 'sine', 0.02);
+                setPlayLockEnabled(!playLockEnabled);
+              }}
+              title={playLockEnabled ? "PLAY LOCK ACTIVE: Prevents loading tracks onto playing decks (Rekordbox / Serato style)" : "PLAY LOCK OFF: Tracks can be loaded on playing decks"}
+              className={cn(
+                "py-0.5 px-1.5 text-[7.5px] border uppercase font-bold tracking-wider transition-colors cursor-pointer flex items-center gap-1 shrink-0 font-mono",
+                playLockEnabled
+                  ? "bg-red-950/80 border-red-800 text-red-400 hover:bg-red-900/90 shadow-sm"
+                  : "bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-300"
+              )}
+            >
+              {playLockEnabled ? <Lock className="w-2.5 h-2.5 text-red-500 animate-pulse" /> : <Unlock className="w-2.5 h-2.5 text-zinc-500" />}
+              <span className="hidden sm:inline">PLAY LOCK</span>
+              <span>[{playLockEnabled ? "ON" : "OFF"}]</span>
+            </button>
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
@@ -211,6 +239,19 @@ export function DeckBrowserPanel({
               )}
             </div>
 
+            {/* Expand Fullscreen Browser Button */}
+            <button
+              onClick={() => {
+                playClick(900, 'sine', 0.03);
+                setIsExpanded(true);
+              }}
+              title="Expand Full Master Crate"
+              className="py-0.5 px-2 bg-zinc-900 hover:bg-primary hover:text-black border border-zinc-800 text-zinc-300 font-bold uppercase text-[7.5px] tracking-wider rounded-none transition-all cursor-pointer flex items-center gap-1 shrink-0"
+            >
+              <Maximize2 className="w-2.5 h-2.5" />
+              <span>EXPAND</span>
+            </button>
+
             {/* Collapse Panel Button */}
             {onToggleCollapse && (
               <button
@@ -225,19 +266,6 @@ export function DeckBrowserPanel({
                 <span className="hidden sm:inline">HIDE</span>
               </button>
             )}
-
-            {/* Expand Fullscreen Browser Button */}
-            <button
-              onClick={() => {
-                playClick(900, 'sine', 0.03);
-                setIsExpanded(true);
-              }}
-              title="Expand Full Master Crate"
-              className="py-0.5 px-2 bg-zinc-900 hover:bg-primary hover:text-black border border-zinc-800 text-zinc-300 font-bold uppercase text-[7.5px] tracking-wider rounded-none transition-all cursor-pointer flex items-center gap-1 shrink-0"
-            >
-              <Maximize2 className="w-2.5 h-2.5" />
-              <span>EXPAND</span>
-            </button>
           </div>
         </div>
 
@@ -315,7 +343,14 @@ export function DeckBrowserPanel({
                   return (
                     <div 
                       key={mix.id}
-                      className="grid grid-cols-[6%_48%_16%_14%_16%] items-center px-2 py-1 rounded-none select-none border border-transparent bg-black hover:bg-zinc-950 hover:border-zinc-800 transition-colors"
+                      draggable={true}
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData('application/json', JSON.stringify(mix));
+                        e.dataTransfer.setData('text/plain', mix.id);
+                        e.dataTransfer.effectAllowed = 'copy';
+                      }}
+                      title="Drag onto deck to load track"
+                      className="grid grid-cols-[6%_48%_16%_14%_16%] items-center px-2 py-1 rounded-none select-none border border-transparent bg-black hover:bg-zinc-950 hover:border-zinc-800 transition-colors cursor-grab active:cursor-grabbing group"
                     >
                       <span className="text-[8px] text-zinc-500 font-mono font-bold">
                         {idxStr}
@@ -368,7 +403,7 @@ export function DeckBrowserPanel({
         {onLoadLocalFile && (
           <div className="bg-zinc-950 border-t border-zinc-900 px-3 py-1 flex items-center justify-between gap-3 shrink-0 text-[8px]">
             <div className="flex items-center gap-2">
-              <span className="text-zinc-500 font-bold uppercase tracking-wider text-[7.5px]">TARGET DECK:</span>
+              <span className="text-zinc-500 font-bold uppercase tracking-wider text-[7.5px]">LOAD DECK:</span>
               <div className="flex items-center gap-1">
                 {deckTargetIds.map(dId => (
                   <button
@@ -395,10 +430,17 @@ export function DeckBrowserPanel({
               <span>📁 LOAD USB / FILE INTO DECK {selectedTargetDeck}</span>
               <input
                 type="file"
-                accept="audio/*"
+                accept={SUPPORTED_AUDIO_ACCEPT}
                 onChange={(e) => {
                   const file = e.target.files?.[0];
-                  if (file && onLoadLocalFile) onLoadLocalFile(file, selectedTargetDeck);
+                  if (file && onLoadLocalFile) {
+                    const check = isSupportedAudioFile(file);
+                    if (check.supported) {
+                      onLoadLocalFile(file, selectedTargetDeck);
+                    } else if (check.reason) {
+                      alert(check.reason);
+                    }
+                  }
                 }}
                 className="hidden"
               />
@@ -430,7 +472,7 @@ export function DeckBrowserPanel({
                       <span className="text-[9px] px-2 py-0.5 bg-primary text-black font-black">FULL_SCREEN_CRATE</span>
                     </h2>
                     <p className="text-[10px] text-zinc-500 font-mono">
-                      Select folder, search library, or load USB files directly to target decks (D1–D4)
+                      Select folder, search library, or load USB files directly to load decks (D1–D4)
                     </p>
                   </div>
                 </div>
@@ -523,7 +565,7 @@ export function DeckBrowserPanel({
                   {onLoadLocalFile && (
                     <div className="mt-auto pt-4 border-t border-zinc-900 flex flex-col gap-2">
                       <div className="flex items-center justify-between text-[10px] text-zinc-500 font-bold uppercase tracking-wider">
-                        <span>TARGET DECK:</span>
+                        <span>LOAD DECK:</span>
                         <div className="flex items-center gap-1">
                           {deckTargetIds.map(dId => (
                             <button
@@ -550,13 +592,18 @@ export function DeckBrowserPanel({
                         <span>📁 LOAD USB / FILE TO D{selectedTargetDeck}</span>
                         <input
                           type="file"
-                          accept="audio/*"
+                          accept={SUPPORTED_AUDIO_ACCEPT}
                           onChange={(e) => {
                             const file = e.target.files?.[0];
                             if (file && onLoadLocalFile) {
-                              onLoadLocalFile(file, selectedTargetDeck);
-                              setIsExpanded(false);
-                              onCloseExpanded?.();
+                              const check = isSupportedAudioFile(file);
+                              if (check.supported) {
+                                onLoadLocalFile(file, selectedTargetDeck);
+                                setIsExpanded(false);
+                                onCloseExpanded?.();
+                              } else if (check.reason) {
+                                alert(check.reason);
+                              }
                             }
                           }}
                           className="hidden"
@@ -574,7 +621,7 @@ export function DeckBrowserPanel({
                     <span>TRACK TITLE</span>
                     <span>CAMELOT KEY</span>
                     <span>BPM</span>
-                    <span className="text-right">LOAD TARGET</span>
+                    <span className="text-right">LOAD DECK</span>
                   </div>
 
                   {/* Table Rows */}
@@ -593,7 +640,14 @@ export function DeckBrowserPanel({
                         return (
                           <div
                             key={mix.id}
-                            className="grid grid-cols-[6%_48%_18%_14%_14%] items-center px-4 py-3 rounded-none select-none border border-zinc-900 bg-black hover:bg-zinc-950 transition-colors"
+                            draggable={true}
+                            onDragStart={(e) => {
+                              e.dataTransfer.setData('application/json', JSON.stringify(mix));
+                              e.dataTransfer.setData('text/plain', mix.id);
+                              e.dataTransfer.effectAllowed = 'copy';
+                            }}
+                            title="Drag onto deck to load track"
+                            className="grid grid-cols-[6%_48%_18%_14%_14%] items-center px-4 py-3 rounded-none select-none border border-zinc-900 bg-black hover:bg-zinc-950 transition-colors cursor-grab active:cursor-grabbing group"
                           >
                             <span className="text-xs font-mono text-zinc-500 font-bold">
                               {idxStr}

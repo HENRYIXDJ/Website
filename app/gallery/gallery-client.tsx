@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getStorageUrl } from '@/lib/storage';
-import { client } from '@/sanity/lib/client';
+import { safeSanityFetch } from '@/sanity/lib/client';
 import { playClick, playTick } from '@/lib/audioUtils';
 
 interface GalleryItem {
@@ -170,8 +170,8 @@ export default function GalleryClient() {
     async function loadDynamicGallery() {
       try {
         const results = await Promise.allSettled([
-          client.fetch<any[]>(`*[_type == "galleryImage" && defined(imageFile)]`),
-          client.fetch<any[]>(`*[_type == "mix" && defined(artworkFile)]`)
+          safeSanityFetch<any[]>(`*[_type == "galleryImage" && defined(imageFile)]`),
+          safeSanityFetch<any[]>(`*[_type == "mix" && defined(artworkFile)]`)
         ]);
 
         const galleryDocs = results[0].status === 'fulfilled' ? results[0].value : [];

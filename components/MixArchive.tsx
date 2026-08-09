@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, useMotionValue, AnimatePresence } from 'framer-motion';
-import { Play, Pause, X, Search } from 'lucide-react';
+import { Play, Pause, X, Search, Lock, Upload } from 'lucide-react';
 import { useAudioStore } from '@/store/audioStore';
 import { cn } from '@/lib/utils';
 import { RotaryKnob } from '@/components/DJComponents';
@@ -88,8 +88,17 @@ export default function MixArchive({
   const [midiDeviceName, setMIDIDeviceName] = useState<string>('');
   const [isGlitching, setIsGlitching] = useState(false);
 
-  const { connectUsbDrive, usbFolderName, isLoading: isUsbLoading } = useUsbLibrary();
+  const { connectUsbDrive, usbTracks, usbFolderName, isLoading: isUsbLoading } = useUsbLibrary();
   const [recordingState, setRecordingState] = useState<RecordingState>(setRecorder.getState());
+
+  const effectiveMixGroups = useMemo(() => {
+    if (!usbTracks || usbTracks.length === 0) return mixGroups;
+    const usbGroup = {
+      title: `📁 USB: ${usbFolderName || 'LOCAL MUSIC'}`,
+      mixes: usbTracks,
+    };
+    return [...mixGroups, usbGroup];
+  }, [mixGroups, usbTracks, usbFolderName]);
 
   useEffect(() => {
     return setRecorder.subscribe(setRecordingState);
@@ -704,32 +713,154 @@ export default function MixArchive({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  const renderDeckBrowser = (deckId: 1 | 2 | 3 | 4) => {
-    const themeColor = 
-      deckId === 1 ? 'rgba(211,15,49,1)' :
-      deckId === 2 ? 'rgba(34,211,238,1)' :
-      deckId === 3 ? 'rgba(16,185,129,1)' :
-      'rgba(234,179,8,1)';
 
-    return (
-      <DeckBrowserPanel
-        deckId={deckId}
-        deck={decks[deckId]}
-        mixGroups={mixGroups}
-        browserFolder={browserFolders[deckId] || 'all'}
-        onFolderSelect={(folder) => setBrowserFolders(prev => ({ ...prev, [deckId]: folder }))}
-        detectedBpms={detectedBpms}
-        onTrackSelect={(mix, id) => playTrack(mix, id)}
-        onLoadLocalFile={(file) => loadLocalFile && loadLocalFile(deckId, file)}
-        themeColor={themeColor}
-      />
-    );
+function StackedWaveformDeckItem({
+  deckId,
+  deck,
+  isMobile,
+  themeColor,
+  formatTime,
+  isDepth,
+  playTrack,
+  playLockoutBlip
+}: {
+  deckId: 1 | 2 | 3 | 4;
+  deck: any;
+  isMobile: boolean;
+  themeColor: string;
+  formatTime: (t: number) => string;
+  isDepth: boolean;
+  playTrack: (mix: any, dId: number) => void;
+  playLockoutBlip: () => void;
+}) {
+  const playLockEnabled = useAudioStore(s => s.playLockEnabled);
+  const [isHovering, setIsHovering] = useState(false);
+  const isPlaying = deck?.isPlaying;
+  const isLockedForDrop = isPlaying && playLockEnabled;
+  const isLocked = deck?.id === 'locked';
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = isLockedForDrop ? 'none' : 'copy';
   };
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsHovering(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+      setIsHovering(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsHovering(false);
+
+    if (isLockedForDrop) {
+      playLockoutBlip();
+      return;
+    }
+
+    try {
+      const raw = e.dataTransfer.getData('application/json');
+      if (raw) {
+        const mix = JSON.parse(raw);
+        if (mix && mix.id) {
+          playTrack(mix, deckId);
+        }
+      }
+    } catch (err) {
+      console.error(`[STACKED DECK ${deckId} DROP ERROR]`, err);
+    }
+  };
+
+  return (
+    <div 
+      onDragOver={handleDragOver}
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      className={cn(
+        "w-full flex items-stretch bg-black border border-zinc-900 rounded-none overflow-hidden h-full relative transition-all",
+        isMobile ? "h-[40px] min-h-[40px] shrink-0" : "min-h-[48px] max-h-[80px]",
+        isHovering && (isLockedForDrop ? "border-red-600 ring-1 ring-red-600" : "border-emerald-500 ring-1 ring-emerald-500")
+      )}
+      style={{ borderLeft: `3px solid ${themeColor}` }}
+    >
+      {isHovering && (
+        <div className={cn(
+          "absolute inset-0 z-50 backdrop-blur-sm flex items-center justify-center gap-2 px-3 py-1 font-mono text-[9px] font-bold border-2 border-dashed uppercase select-none transition-all",
+          isLockedForDrop ? "bg-black/95 text-red-500 border-red-600 animate-pulse" : "bg-black/95 text-white border-emerald-500 shadow-neon-glow"
+        )}>
+          {isLockedForDrop ? (
+            <>
+              <Lock className="w-3.5 h-3.5 text-red-500 shrink-0" />
+              <span className="truncate">🔒 PLAY LOCK ACTIVE: DECK {deckId} IS PLAYING</span>
+            </>
+          ) : (
+            <>
+              <Upload className="w-3.5 h-3.5 text-emerald-400 shrink-0 animate-bounce" />
+              <span className="truncate">📥 DROP TO LOAD DECK {deckId}</span>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Left Info Panel */}
+      <div className="w-[100px] border-r border-zinc-900 bg-black/40 flex flex-col justify-between p-1.5 shrink-0 select-none text-left">
+        <div className="flex justify-between items-center">
+          <span className="text-[7.5px] font-black uppercase font-mono tracking-wider" style={{ color: themeColor }}>
+            DECK {deckId}
+          </span>
+          <span className="text-[6.5px] text-zinc-600 font-bold font-mono">USB1</span>
+        </div>
+        <div className="text-[8.5px] font-bold text-zinc-300 font-mono truncate leading-none uppercase">
+          {isLocked ? "LOCKED" : deck.title || "EMPTY"}
+        </div>
+        <div className="flex justify-between items-center text-[7px] text-zinc-500 font-mono">
+          <span>KEY: --</span>
+          <span>{isLocked ? "--:--" : formatTime(deck.progress || 0)}</span>
+        </div>
+      </div>
+
+      {/* Scrolling Waveform Canvas */}
+      <div className="flex-1 min-w-0 flex items-center justify-center p-1 bg-black">
+        <div className="w-full h-full relative flex items-center justify-center">
+          <SingleDeckWaveform
+            deckId={deckId}
+            deck={deck}
+            isDepth={isDepth}
+          />
+        </div>
+      </div>
+
+      {/* Right Info Panel */}
+      <div className="w-[60px] border-l border-zinc-900 bg-black/40 flex flex-col justify-center items-center p-1.5 shrink-0 select-none text-center">
+        <span className="text-[5.5px] text-zinc-600 uppercase tracking-widest font-black leading-none mb-0.5">BPM</span>
+        <span className="font-black text-zinc-400 font-mono text-[9px] tracking-wide">
+          {isLocked ? "130.00" : (deck.bpm * (1 + (deck.pitch || 0) / 100)).toFixed(1)}
+        </span>
+        <span className={cn(
+          "text-[6.5px] font-bold mt-1 px-1 rounded",
+          isPlaying ? "bg-primary/10 text-primary animate-pulse" : "text-zinc-600"
+        )} style={{ color: isPlaying ? themeColor : undefined }}>
+          {isPlaying ? "ACTIVE" : "STANDBY"}
+        </span>
+      </div>
+    </div>
+  );
+}
 
   const renderStackedWaveform = (deckId: 1 | 2 | 3 | 4) => {
     const deck = decks[deckId];
-    const isPlaying = deck.isPlaying;
-    const isLocked = deck.id === 'locked';
     const themeColor = 
       deckId === 1 ? 'rgba(211,15,49,1)' : // red
       deckId === 2 ? 'rgba(34,211,238,1)' : // cyan
@@ -737,55 +868,16 @@ export default function MixArchive({
       'rgba(234,179,8,1)'; // yellow
 
     return (
-      <div 
-        className={cn(
-          "w-full flex items-stretch bg-black border border-zinc-900 rounded-none overflow-hidden h-full",
-          isMobile ? "h-[40px] min-h-[40px] shrink-0" : "min-h-[48px] max-h-[80px]"
-        )}
-        style={{ borderLeft: `3px solid ${themeColor}` }}
-      >
-        {/* Left Info Panel */}
-        <div className="w-[100px] border-r border-zinc-900 bg-black/40 flex flex-col justify-between p-1.5 shrink-0 select-none text-left">
-          <div className="flex justify-between items-center">
-            <span className="text-[7.5px] font-black uppercase font-mono tracking-wider" style={{ color: themeColor }}>
-              DECK {deckId}
-            </span>
-            <span className="text-[6.5px] text-zinc-600 font-bold font-mono">USB1</span>
-          </div>
-          <div className="text-[8.5px] font-bold text-zinc-300 font-mono truncate leading-none uppercase">
-            {isLocked ? "LOCKED" : deck.title || "EMPTY"}
-          </div>
-          <div className="flex justify-between items-center text-[7px] text-zinc-500 font-mono">
-            <span>KEY: --</span>
-            <span>{isLocked ? "--:--" : formatTime(deck.progress || 0)}</span>
-          </div>
-        </div>
-
-        {/* Scrolling Waveform Canvas */}
-        <div className="flex-1 min-w-0 flex items-center justify-center p-1 bg-black">
-          <div className="w-full h-full relative flex items-center justify-center">
-            <SingleDeckWaveform
-              deckId={deckId}
-              deck={deck}
-              isDepth={isDepth}
-            />
-          </div>
-        </div>
-
-        {/* Right Info Panel */}
-        <div className="w-[60px] border-l border-zinc-900 bg-black/40 flex flex-col justify-center items-center p-1.5 shrink-0 select-none text-center">
-          <span className="text-[5.5px] text-zinc-600 uppercase tracking-widest font-black leading-none mb-0.5">BPM</span>
-          <span className="font-black text-zinc-400 font-mono text-[9px] tracking-wide">
-            {isLocked ? "130.00" : (deck.bpm * (1 + (deck.pitch || 0) / 100)).toFixed(1)}
-          </span>
-          <span className={cn(
-            "text-[6.5px] font-bold mt-1 px-1 rounded",
-            isPlaying ? "bg-primary/10 text-primary animate-pulse" : "text-zinc-600"
-          )} style={{ color: isPlaying ? themeColor : undefined }}>
-            {isPlaying ? "ACTIVE" : "STANDBY"}
-          </span>
-        </div>
-      </div>
+      <StackedWaveformDeckItem
+        deckId={deckId}
+        deck={deck}
+        isMobile={isMobile}
+        themeColor={themeColor}
+        formatTime={formatTime}
+        isDepth={isDepth}
+        playTrack={playTrack}
+        playLockoutBlip={playLockoutBlip}
+      />
     );
   };
 
@@ -1683,7 +1775,7 @@ export default function MixArchive({
               <DeckBrowserPanel
                 deckCount={deckCount}
                 activeDeckId={targetDeckForBrowser || 1}
-                mixGroups={mixGroups}
+                mixGroups={effectiveMixGroups}
                 browserFolder={masterBrowserFolder}
                 onFolderSelect={(folder) => setMasterBrowserFolder(folder)}
                 detectedBpms={detectedBpms}

@@ -69,6 +69,7 @@ export interface AudioStoreState {
   isCDJView: boolean;
   visualLatencyOffset: number;
   isEcoMode: boolean;
+  playLockEnabled: boolean;
   detectedBpms: Record<string, number>;
 
   // ---------- Actions ----------
@@ -84,6 +85,7 @@ export interface AudioStoreState {
   setVisualLatencyOffset: (val: number) => void;
   setDetectedBpm: (trackId: string, bpm: number) => void;
   setIsEcoMode: (val: boolean) => void;
+  setPlayLockEnabled: (val: boolean) => void;
 
   // Legacy-compat: full decks setter (accepts updater fn or object)
   setDecks: (updater: Record<number, DeckState> | ((prev: Record<number, DeckState>) => Record<number, DeckState>)) => void;
@@ -273,6 +275,7 @@ export const useAudioStore = create<AudioStoreState>()(
     isCDJView: false,
     visualLatencyOffset: 45,
     isEcoMode: typeof navigator !== 'undefined' && !!navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4,
+    playLockEnabled: true,
     detectedBpms: {},
 
     // Atomic deck patch — only touches the specified deck
@@ -301,6 +304,7 @@ export const useAudioStore = create<AudioStoreState>()(
         }
       })),
     setIsEcoMode: (val: boolean) => set({ isEcoMode: val }),
+    setPlayLockEnabled: (val: boolean) => set({ playLockEnabled: val }),
 
     // Legacy-compat: accepts an updater function or a plain object
     setDecks: updater => {
@@ -324,6 +328,7 @@ export const selectDeck = (id: number) => (s: AudioStoreState) => s.decks[id];
 export const selectCrossfader     = (s: AudioStoreState) => s.crossfader;
 export const selectIsMuted        = (s: AudioStoreState) => s.isMuted;
 export const selectLeftActiveDeck = (s: AudioStoreState) => s.leftActiveDeck;
+export const selectPlayLockEnabled = (s: AudioStoreState) => s.playLockEnabled;
 
 /**
  * Returns the deck id (number | undefined) of the currently playing deck.

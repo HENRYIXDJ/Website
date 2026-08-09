@@ -1,6 +1,6 @@
 import LiveClient from './live-client';
 import { Metadata } from 'next';
-import { client } from '@/sanity/lib/client';
+import { safeSanityFetch } from '@/sanity/lib/client';
 
 export const metadata: Metadata = {
   title: 'Live Transmission Broadcasts | HENRY IX',
@@ -21,7 +21,7 @@ export const metadata: Metadata = {
 export default async function Page() {
   let streams = [];
   try {
-    streams = await client.fetch<any[]>(`*[_type == "liveStream"] | order(_createdAt desc){
+    streams = await safeSanityFetch<any[]>(`*[_type == "liveStream"] | order(_createdAt desc){
       _id,
       title,
       playbackId,

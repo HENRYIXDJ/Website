@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAudioStore } from '@/store/audioStore';
-import { client } from '@/sanity/lib/client';
+import { safeSanityFetch } from '@/sanity/lib/client';
 import { STATIC_MIX_GROUPS, proxyUrl } from '@/lib/mixes';
 import { getStorageUrl } from '@/lib/storage';
 import { audioEngine } from '@/lib/AudioEngine';

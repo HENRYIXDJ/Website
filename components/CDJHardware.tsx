@@ -6,7 +6,7 @@ import { useAudio } from '@/components/AudioProvider';
 import { playClick } from '@/lib/audioUtils';
 import { cn } from '@/lib/utils';
 import { getSessionImage } from '@/lib/mixes';
-import { Play, Pause } from 'lucide-react';
+import { Play, Pause, Lock, Upload } from 'lucide-react';
 import { HotCuePads } from './HotCuePads';
 import { JogWheelPlatter } from './JogWheelPlatter';
 import { PitchFader } from './PitchFader';
@@ -17,6 +17,7 @@ interface CDJHardwareProps {
 
 export default function CDJHardware({ deckId }: CDJHardwareProps) {
   const deck = useAudioStore(s => s.decks[deckId]);
+  const playLockEnabled = useAudioStore(s => s.playLockEnabled);
   const leftActiveDeck = useAudioStore(s => s.leftActiveDeck);
   const rightActiveDeck = useAudioStore(s => s.rightActiveDeck);
   const setDeck = useAudioStore(s => s.setDeck);
@@ -26,7 +27,8 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
     audioElementsRef, 
     togglePlayGlobal, 
     playLockoutBlip, 
-    alignSyncPlayback 
+    alignSyncPlayback,
+    playTrack
   } = useAudio();
 
   const isLocked = deck?.id === 'locked';
@@ -86,6 +88,57 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
 
   // --- Hot Cue Delete Mode State ---
   const [deleteMode, setDeleteMode] = useState(false);
+
+  // --- Drag and Drop & Play Lock Dropzone State ---
+  const [isDragHovering, setIsDragHovering] = useState(false);
+  const isLockedForDrop = !!(deck?.isPlaying && playLockEnabled);
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (isLockedForDrop) {
+      e.dataTransfer.dropEffect = 'none';
+    } else {
+      e.dataTransfer.dropEffect = 'copy';
+    }
+  };
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragHovering(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+      setIsDragHovering(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragHovering(false);
+
+    if (isLockedForDrop) {
+      playLockoutBlip();
+      return;
+    }
+
+    try {
+      const rawData = e.dataTransfer.getData('application/json');
+      if (rawData) {
+        const track = JSON.parse(rawData);
+        if (track && track.id) {
+          playTrack(track, deckId);
+        }
+      }
+    } catch (err) {
+      console.error(`[DECK ${deckId} DROP ERROR]`, err);
+    }
+  };
 
   // --- Simulated Long Press for 4-Beat Loop ---
   const loopInTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -506,12 +559,61 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
   return (
     <div 
       ref={containerRef} 
+      onDragOver={handleDragOver}
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
       style={{ containerType: 'inline-size', transform: 'translateZ(0)' }} 
       className={cn(
-        "w-full h-full flex flex-col justify-between relative select-none border border-zinc-800 rounded-none bg-black",
-        (cdjWidth < 360 || cdjHeight < 310) ? "p-1.5 gap-1.5" : "p-3 gap-3"
+        "w-full h-full flex flex-col justify-between relative select-none border border-zinc-800 rounded-none bg-black overflow-hidden",
+        (cdjWidth < 360 || cdjHeight < 310) ? "p-1.5 gap-1.5" : "p-3 gap-3",
+        isDragHovering && (isLockedForDrop ? "border-red-600 ring-2 ring-red-600/50" : "border-emerald-500 ring-2 ring-emerald-500/50")
       )}
     >
+      {/* Dynamic Crate Drag & Drop Hover Overlay */}
+      {isDragHovering && (
+        <div 
+          className={cn(
+            "absolute inset-0 z-[100] backdrop-blur-sm flex flex-col items-center justify-center p-4 text-center font-mono select-none transition-all border-4 border-dashed",
+            isLockedForDrop 
+              ? "bg-black/92 border-red-600 text-red-500 animate-pulse" 
+              : "bg-black/92 text-white shadow-neon-glow"
+          )}
+          style={{ borderColor: isLockedForDrop ? '#dc2626' : themeColor }}
+        >
+          {isLockedForDrop ? (
+            <>
+              <div className="p-3 bg-red-950/90 border border-red-600 rounded-full mb-2 shadow-[0_0_25px_rgba(220,38,38,0.7)] animate-bounce">
+                <Lock className="w-8 h-8 text-red-500" />
+              </div>
+              <span className="text-red-500 font-black text-sm md:text-base tracking-[0.2em] uppercase">
+                🔒 PLAY LOCK ACTIVE
+              </span>
+              <span className="text-zinc-400 text-[9px] tracking-widest uppercase mt-1 bg-red-950/60 border border-red-900 px-2 py-0.5">
+                DECK {deckId} IS PLAYING — PAUSE DECK TO LOAD TRACK
+              </span>
+            </>
+          ) : (
+            <>
+              <div 
+                className="p-3 bg-zinc-950 border rounded-full mb-2 shadow-2xl" 
+                style={{ borderColor: themeColor }}
+              >
+                <Upload className="w-8 h-8 animate-bounce" style={{ color: themeColor }} />
+              </div>
+              <span className="font-black text-sm md:text-base tracking-[0.2em] uppercase text-white">
+                📥 DROP TO LOAD DECK {deckId}
+              </span>
+              <span 
+                className="text-[9px] tracking-widest uppercase mt-1 bg-zinc-950 border px-2 py-0.5 font-bold"
+                style={{ color: themeColor, borderColor: themeColor }}
+              >
+                RELEASE MOUSE TO LOAD TRACK INTO DECK {deckId}
+              </span>
+            </>
+          )}
+        </div>
+      )}
       
       {/* 1. RGB Hot Cues Row (A-H) */}
       <HotCuePads

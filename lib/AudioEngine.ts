@@ -10,7 +10,7 @@
  */
 
 import { useAudioStore, generateStaticPeaks } from '@/store/audioStore';
-import { playClick } from '@/lib/audioUtils';
+import { playClick, playLockoutBlip } from '@/lib/audioUtils';
 
 export interface DeckDSPNodes {
   trimNode: GainNode;
@@ -711,6 +711,15 @@ export class AudioEngine {
       else if (track.id.startsWith('cnc-')) deckId = 3;
     }
 
+    const state = useAudioStore.getState();
+    const deck = state.decks[deckId];
+
+    // PLAY LOCK PROTECTION: Prevent loading a NEW track onto a deck while it is currently playing
+    if (deck.id !== track.id && deck.isPlaying && state.playLockEnabled) {
+      playLockoutBlip();
+      return false;
+    }
+
     if (deckId === 1 || deckId === 3) {
       useAudioStore.getState().setLeftActiveDeck(deckId as 1 | 3);
     } else {
@@ -722,8 +731,6 @@ export class AudioEngine {
     if (ctx && ctx.state === 'suspended') ctx.resume().catch(() => {});
     this.ensureDeckInitialized(deckId);
 
-    const state = useAudioStore.getState();
-    const deck = state.decks[deckId];
     const widget = this.widgetRefs[deckId];
     const isLocal = !track.url?.includes('soundcloud.com') && !track.link?.includes('soundcloud.com');
 

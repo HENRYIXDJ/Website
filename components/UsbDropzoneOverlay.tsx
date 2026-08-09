@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { cn } from '@/lib/utils';
+import { isSupportedAudioFile } from '@/lib/audioUtils';
 
 interface UsbDropzoneOverlayProps {
   isOpen: boolean;
@@ -41,9 +42,13 @@ export function UsbDropzoneOverlay({
         const files = e.dataTransfer?.files;
         if (files && files.length > 0) {
           const file = files[0];
-          if (file.type.startsWith('audio/') || /\.(mp3|wav|m4a|aac|flac)$/i.test(file.name)) {
+          const check = isSupportedAudioFile(file);
+          if (check.supported) {
             onFileDrop(leftDeckId, file);
           } else {
+            if (check.isDrm) {
+              alert(check.reason);
+            }
             onLockout();
           }
         }
@@ -61,10 +66,10 @@ export function UsbDropzoneOverlay({
 
         <div className="flex flex-col gap-2 text-center font-mono">
           <span className="text-primary font-black text-lg md:text-xl tracking-[0.25em] uppercase animate-pulse">
-            INSERT VIRTUAL USB
+            INSERT VIRTUAL USB / ITUNES AUDIO
           </span>
-          <span className="text-zinc-500 text-[10px] tracking-widest uppercase">
-            DROP AUDIO FILE (.mp3, .wav, .m4a) ONTO A DECK DROPZONE
+          <span className="text-zinc-400 text-[10px] tracking-widest uppercase">
+            DROP AUDIO FILE (.mp3, .m4a, .aiff, .wav, .aac, .flac, .alac) ONTO A DECK DROPZONE
           </span>
         </div>
 
@@ -91,9 +96,13 @@ export function UsbDropzoneOverlay({
                 const files = e.dataTransfer?.files;
                 if (files && files.length > 0) {
                   const file = files[0];
-                  if (file.type.startsWith('audio/') || /\.(mp3|wav|m4a|aac|flac)$/i.test(file.name)) {
+                  const check = isSupportedAudioFile(file);
+                  if (check.supported) {
                     onFileDrop(target.id, file);
                   } else {
+                    if (check.isDrm) {
+                      alert(check.reason);
+                    }
                     onLockout();
                   }
                 }
