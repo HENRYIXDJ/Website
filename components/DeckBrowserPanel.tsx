@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Maximize2, Minimize2, Search, X, Music, Folder, FolderOpen, Upload, ChevronUp, ChevronDown, Lock, Unlock } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { playClick, SUPPORTED_AUDIO_ACCEPT, isSupportedAudioFile } from '@/lib/audioUtils';
+import { playClick, playLockoutBlip, SUPPORTED_AUDIO_ACCEPT, isSupportedAudioFile } from '@/lib/audioUtils';
 import { detectCamelotKey, isHarmonicallyCompatible } from '@/lib/proTrackAnalysis';
 import { useAudioStore } from '@/store/audioStore';
 import { DeckBadge, DeckId } from './DeckBadge';
@@ -385,6 +385,10 @@ export function DeckBrowserPanel({
                               isLoaded={isLoadedOnThisDeck}
                               onClick={(e) => {
                                 e.stopPropagation();
+                                if (playLockEnabled && decks[dId]?.isPlaying) {
+                                  playLockoutBlip();
+                                  return;
+                                }
                                 onTrackSelect(mix, dId);
                               }}
                             />

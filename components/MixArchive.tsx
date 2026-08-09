@@ -1338,6 +1338,10 @@ function StackedWaveformDeckItem({
         onOpenTracklist={(deckId) => setActiveTracklistDeckId(deckId)}
         onOpenMIDI={() => setIsMIDIOpen(true)}
         onConnectUsb={() => connectUsbDrive()}
+        mixGroups={mixGroups}
+        onTrackSelect={(mix, dId) => playTrack(mix, dId)}
+        onLoadLocalFile={(file, dId) => loadLocalFile && loadLocalFile(dId || 1, file)}
+        usbTracks={usbTracks}
       />
     );
   };

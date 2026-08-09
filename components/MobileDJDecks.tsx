@@ -13,11 +13,19 @@ import { RotaryKnob } from './DJComponents';
 import { StemControlPanel } from './StemControlPanel';
 import { audioEngine } from '@/lib/AudioEngine';
 
+import { DeckBrowserPanel } from './DeckBrowserPanel';
+import { DeckId } from './DeckBadge';
+import { X } from 'lucide-react';
+
 interface MobileDJDecksProps {
   isDepth?: boolean;
   onOpenTracklist: (deckId: 1 | 2) => void;
   onOpenMIDI: () => void;
   onConnectUsb: () => void;
+  mixGroups?: any[];
+  onTrackSelect?: (track: any, deckId: DeckId) => void;
+  onLoadLocalFile?: (file: File, targetDeckId?: DeckId) => void;
+  usbTracks?: any[];
 }
 
 export function MobileDJDecks({
@@ -25,6 +33,10 @@ export function MobileDJDecks({
   onOpenTracklist,
   onOpenMIDI,
   onConnectUsb,
+  mixGroups = [],
+  onTrackSelect,
+  onLoadLocalFile,
+  usbTracks = [],
 }: MobileDJDecksProps) {
   const decks = useAudioStore(s => s.decks);
   const setDeck = useAudioStore(s => s.setDeck);
@@ -36,6 +48,8 @@ export function MobileDJDecks({
   // Mobile Focus State: 1 = Deck 1 Focus, 'dual' = Dual Split, 2 = Deck 2 Focus
   const [mobileFocus, setMobileFocus] = useState<1 | 'dual' | 2>('dual');
   const [showEqDrawer, setShowEqDrawer] = useState(false);
+  const [showMobileCrate, setShowMobileCrate] = useState(false);
+  const [crateFolder, setCrateFolder] = useState('all');
 
   const deck1 = decks[1] || {};
   const deck2 = decks[2] || {};
@@ -58,7 +72,7 @@ export function MobileDJDecks({
   const getThemeColor = (id: number) => (id === 1 ? '#d8163f' : '#22d3ee');
 
   return (
-    <div className="w-full flex flex-col h-full bg-black font-mono text-white select-none overflow-hidden pb-2">
+    <div className="w-full flex flex-col h-full bg-black font-mono text-white select-none overflow-hidden pb-2 relative">
       
       {/* 1. TOP MOBILE HEADER & MODE SELECTOR */}
       <div className="flex items-center justify-between px-2 py-1.5 bg-black border-b border-zinc-900 shrink-0">
@@ -110,6 +124,22 @@ export function MobileDJDecks({
 
         {/* Quick Toolbar Triggers */}
         <div className="flex items-center gap-1">
+          <button
+            onClick={() => {
+              setShowMobileCrate(!showMobileCrate);
+              playClick(800, 'sine', 0.02);
+            }}
+            className={cn(
+              "px-2 py-1 border text-[8px] font-black uppercase flex items-center gap-1 transition-all cursor-pointer",
+              showMobileCrate 
+                ? "bg-primary text-black border-primary shadow-neon-glow" 
+                : "bg-zinc-900 border-zinc-800 text-zinc-300 hover:text-white"
+            )}
+            title="Toggle Music Crate"
+          >
+            <span>📦</span>
+            <span>CRATE</span>
+          </button>
           <button
             onClick={onConnectUsb}
             className="p-1 bg-zinc-900 border border-zinc-800 rounded-none text-[9px] text-zinc-300 hover:text-white"
@@ -500,6 +530,79 @@ export function MobileDJDecks({
           className="w-full h-3 accent-primary bg-black border border-zinc-900 rounded appearance-none cursor-pointer"
         />
       </div>
+
+      {/* 6. FLOATING MOBILE CRATE QUICK ACCESS BUTTON */}
+      {!showMobileCrate && (
+        <button
+          onClick={() => {
+            setShowMobileCrate(true);
+            playClick(900, 'sine', 0.02);
+          }}
+          className="fixed bottom-14 right-3 z-40 w-11 h-11 bg-black border-2 border-primary rounded-full shadow-neon-strong flex items-center justify-center text-primary active:scale-95 transition-transform"
+          title="Open Track Crate"
+        >
+          <Music className="w-5 h-5 animate-pulse" />
+        </button>
+      )}
+
+      {/* 7. SKEUOMORPHIC MOBILE CRATE BOTTOM-SHEET DRAWER */}
+      <AnimatePresence>
+        {showMobileCrate && (
+          <motion.div
+            initial={{ y: '100%' }}
+            animate={{ y: 0 }}
+            exit={{ y: '100%' }}
+            transition={{ type: 'spring', damping: 25, stiffness: 220 }}
+            className="fixed inset-x-0 bottom-0 z-50 h-[84vh] bg-black border-t-2 border-primary flex flex-col shadow-2xl overflow-hidden font-mono"
+          >
+            {/* Drawer Header & Drag Handle */}
+            <div className="w-full bg-zinc-950 border-b border-zinc-900 px-3 py-2 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-1 bg-zinc-700 rounded-full mx-auto" />
+                <span className="text-[10px] font-black tracking-wider text-primary uppercase">
+                  ░▒▓█ MUSIC CRATE // TRACK BROWSER
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={onConnectUsb}
+                  className="px-2 py-0.5 bg-zinc-900 border border-zinc-800 text-[8px] font-bold text-zinc-300 hover:text-white flex items-center gap-1"
+                >
+                  <span>💾</span>
+                  <span>USB DRIVE</span>
+                </button>
+                <button
+                  onClick={() => setShowMobileCrate(false)}
+                  className="p-1 text-zinc-400 hover:text-white cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Embedded DeckBrowserPanel in Mobile Mode */}
+            <div className="flex-1 overflow-hidden flex flex-col">
+              <DeckBrowserPanel
+                deckCount={2}
+                activeDeckId={mobileFocus === 2 ? 2 : 1}
+                mixGroups={mixGroups || []}
+                browserFolder={crateFolder}
+                onFolderSelect={(f) => setCrateFolder(f)}
+                detectedBpms={{}}
+                onTrackSelect={(track, deckId) => {
+                  if (onTrackSelect) onTrackSelect(track, deckId);
+                  playClick(950, 'sine', 0.03);
+                  setShowMobileCrate(false);
+                }}
+                onLoadLocalFile={onLoadLocalFile}
+                themeColor={mobileFocus === 2 ? '#22d3ee' : '#d8163f'}
+                isExpandedView={true}
+                onCloseExpanded={() => setShowMobileCrate(false)}
+              />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

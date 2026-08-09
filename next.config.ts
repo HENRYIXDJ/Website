@@ -1,6 +1,7 @@
 import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
+  transpilePackages: ['sanity', '@sanity/vision', 'next-sanity'],
   reactStrictMode: true,
   eslint: {
     ignoreDuringBuilds: true,
@@ -57,6 +58,24 @@ const nextConfig: NextConfig = {
         ],
       },
     ];
+  },
+  webpack(config) {
+    let compilerRuntime: string;
+    try {
+      compilerRuntime = require.resolve('react/compiler-runtime');
+    } catch {
+      compilerRuntime = require('path').resolve(__dirname, 'lib/empty.js');
+    }
+
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      'react/compiler-runtime': compilerRuntime,
+      'react/jsx-runtime': require.resolve('react/jsx-runtime'),
+      'react/jsx-dev-runtime': require.resolve('react/jsx-dev-runtime'),
+      'react$': require('path').resolve(__dirname, 'lib/react-shim.js'),
+      'react': require('path').resolve(__dirname, 'lib/react-shim.js'),
+    };
+    return config;
   },
 };
 
