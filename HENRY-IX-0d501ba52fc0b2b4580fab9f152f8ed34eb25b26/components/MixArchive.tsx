@@ -1,9 +1,8 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import Link from 'next/link';
 import { motion, useMotionValue, AnimatePresence } from 'framer-motion';
-import { Play, Pause, X, Cpu, Search } from 'lucide-react';
+import { Play, Pause, X, Search } from 'lucide-react';
 import { useAudioStore } from '@/store/audioStore';
 import { cn } from '@/lib/utils';
 import { RotaryKnob } from '@/components/DJComponents';
@@ -27,8 +26,10 @@ import { VinylStack } from './VinylStack';
 import { SingleDeckWaveform } from './SingleDeckWaveform';
 import { DeckToolbar } from './DeckToolbar';
 import { DeckBrowserPanel } from './DeckBrowserPanel';
+import { DeckBadge, DeckId } from './DeckBadge';
 import { UsbDropzoneOverlay } from './UsbDropzoneOverlay';
 import { MobileDJDecks } from './MobileDJDecks';
+import { HardwareControllerView } from './HardwareControllerView';
 import dynamic from 'next/dynamic';
 
 const CDJHardware = dynamic(() => import('./CDJHardware'), { ssr: false });
@@ -75,21 +76,19 @@ export default function MixArchive({
   useEffect(() => { decksRef.current = decks; }, [decks]);
 
   const archiveRef = useRef<HTMLDivElement>(null);
-  const fileInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
   const mouseX = useMotionValue(0);
   const mouseY = useMotionValue(0);
   const [deckCount, setDeckCount] = useState<2 | 4>(4);
   const [isMobile, setIsMobile] = useState(false);
   const [isPortrait, setIsPortrait] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isCDJMenuOpen, setIsCDJMenuOpen] = useState(false);
   const [activeTracklistDeckId, setActiveTracklistDeckId] = useState<number | null>(null);
 
   const [isMIDIOpen, setIsMIDIOpen] = useState(false);
   const [midiDeviceName, setMIDIDeviceName] = useState<string>('');
   const [isGlitching, setIsGlitching] = useState(false);
 
-  const { connectUsbDrive, usbTracks, usbFolderName, isLoading: isUsbLoading } = useUsbLibrary();
+  const { connectUsbDrive, usbFolderName, isLoading: isUsbLoading } = useUsbLibrary();
   const [recordingState, setRecordingState] = useState<RecordingState>(setRecorder.getState());
 
   useEffect(() => {
@@ -115,7 +114,6 @@ export default function MixArchive({
     });
     return () => unsub();
   }, []);
-  const [mobileWaveformHeight, setMobileWaveformHeight] = useState(28);
   const activeDeckIds = (deckCount === 2 ? [1, 2] : [3, 1, 2, 4]) as readonly (1 | 2 | 3 | 4)[];
 
   const isStacked = useAudioStore(s => s.isStacked);
@@ -690,9 +688,9 @@ export default function MixArchive({
 
   const activeVisualizer = getActiveVisualizerState();
 
-          const [browserFolders, setBrowserFolders] = useState<Record<number, string>>({
-    1: 'all', 2: 'all', 3: 'all', 4: 'all'
-  });
+  const [masterBrowserFolder, setMasterBrowserFolder] = useState<string>('all');
+  const [targetDeckForBrowser, setTargetDeckForBrowser] = useState<DeckId>(1);
+  const [isMasterCrateExpanded, setIsMasterCrateExpanded] = useState<boolean>(false);
 
   const renderDeckBrowser = (deckId: 1 | 2 | 3 | 4) => {
     const themeColor = 
@@ -1416,7 +1414,14 @@ export default function MixArchive({
         )}
 
         {activeView === 'cdj' ? (
-          isMobile ? (
+          midiDeviceName ? (
+            <HardwareControllerView
+              deviceName={midiDeviceName}
+              isDepth={isDepth}
+              onOpenTracklist={(deckId) => setActiveTracklistDeckId(deckId)}
+              onOpenMIDI={() => setIsMIDIOpen(true)}
+            />
+          ) : isMobile ? (
             renderMobileCDJ()
           ) : (
             <>
@@ -1532,16 +1537,40 @@ export default function MixArchive({
                         (isActive || !isStacked) ? "flex" : "hidden"
                       )}
                     >
-                      {/* Browser */}
-                      <div className={cn(
-                        "transition-all duration-300 min-h-0",
-                        isMobile 
-                          ? "h-[75px] shrink-0" 
-                          : deckCount === 4 && !isStacked 
-                            ? "h-[75px] xl:h-[90px] 2xl:h-[105px] shrink-0" 
-                            : "h-[85px] xl:h-[105px] 2xl:h-[125px] shrink-0"
-                      )}>
-                        {renderDeckBrowser(id)}
+                      {/* Top Deck LCD Display Header */}
+                      <div 
+                        className="bg-black border border-zinc-900 p-2 flex items-center justify-between gap-2 border-l-2 shrink-0 select-none font-mono" 
+                        style={{ borderLeftColor: themeColor }}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <DeckBadge deckId={id} variant="badge" isPlaying={deck?.isPlaying} isLoaded={!isLocked && !!deck?.title} />
+                          <div className="flex flex-col min-w-0">
+                            <span className="text-[5.5px] text-zinc-500 uppercase tracking-widest font-black leading-none">LOADED TRACK</span>
+                            <span className="font-black truncate tracking-wider text-zinc-200 text-[9px] uppercase leading-none mt-0.5">
+                              {isLocked ? "LOCKED DECK (PREVIEW ONLY)" : deck?.title || "NO TRACK LOADED"}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          <div className="hidden sm:flex flex-col text-right font-mono">
+                            <span className="text-[5.5px] text-zinc-500 uppercase font-bold leading-none">BPM / KEY</span>
+                            <span className="text-[8.5px] font-bold text-amber-400 leading-none mt-0.5">
+                              {isLocked ? "130.0 BPM" : `${(deck?.bpm * (1 + (deck?.pitch || 0) / 100)).toFixed(1)} BPM`}
+                            </span>
+                          </div>
+
+                          <button
+                            onClick={() => {
+                              playClick(900, 'sine', 0.02);
+                              setTargetDeckForBrowser(id);
+                              setIsMasterCrateExpanded(true);
+                            }}
+                            className="px-2 py-1 bg-zinc-900 hover:bg-primary hover:text-black border border-zinc-800 text-zinc-300 font-bold uppercase text-[7.5px] tracking-wider transition-colors cursor-pointer flex items-center gap-1"
+                          >
+                            <span>📁 LOAD</span>
+                          </button>
+                        </div>
                       </div>
 
                       {/* Waveform */}
@@ -1632,6 +1661,23 @@ export default function MixArchive({
                 {renderMixer()}
               </motion.div>
 
+            </div>
+
+            {/* Single Master Music Crate Browser */}
+            <div className="w-full h-[36vh] max-h-[360px] min-h-[180px] shrink-0 border-t border-zinc-900 bg-black p-1">
+              <DeckBrowserPanel
+                deckCount={deckCount}
+                activeDeckId={targetDeckForBrowser || 1}
+                mixGroups={mixGroups}
+                browserFolder={masterBrowserFolder}
+                onFolderSelect={(folder) => setMasterBrowserFolder(folder)}
+                detectedBpms={detectedBpms}
+                onTrackSelect={(mix, dId) => playTrack(mix, dId)}
+                onLoadLocalFile={(file, dId) => loadLocalFile && loadLocalFile(dId || 1, file)}
+                themeColor="var(--color-primary)"
+                isExpandedView={isMasterCrateExpanded}
+                onCloseExpanded={() => setIsMasterCrateExpanded(false)}
+              />
             </div>
           </>
           )

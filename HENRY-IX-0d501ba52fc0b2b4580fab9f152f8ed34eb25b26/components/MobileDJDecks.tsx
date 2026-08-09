@@ -2,14 +2,16 @@
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Play, Pause, Disc, Sliders, Volume2, Music, ChevronDown } from 'lucide-react';
+import { Play, Pause, Sliders, Music, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAudioStore } from '@/store/audioStore';
 import { useAudio } from '@/components/AudioProvider';
-import { playClick, playTick } from '@/lib/audioUtils';
-import { formatTime, formatPlayheadTime, getSessionImage } from '@/lib/mixes';
+import { playClick } from '@/lib/audioUtils';
+import { formatPlayheadTime, getSessionImage } from '@/lib/mixes';
 import { SingleDeckWaveform } from './SingleDeckWaveform';
 import { RotaryKnob } from './DJComponents';
+import { StemControlPanel } from './StemControlPanel';
+import { audioEngine } from '@/lib/AudioEngine';
 
 interface MobileDJDecksProps {
   isDepth?: boolean;
@@ -26,11 +28,10 @@ export function MobileDJDecks({
 }: MobileDJDecksProps) {
   const decks = useAudioStore(s => s.decks);
   const setDeck = useAudioStore(s => s.setDeck);
-  const setDecks = useAudioStore(s => s.setDecks);
   const crossfader = useAudioStore(s => s.crossfader);
   const setCrossfader = useAudioStore(s => s.setCrossfader);
 
-  const { togglePlayGlobal, playLockoutBlip } = useAudio();
+  const { togglePlayGlobal } = useAudio();
 
   // Mobile Focus State: 1 = Deck 1 Focus, 'dual' = Dual Split, 2 = Deck 2 Focus
   const [mobileFocus, setMobileFocus] = useState<1 | 'dual' | 2>('dual');
@@ -46,7 +47,6 @@ export function MobileDJDecks({
     if (cueTime !== null && cueTime !== undefined) {
       playClick(900, 'sine', 0.02);
       useAudioStore.getState().setDeck(deckId, { progress: cueTime, isPlaying: true });
-      const audio = useAudioStore.getState().decks[deckId];
     } else {
       playClick(600, 'sine', 0.02);
       const currentTime = deck.progress || 0;
@@ -112,7 +112,7 @@ export function MobileDJDecks({
         <div className="flex items-center gap-1">
           <button
             onClick={onConnectUsb}
-            className="p-1 bg-zinc-900 border border-zinc-800 rounded text-[9px] text-zinc-300 hover:text-white"
+            className="p-1 bg-zinc-900 border border-zinc-800 rounded-none text-[9px] text-zinc-300 hover:text-white"
             title="Connect USB"
           >
             💾
@@ -120,7 +120,7 @@ export function MobileDJDecks({
           <button
             onClick={() => setShowEqDrawer(!showEqDrawer)}
             className={cn(
-              "p-1 border rounded text-[9px] transition-all",
+              "p-1 border rounded-none text-[9px] transition-all",
               showEqDrawer ? "bg-primary/20 border-primary text-primary" : "bg-zinc-900 border-zinc-800 text-zinc-400"
             )}
             title="Toggle EQ Mixer"
@@ -139,7 +139,7 @@ export function MobileDJDecks({
               <span className="text-[#d8163f] truncate max-w-[160px]">1 // {deck1.title || 'NO TRACK'}</span>
               <span>-{formatPlayheadTime(Math.max(0, (deck1.duration || 0) - (deck1.progress || 0)))}</span>
             </div>
-            <div className="w-full h-8 bg-black rounded overflow-hidden border border-zinc-900 relative">
+            <div className="w-full h-8 bg-black rounded-none overflow-hidden border border-zinc-900 relative">
               <SingleDeckWaveform deckId={1} deck={deck1} isDepth={isDepth} />
             </div>
           </div>
@@ -152,7 +152,7 @@ export function MobileDJDecks({
               <span className="text-[#22d3ee] truncate max-w-[160px]">2 // {deck2.title || 'NO TRACK'}</span>
               <span>-{formatPlayheadTime(Math.max(0, (deck2.duration || 0) - (deck2.progress || 0)))}</span>
             </div>
-            <div className="w-full h-8 bg-black rounded overflow-hidden border border-zinc-900 relative">
+            <div className="w-full h-8 bg-black rounded-none overflow-hidden border border-zinc-900 relative">
               <SingleDeckWaveform deckId={2} deck={deck2} isDepth={isDepth} />
             </div>
           </div>
@@ -175,7 +175,7 @@ export function MobileDJDecks({
                   {/* Track Header & Browser Trigger */}
                   <button
                     onClick={() => onOpenTracklist(activeId)}
-                    className="w-full bg-zinc-950 border border-zinc-900 p-2 flex items-center justify-between rounded text-left active:scale-[0.99] transition-transform"
+                    className="w-full bg-zinc-950 border border-zinc-900 p-2 flex items-center justify-between rounded-none text-left active:scale-[0.99] transition-transform"
                     style={{ borderLeft: `3px solid ${color}` }}
                   >
                     <div className="flex flex-col min-w-0 pr-2">
@@ -186,7 +186,7 @@ export function MobileDJDecks({
                   </button>
 
                   {/* Platter & Pitch Fader Section */}
-                  <div className="grid grid-cols-[1fr_80px] gap-3 items-center justify-center py-2 bg-black border border-zinc-900/80 rounded p-2">
+                  <div className="grid grid-cols-[1fr_80px] gap-3 items-center justify-center py-2 bg-black border border-zinc-900/80 rounded-none p-2">
                     {/* Big Touch Platter */}
                     <div className="flex flex-col items-center justify-center relative">
                       <div
@@ -217,7 +217,7 @@ export function MobileDJDecks({
                     </div>
 
                     {/* Touch Pitch Slider & BPM Readout */}
-                    <div className="flex flex-col items-center justify-between h-full py-1 bg-zinc-950 border border-zinc-900 rounded p-1.5">
+                    <div className="flex flex-col items-center justify-between h-full py-1 bg-zinc-950 border border-zinc-900 rounded-none p-1.5">
                       <div className="text-center font-bold">
                         <div className="text-[6.5px] text-zinc-500 uppercase">BPM</div>
                         <div className="text-sm font-black text-white">{((deck.bpm || 120) * (1 + (deck.pitch || 0) / 100)).toFixed(1)}</div>
@@ -240,7 +240,7 @@ export function MobileDJDecks({
                       
                       <button
                         onClick={() => setDeck(activeId, { pitch: 0 })}
-                        className="text-[6.5px] text-zinc-400 hover:text-white uppercase font-bold border border-zinc-800 px-1 py-0.5 rounded mt-1"
+                        className="text-[6.5px] text-zinc-400 hover:text-white uppercase font-bold border border-zinc-800 px-1 py-0.5 rounded-none mt-1"
                       >
                         RESET
                       </button>
@@ -248,7 +248,7 @@ export function MobileDJDecks({
                   </div>
 
                   {/* Hot Cue Pads (A-D) Large Touch Targets */}
-                  <div className="flex flex-col gap-1 bg-black border border-zinc-900 rounded p-2">
+                  <div className="flex flex-col gap-1 bg-black border border-zinc-900 rounded-none p-2">
                     <span className="text-[7.5px] text-zinc-500 font-bold uppercase tracking-wider">HOT CUES (A-D)</span>
                     <div className="grid grid-cols-4 gap-2">
                       {(['A', 'B', 'C', 'D'] as const).map(pad => {
@@ -258,7 +258,7 @@ export function MobileDJDecks({
                             key={pad}
                             onClick={() => handleHotCuePress(activeId, pad)}
                             className={cn(
-                              "h-11 rounded border font-bold text-xs uppercase flex flex-col items-center justify-center cursor-pointer active:scale-95 transition-transform",
+                              "h-11 rounded-none border font-bold text-xs uppercase flex flex-col items-center justify-center cursor-pointer active:scale-95 transition-transform",
                               hasCue
                                 ? "bg-emerald-950 border-emerald-500 text-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.3)]"
                                 : "bg-zinc-950 border-zinc-900 text-zinc-600"
@@ -272,6 +272,49 @@ export function MobileDJDecks({
                     </div>
                   </div>
 
+                  {/* Stem Separation Control Panel */}
+                  <StemControlPanel deckId={activeId} themeColor={color} />
+
+                  {/* Quantized Beat Jump & Pitch Nudge Bar */}
+                  <div className="flex flex-col gap-1 bg-black border border-zinc-900 rounded-none p-1.5 font-mono select-none">
+                    <div className="flex justify-between items-center text-[7px] text-zinc-500 font-bold uppercase pb-0.5">
+                      <span>QUANTIZED BEAT JUMP & NUDGE</span>
+                      <span className="text-zinc-600">BEATMATCHING</span>
+                    </div>
+                    <div className="grid grid-cols-6 gap-1">
+                      <button
+                        onTouchStart={() => audioEngine.pitchNudge(activeId, -3.0)}
+                        onTouchEnd={() => audioEngine.pitchNudge(activeId, 0)}
+                        onMouseDown={() => audioEngine.pitchNudge(activeId, -3.0)}
+                        onMouseUp={() => audioEngine.pitchNudge(activeId, 0)}
+                        className="h-7 bg-zinc-950 border border-zinc-900 hover:border-amber-500 text-amber-400 text-[7.5px] font-black uppercase rounded-none cursor-pointer flex items-center justify-center active:scale-95"
+                      >
+                        ◀ NUDGE
+                      </button>
+                      {[-8, -4, 4, 8].map(beats => (
+                        <button
+                          key={beats}
+                          onClick={() => {
+                            playClick(1000, 'sine', 0.02);
+                            audioEngine.beatJump(activeId, beats);
+                          }}
+                          className="h-7 bg-zinc-950 border border-zinc-900 hover:border-cyan-500 text-cyan-400 text-[8px] font-black uppercase rounded-none cursor-pointer flex items-center justify-center active:scale-95"
+                        >
+                          {beats > 0 ? `+${beats}B` : `${beats}B`}
+                        </button>
+                      ))}
+                      <button
+                        onTouchStart={() => audioEngine.pitchNudge(activeId, 3.0)}
+                        onTouchEnd={() => audioEngine.pitchNudge(activeId, 0)}
+                        onMouseDown={() => audioEngine.pitchNudge(activeId, 3.0)}
+                        onMouseUp={() => audioEngine.pitchNudge(activeId, 0)}
+                        className="h-7 bg-zinc-950 border border-zinc-900 hover:border-amber-500 text-amber-400 text-[7.5px] font-black uppercase rounded-none cursor-pointer flex items-center justify-center active:scale-95"
+                      >
+                        NUDGE ▶
+                      </button>
+                    </div>
+                  </div>
+
                   {/* Primary Play / Cue Transport Control Buttons (44px min touch target) */}
                   <div className="grid grid-cols-3 gap-2 mt-auto">
                     <button
@@ -279,7 +322,7 @@ export function MobileDJDecks({
                         playClick(900, 'sine', 0.02);
                         setDeck(activeId, { progress: 0, isPlaying: false });
                       }}
-                      className="h-12 bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded text-xs font-black tracking-widest uppercase cursor-pointer active:scale-95 transition-transform text-amber-400"
+                      className="h-12 bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded-none text-xs font-black tracking-widest uppercase cursor-pointer active:scale-95 transition-transform text-amber-400"
                     >
                       CUE
                     </button>
@@ -287,7 +330,7 @@ export function MobileDJDecks({
                     <button
                       onClick={() => togglePlayGlobal(activeId)}
                       className={cn(
-                        "h-12 rounded text-xs font-black tracking-widest uppercase cursor-pointer active:scale-95 transition-transform flex items-center justify-center gap-1.5 shadow-lg",
+                        "h-12 rounded-none text-xs font-black tracking-widest uppercase cursor-pointer active:scale-95 transition-transform flex items-center justify-center gap-1.5 shadow-lg",
                         deck.isPlaying ? "bg-emerald-500 text-black shadow-emerald-500/20" : "bg-primary text-black shadow-primary/20"
                       )}
                     >
@@ -306,7 +349,7 @@ export function MobileDJDecks({
                         });
                       }}
                       className={cn(
-                        "h-12 rounded border text-xs font-black tracking-widest uppercase cursor-pointer active:scale-95 transition-transform",
+                        "h-12 rounded-none border text-xs font-black tracking-widest uppercase cursor-pointer active:scale-95 transition-transform",
                         deck.isLoopActive ? "bg-amber-950 border-amber-500 text-amber-400" : "bg-zinc-950 border-zinc-900 text-zinc-400"
                       )}
                     >
@@ -417,24 +460,18 @@ export function MobileDJDecks({
                     <div className="flex justify-between w-full">
                       <RotaryKnob
                         label="HI"
-                        value={deck.highEq || 0}
-                        min={-12}
-                        max={12}
-                        onChange={(val) => setDeck(deckId, { highEq: val })}
+                        value={deck.eqHi || 0}
+                        onChange={(val) => setDeck(deckId, { eqHi: val })}
                       />
                       <RotaryKnob
                         label="MID"
-                        value={deck.midEq || 0}
-                        min={-12}
-                        max={12}
-                        onChange={(val) => setDeck(deckId, { midEq: val })}
+                        value={deck.eqMid || 0}
+                        onChange={(val) => setDeck(deckId, { eqMid: val })}
                       />
                       <RotaryKnob
                         label="LOW"
-                        value={deck.lowEq || 0}
-                        min={-12}
-                        max={12}
-                        onChange={(val) => setDeck(deckId, { lowEq: val })}
+                        value={deck.eqLow || 0}
+                        onChange={(val) => setDeck(deckId, { eqLow: val })}
                       />
                     </div>
                   </div>

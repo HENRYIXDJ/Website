@@ -102,14 +102,15 @@ export function NewsletterForm() {
               <div className="font-mono text-[9px] uppercase tracking-widest mt-1.5 flex items-center gap-1.5 select-none pl-1">
                 <span className={cn(
                   "px-1 py-0.5 rounded-none text-[8px] font-bold",
-                  validation.status === 'waiting' && "bg-zinc-950 text-zinc-400 border border-zinc-900",
-                  validation.status === 'success' && "bg-emerald-950 text-emerald-400 border border-emerald-800 animate-pulse shadow-[0_0_5px_rgba(16,185,129,0.2)]",
-                  validation.status === 'warning' && "bg-amber-950 text-amber-400 border border-amber-800"
+                  status === 'error' && "bg-red-950 text-red-400 border border-red-800",
+                  status !== 'error' && validation.status === 'waiting' && "bg-zinc-950 text-zinc-400 border border-zinc-900",
+                  status !== 'error' && validation.status === 'success' && "bg-emerald-950 text-emerald-400 border border-emerald-800 animate-pulse shadow-[0_0_5px_rgba(16,185,129,0.2)]",
+                  status !== 'error' && validation.status === 'warning' && "bg-amber-950 text-amber-400 border border-amber-800"
                 )}>
-                  [{validation.status.toUpperCase()}]
+                  [{status === 'error' ? 'ERROR' : validation.status.toUpperCase()}]
                 </span>
                 <span className="text-zinc-500 tracking-wider">
-                  {validation.message}
+                  {status === 'error' && errorMessage ? errorMessage : validation.message}
                 </span>
               </div>
             </div>

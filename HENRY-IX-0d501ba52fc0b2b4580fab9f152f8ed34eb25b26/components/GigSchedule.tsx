@@ -9,6 +9,7 @@ const SPRING_CONFIG = { type: "spring" as const, stiffness: 300, damping: 20 };
 
 interface GigScheduleProps {
   isDepth?: boolean;
+  initialEvents?: any[] | null;
 }
 
 export function GigSchedule({ isDepth = false }: GigScheduleProps) {

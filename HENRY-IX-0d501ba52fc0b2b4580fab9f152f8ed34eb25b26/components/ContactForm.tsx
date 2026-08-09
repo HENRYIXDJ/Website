@@ -5,7 +5,6 @@ import { motion } from 'framer-motion';
 import { ArrowRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { playClick, playTick } from '@/lib/audioUtils';
-import siteContent from '@/lib/siteContent';
 
 const SPRING_CONFIG = { type: "spring" as const, stiffness: 300, damping: 20 };
 

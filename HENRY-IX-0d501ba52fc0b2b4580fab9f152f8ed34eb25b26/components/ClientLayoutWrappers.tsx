@@ -41,6 +41,22 @@ export default function ClientLayoutWrappers({ children }: { children?: React.Re
   const setPreloaderComplete = useAudioStore(s => s.setPreloaderComplete);
   const isCDJView = useAudioStore(s => s.isCDJView);
 
+  const [isConsentPending, setIsConsentPending] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('henryix_cookie_consent_v1');
+        const cookieExists = document.cookie.includes('henryix_consent');
+        if (!saved && !cookieExists) {
+          setIsConsentPending(true);
+        }
+      } catch {
+        setIsConsentPending(false);
+      }
+    }
+  }, []);
+
   useIsomorphicLayoutEffect(() => {
     if (typeof window !== 'undefined') {
       const hasVisited = sessionStorage.getItem('hasVisited');
@@ -58,14 +74,17 @@ export default function ClientLayoutWrappers({ children }: { children?: React.Re
     <div className="flex flex-col min-h-screen">
       <GlobalBackgroundGrid />
       {showPreloader && (
-        <Preloader onComplete={() => setPreloaderComplete(true)} />
+        <Preloader 
+          onComplete={() => setPreloaderComplete(true)} 
+          isConsentPending={isConsentPending}
+        />
       )}
       <CRTOverlay />
       {!isCDJView && <SiteHeader />}
       <main className="flex-1 flex flex-col">
         {children}
       </main>
-      <CookieConsentBanner />
+      <CookieConsentBanner onConsentSaved={() => setIsConsentPending(false)} />
       {!isCDJView && <SiteFooter />}
     </div>
   );

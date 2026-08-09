@@ -11,12 +11,12 @@ interface JogWheelPlatterProps {
   isCueStuttering: boolean;
   themeColor: string;
   sessionImg: string;
-  onRimDown: (e: React.PointerEvent) => void;
-  onRimMove: (e: React.PointerEvent) => void;
-  onRimUp: (e: React.PointerEvent) => void;
-  onPlatterDown: (e: React.PointerEvent) => void;
-  onPlatterMove: (e: React.PointerEvent) => void;
-  onPlatterUp: (e: React.PointerEvent) => void;
+  onRimDown: (e: React.PointerEvent<HTMLDivElement>) => void;
+  onRimMove: (e: React.PointerEvent<HTMLDivElement>) => void;
+  onRimUp: (e: React.PointerEvent<HTMLDivElement>) => void;
+  onPlatterDown: (e: React.PointerEvent<HTMLDivElement>) => void;
+  onPlatterMove: (e: React.PointerEvent<HTMLDivElement>) => void;
+  onPlatterUp: (e: React.PointerEvent<HTMLDivElement>) => void;
 }
 
 export function JogWheelPlatter({

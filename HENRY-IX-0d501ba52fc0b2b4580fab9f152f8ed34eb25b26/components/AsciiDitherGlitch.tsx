@@ -21,6 +21,12 @@ export function AsciiDitherGlitch({
   const [isGlitching, setIsGlitching] = useState(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, []);
+
   const triggerGlitch = () => {
     if (intervalRef.current) clearInterval(intervalRef.current);
     setIsGlitching(true);
