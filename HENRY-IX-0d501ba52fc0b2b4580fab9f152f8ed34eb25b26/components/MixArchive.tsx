@@ -1,15 +1,16 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import Link from 'next/link';
 import { motion, useMotionValue, AnimatePresence } from 'framer-motion';
-import { Play, Pause, X, Cpu, Search } from 'lucide-react';
+import { Play, Pause, X, Search } from 'lucide-react';
 import { useAudioStore } from '@/store/audioStore';
 import { cn } from '@/lib/utils';
 import { RotaryKnob } from '@/components/DJComponents';
 import { audioEngine } from '@/lib/AudioEngine';
 import { midiEngine } from '@/lib/midiEngine';
 import { MIDILearnModal } from './MIDILearnModal';
+import { useUsbLibrary } from '@/lib/useUsbLibrary';
+import { setRecorder, RecordingState } from '@/lib/audioRecorder';
 import { playClick, playTick, playLockoutBlip } from '@/lib/audioUtils';
 import { 
   formatTime, 
@@ -23,6 +24,12 @@ import { ChannelVUMeter } from './ChannelVUMeter';
 import { Crossfader } from './Crossfader';
 import { VinylStack } from './VinylStack';
 import { SingleDeckWaveform } from './SingleDeckWaveform';
+import { DeckToolbar } from './DeckToolbar';
+import { DeckBrowserPanel } from './DeckBrowserPanel';
+import { DeckBadge, DeckId } from './DeckBadge';
+import { UsbDropzoneOverlay } from './UsbDropzoneOverlay';
+import { MobileDJDecks } from './MobileDJDecks';
+import { HardwareControllerView } from './HardwareControllerView';
 import dynamic from 'next/dynamic';
 
 const CDJHardware = dynamic(() => import('./CDJHardware'), { ssr: false });
@@ -69,19 +76,24 @@ export default function MixArchive({
   useEffect(() => { decksRef.current = decks; }, [decks]);
 
   const archiveRef = useRef<HTMLDivElement>(null);
-  const fileInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
   const mouseX = useMotionValue(0);
   const mouseY = useMotionValue(0);
   const [deckCount, setDeckCount] = useState<2 | 4>(4);
   const [isMobile, setIsMobile] = useState(false);
   const [isPortrait, setIsPortrait] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isCDJMenuOpen, setIsCDJMenuOpen] = useState(false);
   const [activeTracklistDeckId, setActiveTracklistDeckId] = useState<number | null>(null);
 
   const [isMIDIOpen, setIsMIDIOpen] = useState(false);
   const [midiDeviceName, setMIDIDeviceName] = useState<string>('');
   const [isGlitching, setIsGlitching] = useState(false);
+
+  const { connectUsbDrive, usbFolderName, isLoading: isUsbLoading } = useUsbLibrary();
+  const [recordingState, setRecordingState] = useState<RecordingState>(setRecorder.getState());
+
+  useEffect(() => {
+    return setRecorder.subscribe(setRecordingState);
+  }, []);
 
   const handleDeckCountChange = (count: 2 | 4) => {
     if (deckCount === count) return;
@@ -102,7 +114,6 @@ export default function MixArchive({
     });
     return () => unsub();
   }, []);
-  const [mobileWaveformHeight, setMobileWaveformHeight] = useState(28);
   const activeDeckIds = (deckCount === 2 ? [1, 2] : [3, 1, 2, 4]) as readonly (1 | 2 | 3 | 4)[];
 
   const isStacked = useAudioStore(s => s.isStacked);
@@ -677,176 +688,29 @@ export default function MixArchive({
 
   const activeVisualizer = getActiveVisualizerState();
 
-  const [browserFolders, setBrowserFolders] = useState<Record<number, string>>({
-    1: 'all', 2: 'all', 3: 'all', 4: 'all'
-  });
+  const [masterBrowserFolder, setMasterBrowserFolder] = useState<string>('all');
+  const [targetDeckForBrowser, setTargetDeckForBrowser] = useState<DeckId>(1);
+  const [isMasterCrateExpanded, setIsMasterCrateExpanded] = useState<boolean>(false);
 
   const renderDeckBrowser = (deckId: 1 | 2 | 3 | 4) => {
-    const deck = decks[deckId];
-    const isLocked = deck?.id === 'locked';
-    const activeFolder = browserFolders[deckId] || 'all';
-    
     const themeColor = 
-      deckId === 1 ? 'rgba(211,15,49,1)' : // red
-      deckId === 2 ? 'rgba(34,211,238,1)' : // cyan
-      deckId === 3 ? 'rgba(16,185,129,1)' : // green
-      'rgba(234,179,8,1)'; // yellow
-
-    if (isLocked) {
-      // We still get tracks for when it's not locked, but let's define folderMixGroups and tracks
-    }
-    const folderMixGroups = mixGroups || [];
-    let tracks: any[] = [];
-    if (activeFolder === 'all') {
-      tracks = folderMixGroups.flatMap(g => g.mixes || []);
-    } else {
-      const matchedGroup = folderMixGroups.find(g => g.title.toLowerCase() === activeFolder.toLowerCase());
-      tracks = matchedGroup ? (matchedGroup.mixes || []) : [];
-    }
+      deckId === 1 ? 'rgba(211,15,49,1)' :
+      deckId === 2 ? 'rgba(34,211,238,1)' :
+      deckId === 3 ? 'rgba(16,185,129,1)' :
+      'rgba(234,179,8,1)';
 
     return (
-      <div 
-        className="rounded-xl border border-zinc-900 bg-zinc-950/90 flex flex-col text-zinc-300 font-mono text-[9px] select-none h-full w-full overflow-hidden shadow-2xl relative transition-all duration-300 min-h-0"
-        style={{ borderTop: `2px solid ${themeColor}` }}
-      >
-        {/* Rekordbox Playlist Browser Header */}
-        <div className="flex justify-between items-center bg-black/60 border-b border-zinc-900 px-3 py-1.5 shrink-0 text-[8px] text-zinc-500 tracking-wider uppercase font-bold">
-          <div className="flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: themeColor }} />
-            <span>BROWSER // DECK {deckId}</span>
-          </div>
-          <span>USB1 // PLAYLISTS</span>
-        </div>
-
-        {/* Directory & Tracks Split Grid */}
-        {isLocked ? (
-          <div className="flex-grow flex flex-col justify-center items-center p-4 text-center min-h-[120px]">
-            <span className="text-yellow-500 font-bold tracking-widest uppercase text-[11px]">
-              DECK LOCKED // COMING SOON
-            </span>
-            <span className="text-zinc-600 text-[8px] mt-2 tracking-wider">
-              ACCESS_DENIED // REQUIRE_RELEASE
-            </span>
-          </div>
-        ) : (
-          <div className="flex flex-1 min-h-0 w-full bg-black">
-            {/* Left Column: Playlist Folders Tree */}
-            <div className="w-[35%] border-r border-zinc-900 bg-black flex flex-col p-1.5 min-w-0 h-full overflow-hidden select-none">
-              <span className="text-[6.5px] text-zinc-600 uppercase font-black tracking-widest px-1 mb-1 shrink-0">Source</span>
-              
-              <div className="flex-1 overflow-y-auto custom-scrollbar flex flex-col gap-0.5 min-h-0 pr-0.5">
-                <button
-                  onClick={() => {
-                    setBrowserFolders(prev => ({ ...prev, [deckId]: 'all' }));
-                    playClick(800, 'sine', 0.02);
-                  }}
-                  className={cn(
-                    "w-full text-left py-1 px-1.5 rounded-none transition-all text-ellipsis overflow-hidden whitespace-nowrap cursor-pointer text-[8px] uppercase font-bold shrink-0",
-                    activeFolder === 'all' ? "bg-black text-white border-l-2" : "text-zinc-500 hover:text-zinc-300"
-                  )}
-                  style={{ borderLeftColor: activeFolder === 'all' ? themeColor : 'transparent' }}
-                >
-                  📂 ALL MIXES
-                </button>
-                {folderMixGroups.map(group => (
-                  <button
-                    key={group.title}
-                    onClick={() => {
-                      setBrowserFolders(prev => ({ ...prev, [deckId]: group.title }));
-                      playClick(800, 'sine', 0.02);
-                    }}
-                    className={cn(
-                      "w-full text-left py-1 px-1.5 rounded-none transition-all text-ellipsis overflow-hidden whitespace-nowrap cursor-pointer text-[8px] uppercase font-bold shrink-0",
-                      activeFolder === group.title ? "bg-black text-white border-l-2" : "text-zinc-500 hover:text-zinc-300"
-                    )}
-                    style={{ borderLeftColor: activeFolder === group.title ? themeColor : 'transparent' }}
-                  >
-                    📂 {group.title}
-                  </button>
-                ))}
-              </div>
-              
-              {/* Custom upload helper in sidebar */}
-              <div className="mt-auto border-t border-zinc-900 pt-1.5 shrink-0">
-                <button
-                  onClick={() => {
-                    const fileInput = fileInputRefs.current[deckId];
-                    if (fileInput) fileInput.click();
-                  }}
-                  className="w-full text-center py-1 bg-black hover:bg-zinc-950 rounded-none border border-zinc-900 text-[7px] tracking-widest font-black transition-colors uppercase cursor-pointer"
-                >
-                  📁 CUSTOM LOAD
-                </button>
-                <input
-                  type="file"
-                  ref={el => { fileInputRefs.current[deckId] = el; }}
-                  accept="audio/*"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file && loadLocalFile) {
-                      loadLocalFile(deckId, file);
-                    }
-                  }}
-                  className="hidden"
-                />
-              </div>
-            </div>
-
-            {/* Right Column: Track Table List */}
-            <div className="flex-1 flex flex-col min-w-0 bg-black overflow-hidden">
-              {/* Table Headers */}
-              <div className="grid grid-cols-[12%_63%_25%] border-b border-zinc-900 px-2 py-1 text-[7.5px] text-zinc-600 font-bold uppercase tracking-widest bg-black shrink-0">
-                <span>#</span>
-                <span>Track Title</span>
-                <span className="text-right">BPM</span>
-              </div>
-
-              {/* Table Rows */}
-              <div className="flex-1 overflow-y-auto custom-scrollbar p-1 flex flex-col gap-0.5 min-h-0 bg-black">
-                {tracks.length === 0 ? (
-                  <div className="flex-grow flex items-center justify-center text-zinc-600 text-[8px] italic py-4">
-                    No tracks available
-                  </div>
-                ) : (
-                  tracks.map((mix, index) => {
-                    const isLoaded = deck.id === mix.id;
-                    const idxStr = (index + 1).toString().padStart(3, '0');
-                    
-                    return (
-                      <div 
-                        key={mix.id}
-                        onClick={() => {
-                          playTrack(mix, deckId);
-                        }}
-                        className={cn(
-                          "grid grid-cols-[12%_63%_25%] items-center px-1.5 py-1.5 rounded-none cursor-pointer transition-colors duration-200 select-none group border border-transparent",
-                          isLoaded 
-                            ? "bg-black text-white font-black border-zinc-800" 
-                            : "text-zinc-400 hover:text-zinc-200 hover:bg-black"
-                        )}
-                        style={{ 
-                          borderColor: isLoaded ? `${themeColor}60` : 'transparent',
-                          color: isLoaded ? themeColor : undefined 
-                        }}
-                      >
-                        <span className={cn("text-[7.5px]", isLoaded ? "text-white" : "text-zinc-600 font-bold")}>
-                          {idxStr}
-                        </span>
-                        <span className="truncate pr-1 uppercase tracking-wide text-[8.5px]">
-                          🎵 {mix.title}
-                        </span>
-                        <span className="text-right text-[8.5px] font-bold text-zinc-500 font-mono">
-                          {detectedBpms[mix.id] || mix.bpm || 120}
-                        </span>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
+      <DeckBrowserPanel
+        deckId={deckId}
+        deck={decks[deckId]}
+        mixGroups={mixGroups}
+        browserFolder={browserFolders[deckId] || 'all'}
+        onFolderSelect={(folder) => setBrowserFolders(prev => ({ ...prev, [deckId]: folder }))}
+        detectedBpms={detectedBpms}
+        onTrackSelect={(mix, id) => playTrack(mix, id)}
+        onLoadLocalFile={(file) => loadLocalFile && loadLocalFile(deckId, file)}
+        themeColor={themeColor}
+      />
     );
   };
 
@@ -1364,715 +1228,13 @@ export default function MixArchive({
   };
 
   const renderMobileCDJ = () => {
-    const deck1 = decks[1];
-    const deck2 = decks[2];
-
-    const getBpmString = (deck: any) => {
-      const pitch = deck.pitch || 0;
-      const state = useAudioStore.getState();
-      const baseBpm = state.detectedBpms?.[deck.id] || deck.bpm || 130;
-      const currentBpm = baseBpm * (1 + pitch / 100);
-      const sign = pitch >= 0 ? '+' : '';
-      return `${currentBpm.toFixed(1)} ${sign}${pitch.toFixed(1)}%`;
-    };
-
-    const triggerCueDown = (deckId: number) => {
-      const deck = decks[deckId];
-      if (!deck || deck.id === 'locked') return;
-
-      playClick(720, 'sine', 0.015);
-      const audioEl = audioElementsRef?.current?.[deckId];
-      if (!audioEl) return;
-
-      const mainCueTime = deck.mainCue || 0;
-      const currentProgress = deck.progress || 0;
-
-      if (deck.isPlaying) {
-        audioEl.pause();
-        if (seekLocalBuffer) seekLocalBuffer(deckId, mainCueTime);
-        setDecks((prev: any) => ({
-          ...prev,
-          [deckId]: { ...prev[deckId], isPlaying: false, isCueStuttering: false }
-        }));
-      } else {
-        if (Math.abs(currentProgress - mainCueTime) > 0.08) {
-          const bpm = deck.bpm || 120;
-          const pitch = deck.pitch || 0;
-          const currentBpm = bpm * (1 + pitch / 100);
-          const beatInterval = 60 / currentBpm;
-          const offset = deck.firstBeatOffset || 0;
-          const elapsed = currentProgress - offset;
-          const closestBeatIndex = Math.round(elapsed / beatInterval);
-          const snappedTime = Math.max(0, offset + closestBeatIndex * beatInterval);
-
-          setDecks((prev: any) => ({
-            ...prev,
-            [deckId]: { ...prev[deckId], mainCue: snappedTime }
-          }));
-        } else {
-          setDecks((prev: any) => ({
-            ...prev,
-            [deckId]: { ...prev[deckId], isPlaying: true, isCueStuttering: true }
-          }));
-          audioEl.play().catch((err: any) => {
-            if (err.name !== 'AbortError') {
-              setDecks((prev: any) => ({
-                ...prev,
-                [deckId]: { ...prev[deckId], isPlaying: false, isCueStuttering: false }
-              }));
-            }
-          });
-        }
-      }
-    };
-
-    const triggerCueUp = (deckId: number) => {
-      const deck = decks[deckId];
-      if (!deck || deck.id === 'locked') return;
-
-      if (deck.isCueStuttering) {
-        const audioEl = audioElementsRef?.current?.[deckId];
-        if (audioEl) {
-          audioEl.pause();
-        }
-        if (seekLocalBuffer) seekLocalBuffer(deckId, deck.mainCue || 0);
-        setDecks((prev: any) => ({
-          ...prev,
-          [deckId]: { ...prev[deckId], isPlaying: false, isCueStuttering: false }
-        }));
-      }
-    };
-
-    const triggerSyncMobile = (deckId: number, targetId: number) => {
-      const d1 = decks[deckId];
-      const d2 = decks[targetId];
-      if (d1 && d2 && d1.id !== 'locked') {
-        playClick(800, 'sine', 0.02);
-        const isBothPlaying = d1.isPlaying && d2.isPlaying;
-        const nextSyncState = isBothPlaying ? true : !d1.syncEnabled;
-        setDecks((prev: any) => ({
-          ...prev,
-          [deckId]: { ...prev[deckId], syncEnabled: nextSyncState }
-        }));
-        if (isBothPlaying && alignSyncPlayback) {
-          alignSyncPlayback(deckId);
-        }
-      }
-    };
-
-    const handleHotCuePressMobile = (deckId: number, pad: string) => {
-      const deck = decks[deckId];
-      if (!deck || deck.id === 'locked') return;
-
-      const currentProgress = deck.progress || 0;
-      const savedTime = deck.hotCues?.[pad];
-
-      if (savedTime === null || savedTime === undefined) {
-        const bpm = deck.bpm || 120;
-        const pitch = deck.pitch || 0;
-        const currentBpm = bpm * (1 + pitch / 100);
-        const beatInterval = 60 / currentBpm;
-        const offset = deck.firstBeatOffset || 0;
-        const elapsed = currentProgress - offset;
-        const closestBeatIndex = Math.round(elapsed / beatInterval);
-        const snappedTime = Math.max(0, offset + closestBeatIndex * beatInterval);
-
-        playClick(880, 'sine', 0.02);
-        setDecks((prev: any) => ({
-          ...prev,
-          [deckId]: {
-            ...prev[deckId],
-            hotCues: {
-              ...prev[deckId].hotCues,
-              [pad]: snappedTime
-            }
-          }
-        }));
-      } else {
-        playClick(960, 'sine', 0.015);
-        if (seekLocalBuffer) {
-          seekLocalBuffer(deckId, savedTime);
-        }
-
-        const audioEl = audioElementsRef?.current?.[deckId];
-        if (audioEl) {
-          if (!deck.isPlaying) {
-            setDecks((prev: any) => ({
-              ...prev,
-              [deckId]: { ...prev[deckId], isPlaying: true }
-            }));
-            if (deck.syncEnabled && alignSyncPlayback) {
-              alignSyncPlayback(deckId);
-            }
-            audioEl.play().catch((err: any) => {
-              if (err.name !== 'AbortError') {
-                setDecks((prev: any) => ({
-                  ...prev,
-                  [deckId]: { ...prev[deckId], isPlaying: false }
-                }));
-              }
-            });
-          }
-        }
-      }
-    };
-
     return (
-      <div className="w-full h-full flex flex-col justify-between bg-black text-white p-1.5 font-mono select-none overflow-hidden relative">
-        <style dangerouslySetInnerHTML={{ __html: `
-          @keyframes spin-slow {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-          }
-          .animate-spin-slow {
-            animation: spin-slow 12s linear infinite;
-          }
-        `}} />
-
-        {/* Floating Mobile Menu Button (Top Left Corner) */}
-        <div className="absolute top-2 left-2 z-50">
-          <button
-            onClick={() => {
-              playClick(800, 'sine', 0.02);
-              setIsCDJMenuOpen(!isCDJMenuOpen);
-            }}
-            className="flex items-center justify-center px-1.5 py-0.5 rounded bg-zinc-950/90 border border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700 font-mono text-[6.5px] font-black tracking-widest uppercase transition-all duration-150 select-none cursor-pointer"
-          >
-            MENU
-          </button>
-
-          {/* Dropdown navigation list */}
-          <AnimatePresence>
-            {isCDJMenuOpen && (
-              <>
-                <motion.div 
-                   initial={{ opacity: 0 }}
-                   animate={{ opacity: 0.5 }}
-                   exit={{ opacity: 0 }}
-                   className="fixed inset-0 bg-black/60 z-40"
-                   onClick={() => setIsCDJMenuOpen(false)}
-                />
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.95, y: -5 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.95, y: -5 }}
-                  transition={{ duration: 0.15 }}
-                  className="absolute left-0 top-[22px] w-36 bg-zinc-950 border border-zinc-800 rounded shadow-lg z-50 py-1 font-mono text-[7px]"
-                >
-                  <Link
-                    href="/"
-                    onClick={() => setIsCDJMenuOpen(false)}
-                    className="block px-3 py-1.5 text-zinc-400 hover:text-white hover:bg-zinc-900 border-b border-zinc-900/60 uppercase tracking-widest font-black text-[6.5px] leading-tight"
-                  >
-                    ← BACK TO HOME
-                  </Link>
-                  {[
-                    { name: 'MIXES', href: '/mixes' },
-                    { name: 'GALLERY', href: '/gallery' },
-                    { name: 'LIVE', href: '/live' },
-                    { name: 'EVENTS', href: '/events' },
-                    { name: 'CONTACT', href: '/contact' }
-                  ].map((link) => (
-                    <Link
-                      key={link.href}
-                      href={link.href}
-                      onClick={() => setIsCDJMenuOpen(false)}
-                      className="block px-3 py-1.5 text-zinc-400 hover:text-white hover:bg-zinc-900 uppercase tracking-widest leading-normal"
-                    >
-                      {link.name}
-                    </Link>
-                  ))}
-                </motion.div>
-              </>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* Top Row: Side-by-Side Waveforms */}
-        <div 
-          className="grid grid-cols-[1fr_80px_1fr] gap-2 items-center w-full shrink-0 border-b border-zinc-900 pb-1"
-          style={{ height: `${mobileWaveformHeight + 20}px` }}
-        >
-          {/* Deck 1 Waveform display */}
-          <div className="flex flex-col h-full justify-between">
-            <div className="flex justify-between items-center text-[7px] text-zinc-500 uppercase tracking-widest leading-none pl-9">
-              <span className="text-emerald-500 font-bold">1 // {deck1.title}</span>
-              <span>REMAIN {formatPlayheadTime(Math.max(0, (deck1.duration || 0) - (deck1.progress || 0)))}</span>
-            </div>
-            <div 
-              className="w-full flex-grow mt-0.5 rounded overflow-hidden bg-zinc-950/80 border border-zinc-900/60 relative"
-              style={{ height: `${mobileWaveformHeight}px` }}
-            >
-              <SingleDeckWaveform 
-                deckId={1} 
-                deck={deck1} 
-                isDepth={isDepth} 
-              />
-            </div>
-          </div>
-
-          {/* Level meter / Status in center */}
-          <div className="flex flex-col items-center justify-center h-full gap-0.5 pt-1">
-            <span className="text-[6px] text-zinc-600 font-black tracking-widest uppercase leading-none">LEVELS</span>
-            {/* Level meter LEDs */}
-            <div className="flex gap-1 h-3 items-center">
-              {/* Left meter */}
-              <div className="flex flex-col gap-0.5 h-full justify-end">
-                <div className={cn("w-1 h-0.5 rounded-sm", deck1.isPlaying ? "bg-red-500 shadow-[0_0_2px_#ef4444]" : "bg-zinc-800")} />
-                <div className={cn("w-1 h-0.5 rounded-sm", deck1.isPlaying && deck1.volume > 30 ? "bg-yellow-500 shadow-[0_0_2px_#eab308]" : "bg-zinc-800")} />
-                <div className={cn("w-1 h-0.5 rounded-sm", deck1.isPlaying && deck1.volume > 0 ? "bg-emerald-500 shadow-[0_0_2px_#10b981]" : "bg-zinc-800")} />
-              </div>
-              {/* Right meter */}
-              <div className="flex flex-col gap-0.5 h-full justify-end">
-                <div className={cn("w-1 h-0.5 rounded-sm", deck2.isPlaying ? "bg-red-500 shadow-[0_0_2px_#ef4444]" : "bg-zinc-800")} />
-                <div className={cn("w-1 h-0.5 rounded-sm", deck2.isPlaying && deck2.volume > 30 ? "bg-yellow-500 shadow-[0_0_2px_#eab308]" : "bg-zinc-800")} />
-                <div className={cn("w-1 h-0.5 rounded-sm", deck2.isPlaying && deck2.volume > 0 ? "bg-emerald-500 shadow-[0_0_2px_#10b981]" : "bg-zinc-800")} />
-              </div>
-            </div>
-            
-            {/* Height adjustment controls */}
-            <div className="flex gap-1 scale-90 mt-0.5">
-              <button 
-                onClick={() => {
-                  playClick(900, 'sine', 0.01);
-                  setMobileWaveformHeight(h => Math.min(60, h + 6));
-                }}
-                className="px-1 py-0.2 bg-zinc-900 border border-zinc-800 rounded text-[5px] font-black text-zinc-400 cursor-pointer active:scale-95 leading-none"
-                title="Increase Waveform Height"
-              >
-                H+
-              </button>
-              <button 
-                onClick={() => {
-                  playClick(850, 'sine', 0.01);
-                  setMobileWaveformHeight(h => Math.max(18, h - 6));
-                }}
-                className="px-1 py-0.2 bg-zinc-900 border border-zinc-800 rounded text-[5px] font-black text-zinc-400 cursor-pointer active:scale-95 leading-none"
-                title="Decrease Waveform Height"
-              >
-                H-
-              </button>
-            </div>
-          </div>
-
-          {/* Deck 2 Waveform display */}
-          <div className="flex flex-col h-full justify-between">
-            <div className="flex justify-between items-center text-[7px] text-zinc-500 uppercase tracking-widest leading-none">
-              <span>REMAIN {formatPlayheadTime(Math.max(0, (deck2.duration || 0) - (deck2.progress || 0)))}</span>
-              <span className="text-rose-500 font-bold">{deck2.title} // 2</span>
-            </div>
-            <div 
-              className="w-full flex-grow mt-0.5 rounded overflow-hidden bg-zinc-950/80 border border-zinc-900/60 relative"
-              style={{ height: `${mobileWaveformHeight}px` }}
-            >
-              <SingleDeckWaveform 
-                deckId={2} 
-                deck={deck2} 
-                isDepth={isDepth} 
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Middle Row: Platters (Jogwheels) & Loop Control */}
-        <div className="grid grid-cols-[1fr_80px_1fr] gap-3 items-center flex-grow min-h-0 w-full px-2 mt-1">
-          {/* Deck 1 Platter & outer controls */}
-          <div className="flex items-center justify-between w-full h-full">
-            {/* Outer Left: Volume, Pitch & Buttons */}
-            <div className="flex gap-2 items-center shrink-0">
-              {/* Volume Slider */}
-              <div className="h-20 w-4 flex flex-col items-center select-none relative shrink-0">
-                <span className="text-[5px] text-zinc-500 font-mono font-bold leading-none uppercase mb-1">VOL</span>
-                <input 
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={deck1.volume}
-                  {...{ orient: "vertical" }}
-                  style={{ writingMode: 'bt-lr', WebkitAppearance: 'slider-vertical' } as any}
-                  onChange={(e) => handleVolumeChange(1, Number(e.target.value))}
-                  className="w-1.5 h-16 accent-emerald-500 bg-zinc-900 rounded-lg appearance-none cursor-pointer border border-zinc-800"
-                />
-              </div>
-
-              <div className="flex flex-col gap-1 items-start">
-                <div className="bg-zinc-950 border border-zinc-900 rounded p-1 text-center font-mono text-[7px] leading-tight text-zinc-400">
-                  <div className="text-[6px] text-zinc-600 font-bold">BPM</div>
-                  <div className="font-bold text-white tracking-tighter">{getBpmString(deck1)}</div>
-                </div>
-                <button 
-                  onClick={() => {
-                    playClick(800, 'sine', 0.02);
-                    const active = deck1.isLoopActive;
-                    setDecks((prev: any) => ({
-                      ...prev,
-                      [1]: { 
-                        ...prev[1], 
-                        isLoopActive: !active,
-                        loopIn: !active ? deck1.progress : null,
-                        loopOut: !active ? deck1.progress + 4 * (60 / (deck1.bpm || 120)) : null
-                      }
-                    }));
-                  }}
-                  className={cn(
-                    "px-2 py-0.5 rounded text-[7px] font-bold border transition-all uppercase tracking-wider",
-                    deck1.isLoopActive 
-                      ? "bg-emerald-950 text-emerald-400 border-emerald-800 shadow-[0_0_6px_rgba(16,185,129,0.3)] animate-pulse" 
-                      : "bg-zinc-950 text-zinc-500 border-zinc-900"
-                  )}
-                >
-                  {deck1.isLoopActive ? "4B LOOP" : "LOOP OFF"}
-                </button>
-                <button 
-                  onClick={() => {
-                    playClick(800, 'sine', 0.02);
-                    setDecks((prev: any) => ({
-                      ...prev,
-                      [1]: { ...prev[1], slipEnabled: !deck1.slipEnabled }
-                    }));
-                  }}
-                  className={cn(
-                    "px-2 py-0.5 rounded text-[7px] font-bold border transition-all uppercase tracking-wider",
-                    deck1.slipEnabled 
-                      ? "bg-primary/20 text-primary border-primary/40 shadow-[0_0_6px_rgba(216,22,63,0.3)]" 
-                      : "bg-zinc-950 text-zinc-500 border-zinc-900"
-                  )}
-                >
-                  SLIP
-                </button>
-              </div>
-            </div>
-
-            {/* Platter Center */}
-            <div className="flex-grow flex items-center justify-center min-w-0">
-              <div 
-                className="relative rounded-full aspect-square border border-zinc-800 bg-zinc-950 flex items-center justify-center shadow-[0_0_12px_rgba(0,0,0,0.8)] transition-all select-none cursor-pointer"
-                style={{
-                  height: '118px',
-                  width: '118px',
-                  backgroundImage: 'radial-gradient(circle, #27272a 35%, #18181b 36%, #18181b 50%, #09090b 51%, #09090b 70%, #27272a 71%)'
-                }}
-                onClick={() => {
-                  playClick(800, 'sine', 0.02);
-                  setActiveTracklistDeckId(1);
-                }}
-              >
-                {/* Grooves & Position Stripes */}
-                <div className="absolute inset-3 border border-dashed border-zinc-900/40 rounded-full pointer-events-none" />
-                <div className="absolute inset-6.5 border border-zinc-900/25 rounded-full pointer-events-none" />
-                <div className="absolute inset-10 border border-dashed border-zinc-900/40 rounded-full pointer-events-none" />
-
-                {/* Platter Marker Needle Ring */}
-                <div 
-                  className="absolute top-0 w-0.5 h-3.5 pointer-events-none z-20"
-                  style={{ backgroundColor: '#10b981' }}
-                />
-
-                {/* Inner Platter (Spinning artwork) */}
-                <div 
-                  className={cn(
-                    "rounded-full border border-black overflow-hidden relative shadow-inner bg-cover bg-center select-none pointer-events-none z-10 flex items-center justify-center",
-                    (deck1.isPlaying && !deck1.isCueStuttering) && "animate-[spin_1.8s_linear_infinite]"
-                  )}
-                  style={{ 
-                    width: '66px',
-                    height: '66px',
-                    backgroundImage: `url(${getSessionImage(deck1.title, deck1.artworkUrl)})`
-                  }}
-                >
-                  {/* Center Spindle Hole */}
-                  <div className="w-2.5 h-2.5 rounded-full bg-zinc-950 border border-zinc-800 shadow z-10 flex items-center justify-center">
-                    <div className="w-0.5 h-0.5 rounded-full bg-zinc-900" />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Center Column Info / View Selectors */}
-          <div className="flex flex-col items-center justify-center gap-1.5 h-full px-1">
-            <div className="flex flex-col gap-1 items-center w-full">
-              <div className="text-[5.5px] text-zinc-600 font-black tracking-widest leading-none">VIEW SELECT</div>
-              
-              <button 
-                onClick={() => {
-                  playClick(800, 'sine', 0.02);
-                  setActiveView && setActiveView('cdj');
-                }}
-                className={cn(
-                  "px-1.5 py-0.5 rounded text-[7px] font-bold border transition-all uppercase tracking-wider w-full text-center scale-90 cursor-pointer select-none",
-                  activeView === 'cdj'
-                    ? "bg-primary/20 text-primary border-primary/50 shadow-[0_0_6px_rgba(216,22,63,0.3)] font-black"
-                    : "bg-zinc-950 text-zinc-500 border-zinc-900"
-                )}
-              >
-                CDJ VIEW
-              </button>
-
-              <button 
-                onClick={() => {
-                  playClick(800, 'sine', 0.02);
-                  setActiveView && setActiveView('tracklist');
-                }}
-                className={cn(
-                  "px-1.5 py-0.5 rounded text-[7px] font-bold border transition-all uppercase tracking-wider w-full text-center scale-90 cursor-pointer select-none",
-                  activeView === 'tracklist'
-                    ? "bg-primary/20 text-primary border-primary/50 shadow-[0_0_6px_rgba(216,22,63,0.3)] font-black"
-                    : "bg-zinc-950 text-zinc-500 border-zinc-900"
-                )}
-              >
-                TRACKLIST
-              </button>
-            </div>
-          </div>
-
-          {/* Deck 2 Platter & outer controls */}
-          <div className="flex items-center justify-between w-full h-full">
-            {/* Platter Center */}
-            <div className="flex-grow flex items-center justify-center min-w-0">
-              <div 
-                className="relative rounded-full aspect-square border border-zinc-800 bg-zinc-950 flex items-center justify-center shadow-[0_0_12px_rgba(0,0,0,0.8)] transition-all select-none cursor-pointer"
-                style={{
-                  height: '118px',
-                  width: '118px'
-                }}
-                onClick={() => {
-                  playClick(800, 'sine', 0.02);
-                  setActiveTracklistDeckId(2);
-                }}
-              >
-                {/* Grooves & Position Stripes */}
-                <div className="absolute inset-3 border border-dashed border-zinc-900/40 rounded-full pointer-events-none" />
-                <div className="absolute inset-6.5 border border-zinc-900/25 rounded-full pointer-events-none" />
-                <div className="absolute inset-10 border border-dashed border-zinc-900/40 rounded-full pointer-events-none" />
-
-                {/* Platter Marker Needle Ring */}
-                <div 
-                  className="absolute top-0 w-0.5 h-3.5 pointer-events-none z-20"
-                  style={{ backgroundColor: '#f43f5e' }}
-                />
-
-                {/* Inner Platter (Spinning artwork) */}
-                <div 
-                  className={cn(
-                    "rounded-full border border-black overflow-hidden relative shadow-inner bg-cover bg-center select-none pointer-events-none z-10 flex items-center justify-center",
-                    (deck2.isPlaying && !deck2.isCueStuttering) && "animate-[spin_1.8s_linear_infinite]"
-                  )}
-                  style={{ 
-                    width: '66px',
-                    height: '66px',
-                    backgroundImage: `url(${getSessionImage(deck2.title, deck2.artworkUrl)})`
-                  }}
-                >
-                  {/* Center Spindle Hole */}
-                  <div className="w-2.5 h-2.5 rounded-full bg-zinc-950 border border-zinc-800 shadow z-10 flex items-center justify-center">
-                    <div className="w-0.5 h-0.5 rounded-full bg-zinc-900" />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Outer Right: Pitch & Buttons & Volume */}
-            <div className="flex gap-2 items-center shrink-0">
-              <div className="flex flex-col gap-1 items-end">
-                <div className="bg-zinc-950 border border-zinc-900 rounded p-1 text-center font-mono text-[7px] leading-tight text-zinc-400">
-                  <div className="text-[6px] text-zinc-600 font-bold">BPM</div>
-                  <div className="font-bold text-white tracking-tighter">{getBpmString(deck2)}</div>
-                </div>
-                <button 
-                  onClick={() => {
-                    playClick(800, 'sine', 0.02);
-                    const active = deck2.isLoopActive;
-                    setDecks((prev: any) => ({
-                      ...prev,
-                      [2]: { 
-                        ...prev[2], 
-                        isLoopActive: !active,
-                        loopIn: !active ? deck2.progress : null,
-                        loopOut: !active ? deck2.progress + 4 * (60 / (deck2.bpm || 120)) : null
-                      }
-                    }));
-                  }}
-                  className={cn(
-                    "px-2 py-0.5 rounded text-[7px] font-bold border transition-all uppercase tracking-wider",
-                    deck2.isLoopActive 
-                      ? "bg-rose-950 text-rose-400 border-rose-800 shadow-[0_0_6px_rgba(244,63,94,0.3)] animate-pulse" 
-                      : "bg-zinc-950 text-zinc-500 border-zinc-900"
-                  )}
-                >
-                  {deck2.isLoopActive ? "4B LOOP" : "LOOP OFF"}
-                </button>
-                <button 
-                  onClick={() => {
-                    playClick(800, 'sine', 0.02);
-                    setDecks((prev: any) => ({
-                      ...prev,
-                      [2]: { ...prev[2], slipEnabled: !deck2.slipEnabled }
-                    }));
-                  }}
-                  className={cn(
-                    "px-2 py-0.5 rounded text-[7px] font-bold border transition-all uppercase tracking-wider",
-                    deck2.slipEnabled 
-                      ? "bg-primary/20 text-primary border-primary/40 shadow-[0_0_6px_rgba(216,22,63,0.3)]" 
-                      : "bg-zinc-950 text-zinc-500 border-zinc-900"
-                  )}
-                >
-                  SLIP
-                </button>
-              </div>
-
-              {/* Volume Slider */}
-              <div className="h-20 w-4 flex flex-col items-center select-none relative shrink-0">
-                <span className="text-[5px] text-zinc-500 font-mono font-bold leading-none uppercase mb-1">VOL</span>
-                <input 
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={deck2.volume}
-                  {...{ orient: "vertical" }}
-                  style={{ writingMode: 'bt-lr', WebkitAppearance: 'slider-vertical' } as any}
-                  onChange={(e) => handleVolumeChange(2, Number(e.target.value))}
-                  className="w-1.5 h-16 accent-rose-500 bg-zinc-900 rounded-lg appearance-none cursor-pointer border border-zinc-800"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Hot Cues Row (A-D) */}
-        <div className="grid grid-cols-[1.2fr_1fr_1.2fr] gap-2 items-center w-full px-4 mt-1 shrink-0">
-          {/* Deck 1 Hot Cues A-D */}
-          <div className="flex gap-1.5 justify-start">
-            {(['A', 'B', 'C', 'D'] as const).map(pad => {
-              const hasCue = deck1?.hotCues?.[pad] !== null && deck1?.hotCues?.[pad] !== undefined;
-              return (
-                <button
-                  key={pad}
-                  onPointerDown={() => handleHotCuePressMobile(1, pad)}
-                  className={cn(
-                    "h-5 w-7 rounded border font-mono text-[7px] font-black uppercase transition-all select-none cursor-pointer flex items-center justify-center",
-                    hasCue
-                      ? "bg-emerald-950 border-emerald-500 text-emerald-400 shadow-[0_0_6px_rgba(16,185,129,0.3)]"
-                      : "bg-zinc-950 border-zinc-900 text-zinc-600 hover:text-zinc-400"
-                  )}
-                >
-                  {pad}
-                </button>
-              );
-            })}
-          </div>
-          <div /> {/* Center spacer */}
-          {/* Deck 2 Hot Cues A-D */}
-          <div className="flex gap-1.5 justify-end">
-            {(['A', 'B', 'C', 'D'] as const).map(pad => {
-              const hasCue = deck2?.hotCues?.[pad] !== null && deck2?.hotCues?.[pad] !== undefined;
-              return (
-                <button
-                  key={pad}
-                  onPointerDown={() => handleHotCuePressMobile(2, pad)}
-                  className={cn(
-                    "h-5 w-7 rounded border font-mono text-[7px] font-black uppercase transition-all select-none cursor-pointer flex items-center justify-center",
-                    hasCue
-                      ? "bg-rose-950 border-rose-500 text-rose-400 shadow-[0_0_6px_rgba(244,63,94,0.3)]"
-                      : "bg-zinc-950 border-zinc-900 text-zinc-600 hover:text-zinc-400"
-                  )}
-                >
-                  {pad}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Bottom Row: Controls (Cue, Play, Sync) and Crossfader */}
-        <div className="grid grid-cols-[1.2fr_1fr_1.2fr] gap-2 items-end w-full h-[40px] shrink-0 px-2 mt-1">
-          {/* Deck 1 Buttons */}
-          <div className="flex items-center gap-3 justify-start">
-            <button 
-              onPointerDown={(e) => { e.preventDefault(); triggerCueDown(1); }}
-              onPointerUp={(e) => { e.preventDefault(); triggerCueUp(1); }}
-              className="rounded-full border-2 border-yellow-500 hover:bg-yellow-500/10 text-yellow-500 shadow-[0_0_6px_rgba(234,179,8,0.2)] font-bold text-[9px] uppercase tracking-wider h-8 w-8 flex items-center justify-center cursor-pointer select-none"
-            >
-              CUE
-            </button>
-            <button 
-              onClick={() => togglePlayGlobal(1)}
-              className={cn(
-                "rounded-full border-2 font-bold h-8 w-8 flex items-center justify-center cursor-pointer select-none",
-                deck1.isPlaying 
-                  ? "bg-emerald-500 border-emerald-400 text-black shadow-[0_0_10px_rgba(16,185,129,0.5)]" 
-                  : "border-emerald-500 hover:bg-emerald-500/10 text-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.2)]"
-              )}
-            >
-              {deck1.isPlaying ? <Pause size={10} fill="black" /> : <Play size={10} fill="currentColor" className="ml-0.5" />}
-            </button>
-            <button 
-              onClick={() => triggerSyncMobile(1, 2)}
-              className={cn(
-                "rounded-full border text-[7.5px] uppercase font-bold tracking-wider h-7 w-7 flex items-center justify-center cursor-pointer select-none",
-                deck1.syncEnabled 
-                  ? "bg-emerald-500 border-emerald-400 text-black shadow-[0_0_8px_rgba(16,185,129,0.4)]" 
-                  : "border-zinc-700 text-zinc-400 hover:text-zinc-200"
-              )}
-            >
-              SYNC
-            </button>
-          </div>
-
-          {/* Center Crossfader */}
-          <div className="flex flex-col items-center justify-end w-full pb-1">
-            <div className="flex items-center gap-1.5 mb-1.5">
-              <span className="text-[6px] text-zinc-500 font-bold border border-zinc-900 bg-zinc-950 px-1 py-0.5 rounded scale-90">FILTER MIX</span>
-              <span className="text-[6px] text-zinc-600 font-bold scale-90">EDIT</span>
-            </div>
-            <div className="w-full relative flex items-center h-4">
-              <input 
-                type="range"
-                min="0"
-                max="100"
-                value={crossfader}
-                onChange={(e) => setCrossfader(Number(e.target.value))}
-                className="w-full accent-primary bg-zinc-900 h-1 rounded-lg appearance-none cursor-pointer border border-zinc-800"
-              />
-              <span className="absolute left-0.5 bottom-3.5 text-[5px] text-zinc-600 font-bold">1</span>
-              <span className="absolute right-0.5 bottom-3.5 text-[5px] text-zinc-600 font-bold">2</span>
-            </div>
-          </div>
-
-          {/* Deck 2 Buttons */}
-          <div className="flex items-center gap-3 justify-end">
-            <button 
-              onClick={() => triggerSyncMobile(2, 1)}
-              className={cn(
-                "rounded-full border text-[7.5px] uppercase font-bold tracking-wider h-7 w-7 flex items-center justify-center cursor-pointer select-none",
-                deck2.syncEnabled 
-                  ? "bg-rose-500 border-rose-400 text-black shadow-[0_0_8px_rgba(244,63,94,0.4)]" 
-                  : "border-zinc-700 text-zinc-400 hover:text-zinc-200"
-              )}
-            >
-              SYNC
-            </button>
-            <button 
-              onPointerDown={(e) => { e.preventDefault(); triggerCueDown(2); }}
-              onPointerUp={(e) => { e.preventDefault(); triggerCueUp(2); }}
-              className="rounded-full border-2 border-yellow-500 hover:bg-yellow-500/10 text-yellow-500 shadow-[0_0_6px_rgba(234,179,8,0.2)] font-bold text-[9px] uppercase tracking-wider h-8 w-8 flex items-center justify-center cursor-pointer select-none"
-            >
-              CUE
-            </button>
-            <button 
-              onClick={() => togglePlayGlobal(2)}
-              className={cn(
-                "rounded-full border-2 font-bold h-8 w-8 flex items-center justify-center cursor-pointer select-none",
-                deck2.isPlaying 
-                  ? "bg-rose-500 border-rose-400 text-black shadow-[0_0_10px_rgba(244,63,94,0.5)]" 
-                  : "border-rose-500 hover:bg-rose-500/10 text-rose-500 shadow-[0_0_6px_rgba(244,63,94,0.2)]"
-              )}
-            >
-              {deck2.isPlaying ? <Pause size={10} fill="black" /> : <Play size={10} fill="currentColor" className="ml-0.5" />}
-            </button>
-          </div>
-        </div>
-      </div>
+      <MobileDJDecks
+        isDepth={isDepth}
+        onOpenTracklist={(deckId) => setActiveTracklistDeckId(deckId)}
+        onOpenMIDI={() => setIsMIDIOpen(true)}
+        onConnectUsb={() => connectUsbDrive()}
+      />
     );
   };
 
@@ -2213,74 +1375,53 @@ export default function MixArchive({
               ))}
             </div>
 
-            {/* Right: Control Panel in Header */}
-            <div className="flex items-center gap-1.5 md:gap-2">
-              {/* Decks selection */}
-              {activeView === 'cdj' && (
-                <>
-                  <span className="text-[7px] md:text-[8px] text-zinc-500 font-bold uppercase tracking-wider select-none">
-                    DECKS:
-                  </span>
-                  <div className="relative flex p-0.5 bg-zinc-950 border border-zinc-900 rounded-none">
-                    {([2, 4] as const).map((count) => (
-                      <button
-                        key={count}
-                        onClick={() => handleDeckCountChange(count)}
-                        className={cn(
-                          "relative px-2 py-0.5 rounded-none font-mono text-[7.5px] md:text-[8px] font-black uppercase transition-colors cursor-pointer flex items-center justify-center w-6 md:w-8 h-5",
-                          deckCount === count ? "text-zinc-950 font-black" : "text-zinc-500 hover:text-zinc-300"
-                        )}
-                      >
-                        {deckCount === count && (
-                          <motion.div
-                            layoutId="deck-count-highlight"
-                            className="absolute inset-0 bg-primary rounded-none shadow-[0_0_8px_rgba(216,22,63,0.3)]"
-                            transition={{ type: "spring", bounce: 0.2, duration: 0.4 }}
-                          />
-                        )}
-                        <span className="relative z-10">{count}</span>
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-
-              {/* Controller Link & Key Mapping Triggers */}
-              {activeView === 'cdj' && (
-                <div className="flex items-center gap-1.5 select-none">
-                  <button
-                    onClick={() => {
-                      setIsMIDIOpen(true);
-                      playClick(900, 'sine', 0.02);
-                    }}
-                    className={cn(
-                      "px-2.5 py-1 rounded-none text-[7.5px] md:text-[8px] font-mono font-bold tracking-wider uppercase transition-all border cursor-pointer flex items-center gap-1.5 active:scale-95",
-                      midiDeviceName 
-                        ? "bg-emerald-950 border-emerald-800 text-emerald-400 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.3)]"
-                        : "bg-zinc-950 hover:bg-zinc-900 border-zinc-900 hover:border-zinc-800 text-zinc-400 hover:text-zinc-200"
-                    )}
-                  >
-                    <Cpu className="w-3 h-3" />
-                    {midiDeviceName ? `LINKED: ${midiDeviceName}` : 'Controller Link'}
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      setIsShortcutsModalOpen(true);
-                      playClick(900, 'sine', 0.02);
-                    }}
-                    className="px-2.5 py-1 bg-zinc-950 hover:bg-zinc-900 border border-zinc-900 hover:border-zinc-800 rounded-none text-zinc-400 hover:text-zinc-200 transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 text-[7.5px] md:text-[8px] font-bold tracking-wider uppercase"
-                  >
-                    <span>⌨️</span> Key Mapping
-                  </button>
-                </div>
-              )}
-            </div>
+            {/* Right: Modular Control Panel in Header */}
+            {activeView === 'cdj' && (
+              <DeckToolbar
+                deckCount={deckCount}
+                onDeckCountChange={handleDeckCountChange}
+                midiDeviceName={midiDeviceName}
+                onOpenMIDI={() => {
+                  setIsMIDIOpen(true);
+                  playClick(900, 'sine', 0.02);
+                }}
+                usbFolderName={usbFolderName}
+                isUsbLoading={isUsbLoading}
+                onConnectUsb={() => {
+                  playClick(900, 'sine', 0.02);
+                  connectUsbDrive();
+                }}
+                recordingState={recordingState}
+                onToggleRecording={() => {
+                  playClick(1000, 'sine', 0.03);
+                  if (recordingState.isRecording) {
+                    setRecorder.stopRecording();
+                  } else {
+                    setRecorder.startRecording('wav');
+                  }
+                }}
+                onSaveRecording={() => {
+                  playClick(900, 'sine', 0.02);
+                  setRecorder.downloadRecordedSet('HENRY_IX_LIVE_SET');
+                }}
+                onOpenShortcuts={() => {
+                  setIsShortcutsModalOpen(true);
+                  playClick(900, 'sine', 0.02);
+                }}
+              />
+            )}
           </div>
         )}
 
         {activeView === 'cdj' ? (
-          isMobile ? (
+          midiDeviceName ? (
+            <HardwareControllerView
+              deviceName={midiDeviceName}
+              isDepth={isDepth}
+              onOpenTracklist={(deckId) => setActiveTracklistDeckId(deckId)}
+              onOpenMIDI={() => setIsMIDIOpen(true)}
+            />
+          ) : isMobile ? (
             renderMobileCDJ()
           ) : (
             <>
@@ -2396,16 +1537,40 @@ export default function MixArchive({
                         (isActive || !isStacked) ? "flex" : "hidden"
                       )}
                     >
-                      {/* Browser */}
-                      <div className={cn(
-                        "transition-all duration-300 min-h-0",
-                        isMobile 
-                          ? "h-[75px] shrink-0" 
-                          : deckCount === 4 && !isStacked 
-                            ? "h-[75px] xl:h-[90px] 2xl:h-[105px] shrink-0" 
-                            : "h-[85px] xl:h-[105px] 2xl:h-[125px] shrink-0"
-                      )}>
-                        {renderDeckBrowser(id)}
+                      {/* Top Deck LCD Display Header */}
+                      <div 
+                        className="bg-black border border-zinc-900 p-2 flex items-center justify-between gap-2 border-l-2 shrink-0 select-none font-mono" 
+                        style={{ borderLeftColor: themeColor }}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <DeckBadge deckId={id} variant="badge" isPlaying={deck?.isPlaying} isLoaded={!isLocked && !!deck?.title} />
+                          <div className="flex flex-col min-w-0">
+                            <span className="text-[5.5px] text-zinc-500 uppercase tracking-widest font-black leading-none">LOADED TRACK</span>
+                            <span className="font-black truncate tracking-wider text-zinc-200 text-[9px] uppercase leading-none mt-0.5">
+                              {isLocked ? "LOCKED DECK (PREVIEW ONLY)" : deck?.title || "NO TRACK LOADED"}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          <div className="hidden sm:flex flex-col text-right font-mono">
+                            <span className="text-[5.5px] text-zinc-500 uppercase font-bold leading-none">BPM / KEY</span>
+                            <span className="text-[8.5px] font-bold text-amber-400 leading-none mt-0.5">
+                              {isLocked ? "130.0 BPM" : `${(deck?.bpm * (1 + (deck?.pitch || 0) / 100)).toFixed(1)} BPM`}
+                            </span>
+                          </div>
+
+                          <button
+                            onClick={() => {
+                              playClick(900, 'sine', 0.02);
+                              setTargetDeckForBrowser(id);
+                              setIsMasterCrateExpanded(true);
+                            }}
+                            className="px-2 py-1 bg-zinc-900 hover:bg-primary hover:text-black border border-zinc-800 text-zinc-300 font-bold uppercase text-[7.5px] tracking-wider transition-colors cursor-pointer flex items-center gap-1"
+                          >
+                            <span>📁 LOAD</span>
+                          </button>
+                        </div>
                       </div>
 
                       {/* Waveform */}
@@ -2496,6 +1661,23 @@ export default function MixArchive({
                 {renderMixer()}
               </motion.div>
 
+            </div>
+
+            {/* Single Master Music Crate Browser */}
+            <div className="w-full h-[36vh] max-h-[360px] min-h-[180px] shrink-0 border-t border-zinc-900 bg-black p-1">
+              <DeckBrowserPanel
+                deckCount={deckCount}
+                activeDeckId={targetDeckForBrowser || 1}
+                mixGroups={mixGroups}
+                browserFolder={masterBrowserFolder}
+                onFolderSelect={(folder) => setMasterBrowserFolder(folder)}
+                detectedBpms={detectedBpms}
+                onTrackSelect={(mix, dId) => playTrack(mix, dId)}
+                onLoadLocalFile={(file, dId) => loadLocalFile && loadLocalFile(dId || 1, file)}
+                themeColor="var(--color-primary)"
+                isExpandedView={isMasterCrateExpanded}
+                onCloseExpanded={() => setIsMasterCrateExpanded(false)}
+              />
             </div>
           </>
           )
@@ -2588,109 +1770,20 @@ export default function MixArchive({
       </AnimatePresence>
 
       {/* Skeuomorphic Virtual USB Drag-and-Drop Overlay */}
-      <AnimatePresence>
-        {isDraggingFile && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[200] bg-black/85 flex flex-col items-center justify-center font-mono p-6"
-            onDragOver={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-            }}
-            onDrop={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              setIsDraggingFile(false);
-              
-              const files = e.dataTransfer?.files;
-              if (files && files.length > 0) {
-                const file = files[0];
-                if (file.type.startsWith('audio/') || /\.(mp3|wav|m4a|aac|flac)$/i.test(file.name)) {
-                  const leftId = useAudioStore.getState().leftActiveDeck;
-                  if (loadLocalFile) loadLocalFile(leftId, file);
-                } else {
-                  playLockoutBlip && playLockoutBlip();
-                }
-              }
-            }}
-          >
-            {/* USB Enclosure Card */}
-            <div className="w-full max-w-xl bg-black border-2 border-dashed border-zinc-900 rounded-none p-8 flex flex-col items-center gap-6 relative overflow-hidden">
-              
-              {/* Spinning Pioneer Record visual indicator */}
-              <div className="w-20 h-20 rounded-full border-2 border-zinc-800 flex items-center justify-center relative animate-[spin_6s_linear_infinite]">
-                <div className="w-10 h-10 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center">
-                  <div className="w-2.5 h-2.5 rounded-full bg-primary" />
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-2 text-center">
-                <span className="text-primary font-black text-lg md:text-xl tracking-[0.25em] uppercase animate-pulse">
-                  INSERT VIRTUAL USB
-                </span>
-                <span className="text-zinc-500 text-[10px] tracking-widest uppercase">
-                  DROP AUDIO FILE (.mp3, .wav, .m4a) ONTO A DECK DROPZONE
-                </span>
-              </div>
-
-              {/* Target Dropzones Grid */}
-              <div className="grid grid-cols-2 gap-4 w-full mt-4">
-                {[
-                  { label: 'LOAD TO DECK LEFT', id: leftActiveDeck, name: 'LEFT' },
-                  { label: 'LOAD TO DECK RIGHT', id: rightActiveDeck, name: 'RIGHT' }
-                ].map(target => (
-                  <div
-                    key={target.name}
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setDragTargetDeck(target.id);
-                    }}
-                    onDragLeave={() => setDragTargetDeck(null)}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setIsDraggingFile(false);
-                      setDragTargetDeck(null);
-                      
-                      const files = e.dataTransfer?.files;
-                      if (files && files.length > 0) {
-                        const file = files[0];
-                        if (file.type.startsWith('audio/') || /\.(mp3|wav|m4a|aac|flac)$/i.test(file.name)) {
-                          if (loadLocalFile) loadLocalFile(target.id, file);
-                        } else {
-                          playLockoutBlip && playLockoutBlip();
-                        }
-                      }
-                    }}
-                    className={cn(
-                      "border-2 border-dashed rounded-none p-6 flex flex-col items-center justify-center gap-2.5 transition-all duration-200 cursor-pointer h-36 text-center select-none",
-                      dragTargetDeck === target.id
-                        ? "bg-primary/10 border-primary text-primary scale-[1.02]"
-                        : "bg-black border-zinc-900 text-zinc-400 hover:border-zinc-800 hover:text-zinc-300"
-                    )}
-                  >
-                    <span className="text-[9px] font-black tracking-widest uppercase">
-                      {target.label}
-                    </span>
-                    <span className="text-[12px] font-bold text-white uppercase truncate max-w-[150px]">
-                      {target.name === 'LEFT' ? `DECK ${leftActiveDeck}` : `DECK ${rightActiveDeck}`}
-                    </span>
-                  </div>
-                ))}
-              </div>
-
-              {/* Bezel footer details */}
-              <span className="text-[7.5px] text-zinc-600 font-bold uppercase tracking-widest border-t border-zinc-900/60 w-full pt-4 text-center mt-2 leading-none">
-                PIONEER VIRTUAL LINK // FILE_LOADER_PORT
-              </span>
-
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <UsbDropzoneOverlay
+        isOpen={isDraggingFile}
+        onClose={() => setIsDraggingFile(false)}
+        leftDeckId={leftActiveDeck}
+        rightDeckId={rightActiveDeck}
+        dragTargetDeck={dragTargetDeck}
+        onDragTargetDeckChange={setDragTargetDeck}
+        onFileDrop={(targetId, file) => {
+          if (loadLocalFile) loadLocalFile(targetId, file);
+        }}
+        onLockout={() => {
+          if (playLockoutBlip) playLockoutBlip();
+        }}
+      />
 
       {/* Mobile Tracklist Overlay Modal */}
       <AnimatePresence>
@@ -2718,7 +1811,7 @@ export default function MixArchive({
               </button>
 
               <h3 className="text-primary text-[8px] font-black tracking-[0.25em] uppercase border-b border-zinc-900 pb-2 mb-3 truncate pr-8">
-                📋 TRACKLIST // DECK {activeTracklistDeckId} // {decks[activeTracklistDeckId]?.title || 'LOADED MIX'}
+                📋 TRACKLIST {'//'} DECK {activeTracklistDeckId} {'//'} {decks[activeTracklistDeckId]?.title || 'LOADED MIX'}
               </h3>
 
               <div className="flex-grow overflow-y-auto custom-scrollbar flex flex-col gap-1.5 pr-1">

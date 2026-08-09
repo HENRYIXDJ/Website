@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Check, Shield, Info } from 'lucide-react';
 import { playClick } from '@/lib/audioUtils';
@@ -25,10 +25,12 @@ export default function CookiePreferencesModal({
   initialPreferences = { necessary: true, analytics: false, marketing: false }
 }: CookiePreferencesModalProps) {
   const [prefs, setPrefs] = useState<CookiePreferences>(initialPreferences);
+  const [prevOpen, setPrevOpen] = useState(isOpen);
 
-  useEffect(() => {
-    setPrefs(initialPreferences);
-  }, [initialPreferences, isOpen]);
+  if (isOpen !== prevOpen) {
+    setPrevOpen(isOpen);
+    if (isOpen) setPrefs(initialPreferences);
+  }
 
   const handleSave = () => {
     playClick(900, 'sine', 0.03);
@@ -39,7 +41,7 @@ export default function CookiePreferencesModal({
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[210] flex items-center justify-center p-4">
           {/* Backdrop */}
           <motion.div
             initial={{ opacity: 0 }}

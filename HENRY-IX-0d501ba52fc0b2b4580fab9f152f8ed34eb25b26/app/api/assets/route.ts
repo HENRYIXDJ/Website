@@ -51,10 +51,16 @@ async function handleAssetRequest(request: Request) {
   // pathname starts with a slash, we want to strip the leading slash
   const pathname = decodeURIComponent(parsedUrl.pathname.slice(1));
 
+  const rangeHeader = request.headers.get('Range');
+
+  // For standard HTTP/HTTPS URLs without a Range header, redirect directly to the R2 CDN to save worker CPU and bandwidth
+  if ((url.startsWith('http://') || url.startsWith('https://')) && !rangeHeader) {
+    return NextResponse.redirect(url, 302);
+  }
+
   // Check cache first (for GET requests without Range header)
   const cache = typeof caches !== 'undefined' ? (caches as any).default : null;
   const isGet = request.method === 'GET';
-  const rangeHeader = request.headers.get('Range');
 
   let cacheKey: string | null = null;
   if (cache && isGet && !rangeHeader) {

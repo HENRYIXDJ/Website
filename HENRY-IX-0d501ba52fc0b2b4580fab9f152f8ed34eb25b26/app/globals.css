@@ -7,11 +7,21 @@
   --shadow-neon-strong: 0 0 20px rgba(216, 22, 63, 0.65);
   --font-avathe: var(--font-avathe), sans-serif;
   --font-mono: var(--font-ocra), "OCR A Std", "OCR-A", monospace;
-  --font-sans: var(--font-ibm-plex), "IBM Plex Mono", monospace;
+  --font-tertiary: var(--font-ibm-plex), "IBM Plex Mono", monospace;
 }
 
 .font-avathe {
   font-family: var(--font-avathe), sans-serif;
+}
+
+.font-tertiary {
+  font-family: var(--font-ibm-plex), "IBM Plex Mono", monospace;
+}
+
+/* Ditherboy & Script Slayer 1-Bit / 2-Bit Halftone Bayer Dither Overlay */
+.bayer-dither {
+  background-image: radial-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 0);
+  background-size: 3px 3px;
 }
 
 /* Hide scrollbar for Chrome, Safari and Opera */
@@ -298,8 +308,8 @@ html:has(.home-snap-container) {
   background: #09090b; /* Dark zinc black */
 }
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #D8163F; /* Site primary red */
-  border-radius: 0;
+  background: #D8163F; /* Classic HENRY IX Red */
+  border-radius: 0 !important;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #f43f5e; /* Lighter hover red */

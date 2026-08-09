@@ -372,11 +372,18 @@ const logLines = [
   "DEGAUSSING SCREEN..."
 ];
 
-export function Preloader({ onComplete, onEnter }: { onComplete: () => void; onEnter?: () => void }) {
+export function Preloader({ 
+  onComplete, 
+  onEnter,
+  isConsentPending = false
+}: { 
+  onComplete: () => void; 
+  onEnter?: () => void;
+  isConsentPending?: boolean;
+}) {
   const [stage, setStage] = useState(0);
   const [displayedLogs, setDisplayedLogs] = useState<string[]>([]);
 
-  // Post-hydration: skip preloader for returning users, or start warning-less logs for new users
   useEffect(() => {
     if (typeof window !== 'undefined') {
       if (sessionStorage.getItem('hasVisited')) {
@@ -395,16 +402,16 @@ export function Preloader({ onComplete, onEnter }: { onComplete: () => void; onE
     }
   }, [stage, onComplete]);
 
-  // Start stage 0: Play CRT turn-on click and display horizontal line
+  // Start stage 0: Play CRT turn-on click and display horizontal line once consent is not pending
   useEffect(() => {
-    if (stage === 0) {
+    if (stage === 0 && !isConsentPending) {
       playClick(800, 'sine', 0.05);
       const t = setTimeout(() => {
         setStage(1);
       }, 200);
       return () => clearTimeout(t);
     }
-  }, [stage]);
+  }, [stage, isConsentPending]);
 
   // Stage 1: Play click and transition to terminal vertical expansion
   useEffect(() => {
