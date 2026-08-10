@@ -13,27 +13,26 @@ interface CookieConsentBannerProps {
 }
 
 export default function CookieConsentBanner({ onConsentSaved }: CookieConsentBannerProps) {
-  const [isVisible, setIsVisible] = useState(false);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [preferences, setPreferences] = useState<CookiePreferences>({ necessary: true, analytics: false, marketing: false });
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
+  const [preferences, setPreferences] = useState<CookiePreferences>(() => {
+    if (typeof window === 'undefined') return { necessary: true, analytics: false, marketing: false };
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        setPreferences(JSON.parse(saved));
-      }
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return { necessary: true, analytics: false, marketing: false };
+  });
+
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isVisible, setIsVisible] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
       const cookieExists = document.cookie.includes('henryix_consent');
-      if (!saved && !cookieExists) {
-        setIsVisible(true);
-      } else {
-        setIsVisible(false);
-      }
+      return !saved && !cookieExists;
     } catch {
-      setIsVisible(true);
+      return true;
     }
-  }, []);
+  });
 
   // Listen for custom trigger event to open preferences anytime (e.g. from footer)
   useEffect(() => {

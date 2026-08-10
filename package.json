@@ -7,7 +7,7 @@
   },
   "scripts": {
     "dev": "next dev",
-    "build": "opennextjs-cloudflare build",
+    "build": "rm -rf .open-next && opennextjs-cloudflare build",
     "build:next": "next build",
     "start": "next start",
     "lint": "eslint .",

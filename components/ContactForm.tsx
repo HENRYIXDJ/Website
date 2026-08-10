@@ -13,10 +13,15 @@ interface ContactFormProps {
 }
 
 export function ContactForm({ isDepth = false }: ContactFormProps) {
+  const [eventType, setEventType] = useState('FESTIVAL MAINSTAGE');
+  const [region, setRegion] = useState('UK NATIONAL');
+  const [duration, setDuration] = useState('2 HOUR SET');
+  const [eventDate, setEventDate] = useState('');
+
   const [formData, setFormData] = useState({
     name: '',
     email: '',
-    subject: '',
+    subject: 'BOOKING INQUIRY // HENRY IX',
     message: '',
   });
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
@@ -26,11 +31,23 @@ export function ContactForm({ isDepth = false }: ContactFormProps) {
     setStatus('sending');
     playClick(900, 'sine', 0.05);
 
+    const fullPayload = {
+      ...formData,
+      subject: `[BOOKING] ${eventType} - ${region} (${eventDate || 'DATE TBD'})`,
+      message: `--- PRO DJ BOOKING SPECIFICATION ---\n` +
+        `EVENT TYPE: ${eventType}\n` +
+        `REGION: ${region}\n` +
+        `DURATION: ${duration}\n` +
+        `DATE: ${eventDate || 'N/A'}\n` +
+        `------------------------------------\n` +
+        `INQUIRY DETAILS:\n${formData.message}`,
+    };
+
     try {
       const res = await fetch('/api/contact', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(fullPayload),
       });
 
       if (res.ok) {
@@ -58,31 +75,107 @@ export function ContactForm({ isDepth = false }: ContactFormProps) {
         transition={{ ...SPRING_CONFIG }}
         className="mb-12 flex flex-col md:flex-row items-start md:items-center justify-between gap-4"
       >
-        <h2 className="font-mono text-lg md:text-xl tracking-[0.2em] font-semibold uppercase">04 / Booking & Inquiries</h2>
+        <h2 className="font-mono text-lg md:text-xl tracking-[0.2em] font-semibold uppercase">04 / Pro DJ Booking Console</h2>
         <div className={cn("h-[1px] flex-grow w-full md:w-auto md:ml-8", isDepth ? "bg-zinc-800" : "bg-black/20")} />
       </motion.div>
 
       {status === 'sent' ? (
         <div className="w-full bg-black border border-emerald-800 p-8 flex flex-col items-center justify-center text-center gap-4">
           <span className="text-emerald-400 font-bold text-sm tracking-widest uppercase animate-pulse">
-            [ TRANSMISSION SENT // DISPATCHED ]
+            [ BOOKING SPECIFICATION DISPATCHED ]
           </span>
           <p className="text-zinc-400 text-xs tracking-wider">
-            Thank you. Your message has been routed to HENRY IX management.
+            Thank you. Your booking inquiry has been routed directly to HENRY IX management.
           </p>
           <button
             onClick={() => setStatus('idle')}
             className="mt-4 px-4 py-2 bg-zinc-950 border border-zinc-800 text-zinc-400 hover:text-white text-xs uppercase font-bold tracking-widest cursor-pointer"
           >
-            SEND ANOTHER MESSAGE
+            SUBMIT ANOTHER INQUIRY
           </button>
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="w-full flex flex-col gap-6 bg-black border border-zinc-900 p-6 md:p-10">
+          {/* EVENT CATEGORY SELECTION */}
+          <div className="flex flex-col gap-2">
+            <label className="text-[10px] uppercase font-bold text-zinc-500 tracking-widest">
+              1. EVENT TYPE / CATEGORY
+            </label>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {['FESTIVAL MAINSTAGE', 'CLUB HEADLINE', 'PRIVATE / CORPORATE', 'RADIO GUEST SET'].map(cat => (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => {
+                    playClick(900, 'sine', 0.02);
+                    setEventType(cat);
+                  }}
+                  className={cn(
+                    "py-2 px-2 border text-[9px] font-bold uppercase transition-all tracking-wider text-center cursor-pointer",
+                    eventType === cat ? "bg-primary text-black border-primary font-black shadow-neon-glow" : "bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-white"
+                  )}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* REGION & DURATION SELECTORS */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="flex flex-col gap-2">
               <label className="text-[10px] uppercase font-bold text-zinc-500 tracking-widest">
-                NAME / ORGANISATION
+                2. REGION / TERRITORY
+              </label>
+              <div className="grid grid-cols-3 gap-1.5">
+                {['UK NATIONAL', 'EUROPE / EU', 'WORLDWIDE'].map(r => (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => {
+                      playClick(900, 'sine', 0.02);
+                      setRegion(r);
+                    }}
+                    className={cn(
+                      "py-2 px-1 border text-[8.5px] font-bold uppercase transition-all tracking-wider text-center cursor-pointer",
+                      region === r ? "bg-cyan-500 text-black border-cyan-400 font-black" : "bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-white"
+                    )}
+                  >
+                    {r}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <label className="text-[10px] uppercase font-bold text-zinc-500 tracking-widest">
+                3. SET DURATION
+              </label>
+              <div className="grid grid-cols-3 gap-1.5">
+                {['1 HOUR PEAK', '2 HOUR SET', 'ALL-NIGHT'].map(d => (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => {
+                      playClick(900, 'sine', 0.02);
+                      setDuration(d);
+                    }}
+                    className={cn(
+                      "py-2 px-1 border text-[8.5px] font-bold uppercase transition-all tracking-wider text-center cursor-pointer",
+                      duration === d ? "bg-amber-500 text-black border-amber-400 font-black" : "bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-white"
+                    )}
+                  >
+                    {d}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="flex flex-col gap-2">
+              <label className="text-[10px] uppercase font-bold text-zinc-500 tracking-widest">
+                4. PROMOTER / ORGANISATION
               </label>
               <input
                 type="text"
@@ -92,14 +185,14 @@ export function ContactForm({ isDepth = false }: ContactFormProps) {
                   setFormData({ ...formData, name: e.target.value });
                   if (Math.random() < 0.2) playTick();
                 }}
-                placeholder="YOUR NAME"
+                placeholder="YOUR NAME / AGENCY"
                 className="bg-black border border-zinc-900 px-4 py-3 text-xs text-white placeholder-zinc-700 focus:outline-none focus:border-primary font-mono tracking-wider"
               />
             </div>
 
             <div className="flex flex-col gap-2">
               <label className="text-[10px] uppercase font-bold text-zinc-500 tracking-widest">
-                EMAIL ADDRESS
+                5. EMAIL ADDRESS
               </label>
               <input
                 type="email"
@@ -113,38 +206,33 @@ export function ContactForm({ isDepth = false }: ContactFormProps) {
                 className="bg-black border border-zinc-900 px-4 py-3 text-xs text-white placeholder-zinc-700 focus:outline-none focus:border-primary font-mono tracking-wider"
               />
             </div>
+
+            <div className="flex flex-col gap-2">
+              <label className="text-[10px] uppercase font-bold text-zinc-500 tracking-widest">
+                6. ESTIMATED EVENT DATE
+              </label>
+              <input
+                type="date"
+                value={eventDate}
+                onChange={(e) => setEventDate(e.target.value)}
+                className="bg-black border border-zinc-900 px-4 py-3 text-xs text-white focus:outline-none focus:border-primary font-mono tracking-wider"
+              />
+            </div>
           </div>
 
           <div className="flex flex-col gap-2">
             <label className="text-[10px] uppercase font-bold text-zinc-500 tracking-widest">
-              SUBJECT / INQUIRY TYPE
-            </label>
-            <input
-              type="text"
-              required
-              value={formData.subject}
-              onChange={(e) => {
-                setFormData({ ...formData, subject: e.target.value });
-                if (Math.random() < 0.2) playTick();
-              }}
-              placeholder="BOOKING / REMIX / MEDIA / GENERAL"
-              className="bg-black border border-zinc-900 px-4 py-3 text-xs text-white placeholder-zinc-700 focus:outline-none focus:border-primary font-mono tracking-wider"
-            />
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <label className="text-[10px] uppercase font-bold text-zinc-500 tracking-widest">
-              MESSAGE / TRANSMISSION DETAILS
+              7. VENUE & ADDITIONAL EVENT DETAILS
             </label>
             <textarea
               required
-              rows={5}
+              rows={4}
               value={formData.message}
               onChange={(e) => {
                 setFormData({ ...formData, message: e.target.value });
                 if (Math.random() < 0.2) playTick();
               }}
-              placeholder="ENTER EVENT DATE, VENUE, PROPOSAL OR INQUIRY..."
+              placeholder="ENTER VENUE NAME, CITY, CAPACITY, PROPOSED LINEUP OR SPECIAL REQUESTS..."
               className="bg-black border border-zinc-900 p-4 text-xs text-white placeholder-zinc-700 focus:outline-none focus:border-primary font-mono tracking-wider resize-none"
             />
           </div>
@@ -152,9 +240,9 @@ export function ContactForm({ isDepth = false }: ContactFormProps) {
           <button
             type="submit"
             disabled={status === 'sending'}
-            className="w-full bg-primary hover:bg-primary/90 text-black font-mono font-bold text-xs tracking-[0.2em] uppercase py-4 transition-all cursor-pointer flex items-center justify-center gap-2 mt-2"
+            className="w-full bg-primary hover:bg-primary/90 text-black font-mono font-bold text-xs tracking-[0.2em] uppercase py-4 transition-all cursor-pointer flex items-center justify-center gap-2 mt-2 shadow-neon-glow"
           >
-            <span>{status === 'sending' ? 'DISPATCHING...' : 'DISPATCH TRANSMISSION'}</span>
+            <span>{status === 'sending' ? 'DISPATCHING BOOKING...' : 'DISPATCH BOOKING INQUIRY'}</span>
             <ArrowRight className="w-4 h-4" />
           </button>
         </form>

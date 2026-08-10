@@ -524,19 +524,27 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
   };
 
   // --- Jog Wheel Event Handler Stubs for Scratching / Pitch Bend ---
+  const handleScratchDelta = (velocity: number) => {
+    if (isLocked || !deck) return;
+    const audio = audioElementsRef?.current?.[deckId];
+    if (audio) {
+      const seekOffset = velocity * 0.008;
+      const newTime = Math.max(0, audio.currentTime + seekOffset);
+      audio.currentTime = newTime;
+      setDeck(deckId, { progress: newTime });
+    }
+  };
+
   const handlePlatterDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    e.preventDefault();
     if (isLocked) return;
-    console.log(`[JOG WHEEL DECK ${deckId}] Platter Down. Mode: ${deck.jogMode}. Scratching started.`);
+    playClick(1200, 'sine', 0.008);
   };
 
   const handlePlatterMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    e.preventDefault();
     if (isLocked) return;
   };
 
   const handlePlatterUp = (e: React.PointerEvent<HTMLDivElement>) => {
-    e.preventDefault();
     if (isLocked) return;
     console.log(`[JOG WHEEL DECK ${deckId}] Platter Up. Scratching completed.`);
   };
@@ -1013,6 +1021,7 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
               onPlatterDown={handlePlatterDown}
               onPlatterMove={handlePlatterMove}
               onPlatterUp={handlePlatterUp}
+              onScratchDelta={handleScratchDelta}
             />
           </div>
         </div>

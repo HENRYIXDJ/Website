@@ -208,6 +208,65 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     return () => { delete (window as any).togglePlayGlobal; };
   }, []);
 
+  // ── Native OS Media Session API (Lockscreen / Control Center controls) ─────
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('mediaSession' in navigator)) return;
+
+    const unsubscribe = useAudioStore.subscribe(
+      state => [1, 2, 3, 4].map(id => ({
+        id,
+        isPlaying: state.decks[id]?.isPlaying ?? false,
+        title: state.decks[id]?.title ?? '',
+        artist: state.decks[id]?.artist ?? 'HENRY IX',
+        artwork: state.decks[id]?.artwork ?? '',
+        genre: state.decks[id]?.genre ?? '',
+      })),
+      (activeDecksData) => {
+        const playingDeck = activeDecksData.find(d => d.isPlaying);
+        if (playingDeck && playingDeck.title) {
+          try {
+            navigator.mediaSession.metadata = new MediaMetadata({
+              title: playingDeck.title,
+              artist: playingDeck.artist || 'HENRY IX',
+              album: playingDeck.genre ? `HENRY IX // ${playingDeck.genre.toUpperCase()}` : 'HENRY IX TRANSMISSION',
+              artwork: playingDeck.artwork ? [
+                { src: playingDeck.artwork, sizes: '512x512', type: 'image/jpeg' },
+              ] : [
+                { src: 'https://pub-c7c5ff43a8ae174ad91e2668de0ad7f0.r2.dev/Mixes/Knight%20Club/Mix%20Artwork/Knight%20Club%20Track%20Artwork%20Session%201.jpg', sizes: '512x512', type: 'image/jpeg' }
+              ],
+            });
+            navigator.mediaSession.playbackState = 'playing';
+          } catch (e) {
+            // MediaMetadata error fallback
+          }
+        } else {
+          try {
+            navigator.mediaSession.playbackState = 'paused';
+          } catch (e) {
+            // MediaSession error fallback
+          }
+        }
+      }
+    );
+
+    try {
+      navigator.mediaSession.setActionHandler('play', () => {
+        const { leftActiveDeck, decks } = useAudioStore.getState();
+        const deckId = [1, 2, 3, 4].find(id => decks[id]?.isPlaying) || leftActiveDeck || 1;
+        audioEngine.togglePlayGlobal(deckId);
+      });
+      navigator.mediaSession.setActionHandler('pause', () => {
+        const { decks } = useAudioStore.getState();
+        const playingId = [1, 2, 3, 4].find(id => decks[id]?.isPlaying);
+        if (playingId) audioEngine.togglePlayGlobal(playingId);
+      });
+    } catch (e) {
+      // Ignore unsupported action handler errors
+    }
+
+    return () => unsubscribe();
+  }, []);
+
   // ── Construct Context value mapped to AudioEngine refs and math ────
   const contextValue = useMemo(() => ({
     // Refs

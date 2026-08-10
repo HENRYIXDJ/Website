@@ -112,6 +112,44 @@ export function isHarmonicallyCompatible(keyA: string, keyB: string): boolean {
   return false;
 }
 
+export interface HarmonicMatchInfo {
+  isCompatible: boolean;
+  type: 'PERFECT' | 'RELATIVE' | 'ADJACENT' | 'ENERGY_BOOST' | 'INCOMPATIBLE';
+  badgeLabel: string;
+  badgeColor: string;
+}
+
+export function getHarmonicCompatibilityInfo(keyA: string, keyB: string): HarmonicMatchInfo {
+  if (!keyA || !keyB) return { isCompatible: false, type: 'INCOMPATIBLE', badgeLabel: '', badgeColor: '' };
+  if (keyA === keyB) return { isCompatible: true, type: 'PERFECT', badgeLabel: `${keyB} MATCH`, badgeColor: '#D8163F' };
+
+  const numA = parseInt(keyA);
+  const letterA = keyA.slice(-1);
+  const numB = parseInt(keyB);
+  const letterB = keyB.slice(-1);
+
+  if (isNaN(numA) || isNaN(numB)) return { isCompatible: false, type: 'INCOMPATIBLE', badgeLabel: '', badgeColor: '' };
+
+  if (numA === numB && letterA !== letterB) {
+    return { isCompatible: true, type: 'RELATIVE', badgeLabel: `${keyB} RELATIVE`, badgeColor: '#EAB308' };
+  }
+
+  if (letterA === letterB) {
+    const diff = Math.abs(numA - numB);
+    if (diff === 1 || diff === 11) {
+      const isEnergyBoost = (numB === (numA % 12) + 1);
+      return {
+        isCompatible: true,
+        type: isEnergyBoost ? 'ENERGY_BOOST' : 'ADJACENT',
+        badgeLabel: isEnergyBoost ? `${keyB} BOOST` : `${keyB} ADJACENT`,
+        badgeColor: isEnergyBoost ? '#22D3EE' : '#10B981',
+      };
+    }
+  }
+
+  return { isCompatible: false, type: 'INCOMPATIBLE', badgeLabel: '', badgeColor: '' };
+}
+
 /**
  * 3. Track Energy Rating Calculator (1 to 5 Stars)
  */

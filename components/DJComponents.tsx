@@ -381,19 +381,21 @@ export function Preloader({
   onEnter?: () => void;
   isConsentPending?: boolean;
 }) {
-  const [stage, setStage] = useState(0);
+  const [stage, setStage] = useState(() => {
+    if (typeof window !== 'undefined' && sessionStorage.getItem('hasVisited')) {
+      return 4;
+    }
+    return 0;
+  });
   const [displayedLogs, setDisplayedLogs] = useState<string[]>([]);
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      if (sessionStorage.getItem('hasVisited')) {
-        setStage(4);
-        onComplete();
-      } else {
-        if (onEnter) onEnter();
-      }
+    if (stage === 4) {
+      onComplete();
+    } else if (onEnter) {
+      onEnter();
     }
-  }, [onComplete, onEnter]);
+  }, []);
 
   // If already complete, notify parent immediately
   useEffect(() => {

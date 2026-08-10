@@ -41,19 +41,20 @@ export default function ClientLayoutWrappers({ children }: { children?: React.Re
   const setPreloaderComplete = useAudioStore(s => s.setPreloaderComplete);
   const isCDJView = useAudioStore(s => s.isCDJView);
 
-  const [isConsentPending, setIsConsentPending] = useState(false);
+  const [isConsentPending, setIsConsentPending] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    try {
+      const saved = localStorage.getItem('henryix_cookie_consent_v1');
+      const cookieExists = document.cookie.includes('henryix_consent');
+      return !saved && !cookieExists;
+    } catch {
+      return false;
+    }
+  });
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem('henryix_cookie_consent_v1');
-        const cookieExists = document.cookie.includes('henryix_consent');
-        if (!saved && !cookieExists) {
-          setIsConsentPending(true);
-        }
-      } catch {
-        setIsConsentPending(false);
-      }
+    if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw-audio.js').catch(() => {});
     }
   }, []);
 

@@ -35,7 +35,7 @@ export default function AudioVisualizerBackground({
   mouseX: any;
   mouseY: any;
   isPlaying: boolean;
-  mode?: 'ambient' | 'circular' | 'grid';
+  mode?: 'ambient' | 'circular' | 'grid' | 'rta';
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const audioCtx = useAudio();

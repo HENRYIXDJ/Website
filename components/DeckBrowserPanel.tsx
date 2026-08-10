@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Maximize2, Minimize2, Search, X, Music, Folder, FolderOpen, Upload, ChevronUp, ChevronDown, Lock, Unlock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { playClick, playLockoutBlip, SUPPORTED_AUDIO_ACCEPT, isSupportedAudioFile } from '@/lib/audioUtils';
-import { detectCamelotKey, isHarmonicallyCompatible } from '@/lib/proTrackAnalysis';
+import { detectCamelotKey, isHarmonicallyCompatible, getHarmonicCompatibilityInfo, CAMELOT_MAP } from '@/lib/proTrackAnalysis';
 import { useAudioStore } from '@/store/audioStore';
 import { DeckBadge, DeckId } from './DeckBadge';
 
@@ -43,18 +43,23 @@ export function DeckBrowserPanel({
   const decks = useAudioStore(s => s.decks);
   const playLockEnabled = useAudioStore(s => s.playLockEnabled);
   const setPlayLockEnabled = useAudioStore(s => s.setPlayLockEnabled);
-  const otherDeckId = activeDeckId === 1 ? 2 : 1;
-  const otherDeck = decks[otherDeckId];
-  const masterKey = otherDeck?.isPlaying ? detectCamelotKey(otherDeck?.title || '', otherDeck?.bpm || 120).code : null;
+  const activeDeckObj = decks[activeDeckId];
+  const masterKey = activeDeckObj?.isPlaying ? detectCamelotKey(activeDeckObj?.title || '', activeDeckObj?.bpm || 120).code : null;
 
   const [isExpanded, setIsExpanded] = useState(isExpandedView);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedKeyFilter, setSelectedKeyFilter] = useState<string>('ALL');
+  const [selectedBpmFilter, setSelectedBpmFilter] = useState<string>('ALL');
+  const [sortColumn, setSortColumn] = useState<'title' | 'key' | 'bpm'>('title');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [showFoldersSidebar, setShowFoldersSidebar] = useState(true);
   const [selectedTargetDeck, setSelectedTargetDeck] = useState<DeckId>(activeDeckId);
+  const [prevActiveDeckId, setPrevActiveDeckId] = useState<DeckId>(activeDeckId);
 
-  useEffect(() => {
+  if (activeDeckId !== prevActiveDeckId) {
+    setPrevActiveDeckId(activeDeckId);
     setSelectedTargetDeck(activeDeckId);
-  }, [activeDeckId]);
+  }
 
   // ESC key handler to exit expanded view
   useEffect(() => {
@@ -72,9 +77,58 @@ export function DeckBrowserPanel({
     ? (mixGroups || []).flatMap(g => g.mixes || [])
     : ((mixGroups || []).find(g => g.title.toLowerCase() === browserFolder.toLowerCase())?.mixes || []);
 
-  const filteredTracks = searchQuery.trim()
-    ? tracks.filter(t => t.title.toLowerCase().includes(searchQuery.toLowerCase()))
-    : tracks;
+  const activeBpm = activeDeckObj?.bpm || 124;
+
+  const filteredTracks = tracks.filter(t => {
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      const trackBpm = (detectedBpms[t.id] || t.bpm || 120).toString();
+      const keyObj = detectCamelotKey(t.title, Number(trackBpm));
+      const matchText = `${t.title} ${t.artist || ''} ${keyObj.code} ${keyObj.name} ${trackBpm}`.toLowerCase();
+      if (!matchText.includes(q)) return false;
+    }
+
+    if (selectedKeyFilter !== 'ALL') {
+      const trackBpm = detectedBpms[t.id] || t.bpm || 120;
+      const keyObj = detectCamelotKey(t.title, trackBpm);
+      if (keyObj.code !== selectedKeyFilter) return false;
+    }
+
+    if (selectedBpmFilter !== 'ALL') {
+      const trackBpm = detectedBpms[t.id] || t.bpm || 120;
+      if (selectedBpmFilter === '±5%') {
+        const minBpm = activeBpm * 0.95;
+        const maxBpm = activeBpm * 1.05;
+        if (trackBpm < minBpm || trackBpm > maxBpm) return false;
+      } else if (selectedBpmFilter === '115-124') {
+        if (trackBpm < 115 || trackBpm > 124) return false;
+      } else if (selectedBpmFilter === '125-130') {
+        if (trackBpm < 125 || trackBpm > 130) return false;
+      } else if (selectedBpmFilter === '130+') {
+        if (trackBpm < 130) return false;
+      }
+    }
+
+    return true;
+  }).sort((a, b) => {
+    const bpmA = detectedBpms[a.id] || a.bpm || 120;
+    const bpmB = detectedBpms[b.id] || b.bpm || 120;
+    const keyA = detectCamelotKey(a.title, bpmA).code;
+    const keyB = detectCamelotKey(b.title, bpmB).code;
+
+    let res = 0;
+    if (sortColumn === 'bpm') {
+      res = bpmA - bpmB;
+    } else if (sortColumn === 'key') {
+      const numA = parseInt(keyA) || 0;
+      const numB = parseInt(keyB) || 0;
+      res = numA - numB || keyA.localeCompare(keyB);
+    } else {
+      res = (a.title || '').localeCompare(b.title || '');
+    }
+
+    return sortDirection === 'asc' ? res : -res;
+  });
 
   const deckTargetIds: DeckId[] = deckCount === 4 ? [1, 2, 3, 4] : [1, 2];
 
@@ -318,12 +372,121 @@ export function DeckBrowserPanel({
 
           {/* Right Column: Master Track File Browser Table */}
           <div className="flex-1 flex flex-col h-full bg-black min-w-0">
-            {/* Table Header */}
+            {/* Pro DJ Filter Control Matrix */}
+            <div className="flex items-center justify-between gap-2 px-2 py-1 bg-zinc-950 border-b border-zinc-900 text-[8px] text-zinc-400 overflow-x-auto custom-scrollbar no-scrollbar shrink-0">
+              <div className="flex items-center gap-1.5 shrink-0">
+                <span className="text-[7.5px] text-zinc-500 font-bold uppercase tracking-wider">KEY:</span>
+                <select
+                  value={selectedKeyFilter}
+                  onChange={(e) => {
+                    playClick(900, 'sine', 0.02);
+                    setSelectedKeyFilter(e.target.value);
+                  }}
+                  className="bg-black border border-zinc-800 text-amber-400 font-mono font-bold text-[7.5px] px-1 py-0.5 rounded-none focus:outline-none focus:border-amber-500 cursor-pointer"
+                >
+                  <option value="ALL">ALL KEYS (24)</option>
+                  <optgroup label="MINOR KEYS (A)">
+                    {Object.keys(CAMELOT_MAP).filter(k => k.endsWith('A')).map(k => (
+                      <option key={`opt-${k}`} value={k}>{k} ({CAMELOT_MAP[k].name})</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="MAJOR KEYS (B)">
+                    {Object.keys(CAMELOT_MAP).filter(k => k.endsWith('B')).map(k => (
+                      <option key={`opt-${k}`} value={k}>{k} ({CAMELOT_MAP[k].name})</option>
+                    ))}
+                  </optgroup>
+                </select>
+
+                {masterKey && (
+                  <button
+                    onClick={() => {
+                      playClick(900, 'sine', 0.02);
+                      setSelectedKeyFilter(masterKey);
+                    }}
+                    title={`Filter by Deck ${activeDeckId} Key (${masterKey})`}
+                    className={cn(
+                      "px-1.5 py-0.5 border text-[7.5px] font-bold uppercase transition-colors shrink-0 cursor-pointer font-mono",
+                      selectedKeyFilter === masterKey ? "bg-red-950 border-red-500 text-red-400" : "bg-black border-zinc-800 text-zinc-400 hover:text-white"
+                    )}
+                  >
+                    🔑 MATCH DECK {activeDeckId} [{masterKey}]
+                  </button>
+                )}
+              </div>
+
+              <div className="flex items-center gap-1.5 shrink-0">
+                <span className="text-[7.5px] text-zinc-500 font-bold uppercase tracking-wider">BPM:</span>
+                {['ALL', '±5%', '115-124', '125-130', '130+'].map(bpmRange => (
+                  <button
+                    key={`bpm-btn-${bpmRange}`}
+                    onClick={() => {
+                      playClick(900, 'sine', 0.02);
+                      setSelectedBpmFilter(bpmRange);
+                    }}
+                    className={cn(
+                      "px-1.5 py-0.5 border text-[7.5px] font-bold uppercase transition-colors shrink-0 cursor-pointer font-mono",
+                      selectedBpmFilter === bpmRange
+                        ? "bg-primary text-black border-primary font-black"
+                        : "bg-black border-zinc-900 text-zinc-500 hover:text-zinc-300"
+                    )}
+                  >
+                    {bpmRange}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Table Header with Clickable Sorting */}
             <div className="grid grid-cols-[6%_48%_16%_14%_16%] items-center px-2 py-1 bg-zinc-950 border-b border-zinc-900 text-[7.5px] text-zinc-500 font-bold uppercase tracking-wider shrink-0 select-none">
               <span>#</span>
-              <span>Track Title</span>
-              <span>KEY</span>
-              <span>BPM</span>
+              <button
+                onClick={() => {
+                  playClick(900, 'sine', 0.02);
+                  if (sortColumn === 'title') {
+                    setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+                  } else {
+                    setSortColumn('title');
+                    setSortDirection('asc');
+                  }
+                }}
+                className="text-left flex items-center gap-1 hover:text-zinc-300 font-bold uppercase cursor-pointer"
+              >
+                <span>Track Title</span>
+                {sortColumn === 'title' && <span>{sortDirection === 'asc' ? '▲' : '▼'}</span>}
+              </button>
+
+              <button
+                onClick={() => {
+                  playClick(900, 'sine', 0.02);
+                  if (sortColumn === 'key') {
+                    setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+                  } else {
+                    setSortColumn('key');
+                    setSortDirection('asc');
+                  }
+                }}
+                className="text-left flex items-center gap-1 hover:text-zinc-300 font-bold uppercase cursor-pointer"
+              >
+                <span>KEY</span>
+                {sortColumn === 'key' && <span>{sortDirection === 'asc' ? '▲' : '▼'}</span>}
+              </button>
+
+              <button
+                onClick={() => {
+                  playClick(900, 'sine', 0.02);
+                  if (sortColumn === 'bpm') {
+                    setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+                  } else {
+                    setSortColumn('bpm');
+                    setSortDirection('asc');
+                  }
+                }}
+                className="text-left flex items-center gap-1 hover:text-zinc-300 font-bold uppercase cursor-pointer"
+              >
+                <span>BPM</span>
+                {sortColumn === 'bpm' && <span>{sortDirection === 'asc' ? '▲' : '▼'}</span>}
+              </button>
+
               <span className="text-right">LOAD DECK</span>
             </div>
 
@@ -331,14 +494,14 @@ export function DeckBrowserPanel({
             <div className="flex-1 overflow-y-auto custom-scrollbar p-1 flex flex-col gap-0.5 min-h-0 bg-black">
               {filteredTracks.length === 0 ? (
                 <div className="flex-grow flex items-center justify-center text-zinc-600 text-[8.5px] italic py-6">
-                  No tracks found in crate
+                  No tracks match active filter settings
                 </div>
               ) : (
                 filteredTracks.map((mix, index) => {
                   const idxStr = (index + 1).toString().padStart(3, '0');
                   const trackBpm = detectedBpms[mix.id] || mix.bpm || 120;
                   const keyObj = detectCamelotKey(mix.title, trackBpm);
-                  const isHarmonicMatch = masterKey ? isHarmonicallyCompatible(masterKey, keyObj.code) : false;
+                  const harmInfo = masterKey ? getHarmonicCompatibilityInfo(masterKey, keyObj.code) : null;
 
                   return (
                     <div 
@@ -358,9 +521,12 @@ export function DeckBrowserPanel({
 
                       <div className="flex items-center gap-1.5 truncate pr-1">
                         <span className="truncate uppercase tracking-wide text-[9px] font-bold text-zinc-200">🎵 {mix.title}</span>
-                        {isHarmonicMatch && (
-                          <span className="text-[6px] bg-emerald-950 border border-emerald-500 text-emerald-400 px-1 py-0.2 rounded-none font-bold shrink-0">
-                            MATCH
+                        {harmInfo && harmInfo.isCompatible && (
+                          <span 
+                            className="text-[6px] border px-1 py-0.2 rounded-none font-bold shrink-0 uppercase font-mono"
+                            style={{ borderColor: harmInfo.badgeColor, color: harmInfo.badgeColor, backgroundColor: `${harmInfo.badgeColor}15` }}
+                          >
+                            {harmInfo.badgeLabel}
                           </span>
                         )}
                       </div>

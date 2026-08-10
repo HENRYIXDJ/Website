@@ -35,6 +35,9 @@ export interface DeckState {
   crossfaderAssign: 'L' | 'R' | 'THRU';
   waveformPeaks: number[];
   cuePoints?: number[];
+  artist?: string;
+  artwork?: string;
+  genre?: string;
   loopIn?: number | null;
   loopOut?: number | null;
   isLoopActive?: boolean;
