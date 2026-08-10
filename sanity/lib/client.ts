@@ -11,13 +11,18 @@ export const client = createClient({
 });
 
 export async function safeSanityFetch<T>(query: string, params: Record<string, any> = {}, fallback: T = [] as any): Promise<T> {
-  const timeoutPromise = new Promise<T>((resolve) => {
-    setTimeout(() => resolve(fallback), 1200);
-  });
+  const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const timeoutId = setTimeout(() => controller?.abort(), 800);
+
   try {
-    const fetchPromise = client.fetch<T>(query, params);
-    return await Promise.race([fetchPromise, timeoutPromise]);
+    const result = await client.fetch<T>(query, params, {
+      signal: controller?.signal,
+      maxRetries: 0,
+    } as any);
+    clearTimeout(timeoutId);
+    return result || fallback;
   } catch {
+    clearTimeout(timeoutId);
     return fallback;
   }
 }

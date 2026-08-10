@@ -170,38 +170,51 @@ export default function GalleryClient() {
     async function loadDynamicGallery() {
       try {
         const results = await Promise.allSettled([
-          safeSanityFetch<any[]>(`*[_type == "galleryImage" && defined(imageFile)]`),
-          safeSanityFetch<any[]>(`*[_type == "mix" && defined(artworkFile)]`)
+          safeSanityFetch<any[]>(`*[_type == "galleryImage"]`),
+          safeSanityFetch<any[]>(`*[_type == "mix" && (defined(artworkFile) || defined(artworkUrl))]`)
         ]);
 
-        const galleryDocs = results[0].status === 'fulfilled' ? results[0].value : [];
-        const mixesDocs = results[1].status === 'fulfilled' ? results[1].value : [];
+        const galleryDocs = results[0].status === 'fulfilled' ? (results[0].value || []) : [];
+        const mixesDocs = results[1].status === 'fulfilled' ? (results[1].value || []) : [];
 
         let dynamicMe: GalleryItem[] = [];
         let dynamicArtwork: GalleryItem[] = [];
+        const albumMap: Record<string, GalleryItem[]> = {};
 
         if (Array.isArray(galleryDocs) && galleryDocs.length > 0) {
           galleryDocs.forEach(d => {
-            const url = proxyUrl(getStorageUrl(d.imageFile));
+            const url = d.imageUrl ? d.imageUrl : (d.imageFile ? proxyUrl(getStorageUrl(d.imageFile)) : '');
+            if (!url) return;
             const title = (d.title || 'UNTITLED').toUpperCase();
+            const item = { src: url, title };
+
+            if (d.album) {
+              const albumKey = d.album.toUpperCase();
+              if (!albumMap[albumKey]) albumMap[albumKey] = [];
+              albumMap[albumKey].push(item);
+            }
+
             if (d.category === 'me') {
-              dynamicMe.push({ src: url, title });
+              dynamicMe.push(item);
             } else if (d.category === 'artwork') {
-              dynamicArtwork.push({ src: url, title });
+              dynamicArtwork.push(item);
+            } else {
+              dynamicMe.push(item);
             }
           });
         }
 
         if (Array.isArray(mixesDocs) && mixesDocs.length > 0) {
           mixesDocs.forEach(mix => {
-            const url = proxyUrl(getStorageUrl(mix.artworkFile));
+            const url = mix.artworkUrl ? mix.artworkUrl : (mix.artworkFile ? proxyUrl(getStorageUrl(mix.artworkFile)) : '');
+            if (!url) return;
             const title = (mix.title || 'ARTWORK').toUpperCase();
             dynamicArtwork.push({ src: url, title });
           });
         }
 
         setAlbums(prev => {
-          return prev.map((album) => {
+          const updated = prev.map((album) => {
             if ((album.id === 'cam_01' || album.id === 'cam_07' || album.id === 'cam_12') && dynamicArtwork.length > 0) {
               const merged = [...album.items, ...dynamicArtwork];
               const unique = merged.filter((v, i, a) => a.findIndex(t => t.src === v.src) === i);
@@ -214,6 +227,27 @@ export default function GalleryClient() {
             }
             return album;
           });
+
+          // Append dynamic custom albums if created in studio
+          Object.keys(albumMap).forEach((albumName, idx) => {
+            const items = albumMap[albumName];
+            const existing = updated.find(a => a.title.toUpperCase() === albumName);
+            if (existing) {
+              const merged = [...existing.items, ...items];
+              existing.items = merged.filter((v, i, a) => a.findIndex(t => t.src === v.src) === i);
+            } else if (items.length > 0) {
+              const camId = `cam_custom_${idx + 1}`;
+              updated.push({
+                id: camId,
+                camTag: `CAM ${13 + idx}`,
+                title: albumName,
+                description: `Custom studio album archive: ${albumName}`,
+                items,
+              });
+            }
+          });
+
+          return updated;
         });
       } catch (err) {
         console.warn('Sanity dynamic gallery fetch skipped or offline:', err);

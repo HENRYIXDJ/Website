@@ -10,7 +10,7 @@
     "build": "rm -rf .open-next && opennextjs-cloudflare build",
     "build:next": "next build",
     "start": "next start",
-    "lint": "eslint .",
+    "lint": "next lint",
     "clean": "next clean",
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy"

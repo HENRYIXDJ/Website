@@ -1,6 +1,7 @@
 import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
+  output: 'standalone',
   transpilePackages: ['sanity', '@sanity/vision', 'next-sanity'],
   reactStrictMode: true,
   eslint: {
@@ -69,13 +70,17 @@ const nextConfig: NextConfig = {
   },
   webpack(config) {
     const webpack = require('webpack');
+    const path = require('path');
 
     config.plugins.push(
       new webpack.NormalModuleReplacementPlugin(
         /^react$/,
         (resource: any) => {
-          if (resource.context && (resource.context.includes('sanity') || resource.context.includes('@sanity'))) {
-            resource.request = require('path').resolve(__dirname, 'lib/react-shim.js');
+          if (
+            resource.context &&
+            (resource.context.includes('/sanity/') || resource.context.includes('/@sanity/'))
+          ) {
+            resource.request = path.resolve(__dirname, 'lib/react-shim.js');
           }
         }
       )

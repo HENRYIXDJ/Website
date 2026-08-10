@@ -530,8 +530,7 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
     if (audio) {
       const seekOffset = velocity * 0.008;
       const newTime = Math.max(0, audio.currentTime + seekOffset);
-      audio.currentTime = newTime;
-      setDeck(deckId, { progress: newTime });
+      seekLocalBuffer(deckId, newTime);
     }
   };
 

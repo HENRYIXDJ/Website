@@ -105,53 +105,98 @@ export default function MixPortfolio({
   useEffect(() => {
     async function loadDynamicMixes() {
       try {
-        const data = await safeSanityFetch<any[]>(`*[_type == "mixGroup"]{
-          title,
-          slug,
-          description,
-          mixes[]->{
+        const [groupsData, standaloneMixesData] = await Promise.all([
+          safeSanityFetch<any[]>(`*[_type == "mixGroup"]{
+            title,
+            slug,
+            description,
+            mixes[]->{
+              _id,
+              title,
+              slug,
+              bpm,
+              genre,
+              tags,
+              soundcloudLink,
+              audioFile,
+              audioUrl,
+              artworkFile,
+              artworkUrl,
+              tracklist,
+              cuePoints
+            }
+          }`),
+          safeSanityFetch<any[]>(`*[_type == "mix"] | order(publishedAt desc, _createdAt desc){
             _id,
             title,
             slug,
             bpm,
+            genre,
+            tags,
             soundcloudLink,
             audioFile,
+            audioUrl,
             artworkFile,
+            artworkUrl,
             tracklist,
             cuePoints
+          }`)
+        ]);
+
+        const groupFormatted = (groupsData || [])
+          .map((group: any) => {
+            const filteredMixes = (group.mixes || [])
+              .filter((mix: any) => mix.audioFile || mix.audioUrl || mix.soundcloudLink)
+              .map((mix: any) => ({
+                id: mix._id,
+                title: mix.title,
+                url: mix.audioUrl ? mix.audioUrl : (mix.audioFile ? proxyUrl(getStorageUrl(mix.audioFile)) : mix.soundcloudLink || ''),
+                link: mix.soundcloudLink || '',
+                bpm: mix.bpm || 120,
+                genre: mix.genre || 'UK Garage',
+                tags: mix.tags || [],
+                cuePoints: mix.cuePoints || [],
+                tracklist: mix.tracklist || '',
+                artworkUrl: mix.artworkUrl ? mix.artworkUrl : (mix.artworkFile ? getStorageUrl(mix.artworkFile) : undefined)
+              }));
+            return {
+              title: group.title,
+              mixes: filteredMixes
+            };
+          })
+          .filter((group: any) => group.mixes.length > 0);
+
+        if (standaloneMixesData && standaloneMixesData.length > 0) {
+          const formattedStandalone = standaloneMixesData
+            .filter((mix: any) => mix.audioFile || mix.audioUrl || mix.soundcloudLink)
+            .map((mix: any) => ({
+              id: mix._id,
+              title: mix.title,
+              url: mix.audioUrl ? mix.audioUrl : (mix.audioFile ? proxyUrl(getStorageUrl(mix.audioFile)) : mix.soundcloudLink || ''),
+              link: mix.soundcloudLink || '',
+              bpm: mix.bpm || 120,
+              genre: mix.genre || 'UK Garage',
+              tags: mix.tags || [],
+              cuePoints: mix.cuePoints || [],
+              tracklist: mix.tracklist || '',
+              artworkUrl: mix.artworkUrl ? mix.artworkUrl : (mix.artworkFile ? getStorageUrl(mix.artworkFile) : undefined)
+            }));
+
+          if (formattedStandalone.length > 0) {
+            groupFormatted.unshift({
+              title: 'STUDIO UPLOADS & RELEASES',
+              mixes: formattedStandalone
+            });
           }
-        }`);
+        }
 
-        if (data && data.length > 0) {
-          const formatted = data
-            .map((group: any) => {
-              const filteredMixes = (group.mixes || [])
-                .filter((mix: any) => mix.audioFile || mix.soundcloudLink)
-                .map((mix: any) => ({
-                  id: mix._id,
-                  title: mix.title,
-                  url: mix.audioFile ? proxyUrl(getStorageUrl(mix.audioFile)) : mix.soundcloudLink || '',
-                  link: mix.soundcloudLink || '',
-                  bpm: mix.bpm || 120,
-                  cuePoints: mix.cuePoints || [],
-                  tracklist: mix.tracklist || '',
-                  artworkUrl: mix.artworkFile ? getStorageUrl(mix.artworkFile) : undefined
-                }));
-              return {
-                title: group.title,
-                mixes: filteredMixes
-              };
-            })
-            .filter((group: any) => group.mixes.length > 0);
+        if (groupFormatted.length > 0) {
+          setMixGroups(groupFormatted);
 
-          setMixGroups(formatted);
-
-          // Update decks dynamically from loaded mixes
-          const allMixes = formatted.flatMap((g: any) => g.mixes);
-          
+          const allMixes = groupFormatted.flatMap((g: any) => g.mixes);
           setDecks((prevDecks: any) => {
             const updated = { ...prevDecks };
-            const kc1 = allMixes.find((m: any) => m.title.includes('Knight Club') && m.title.includes('Session 1'));
+            const kc1 = allMixes.find((m: any) => m.title.includes('Knight Club') && m.title.includes('Session 1')) || allMixes[0];
             if (kc1 && updated[1]) {
               updated[1] = {
                 ...updated[1],
@@ -163,48 +208,6 @@ export default function MixPortfolio({
                 cuePoints: kc1.cuePoints,
                 artworkUrl: kc1.artworkUrl,
                 tracklist: kc1.tracklist
-              };
-            }
-            const kc2 = allMixes.find((m: any) => m.title.includes('Knight Club') && m.title.includes('Session 2'));
-            if (kc2 && updated[2]) {
-              updated[2] = {
-                ...updated[2],
-                id: kc2.id,
-                title: kc2.title,
-                url: kc2.url,
-                link: kc2.link,
-                bpm: kc2.bpm,
-                cuePoints: kc2.cuePoints,
-                artworkUrl: kc2.artworkUrl,
-                tracklist: kc2.tracklist
-              };
-            }
-            const kc3 = allMixes.find((m: any) => m.title.includes('Knight Club') && m.title.includes('Session 3'));
-            if (kc3 && updated[3]) {
-              updated[3] = {
-                ...updated[3],
-                id: kc3.id,
-                title: kc3.title,
-                url: kc3.url,
-                link: kc3.link,
-                bpm: kc3.bpm,
-                cuePoints: kc3.cuePoints,
-                artworkUrl: kc3.artworkUrl,
-                tracklist: kc3.tracklist
-              };
-            }
-            const kc4 = allMixes.find((m: any) => m.title.includes('Knight Club') && m.title.includes('Session 4'));
-            if (kc4 && updated[4]) {
-              updated[4] = {
-                ...updated[4],
-                id: kc4.id,
-                title: kc4.title,
-                url: kc4.url,
-                link: kc4.link,
-                bpm: kc4.bpm,
-                cuePoints: kc4.cuePoints,
-                artworkUrl: kc4.artworkUrl,
-                tracklist: kc4.tracklist
               };
             }
             return updated;

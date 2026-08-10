@@ -5,6 +5,8 @@ import { galleryImageType } from './galleryImageType'
 import { eventType } from './eventType'
 import { epkType } from './epkType'
 import { subscriberType } from './subscriberType'
+import { podcastType } from './podcastType'
+import { socialConnectionType } from './socialConnectionType'
 
 export const schema = {
   types: [
@@ -14,6 +16,8 @@ export const schema = {
     galleryImageType,
     eventType,
     epkType,
-    subscriberType
+    subscriberType,
+    podcastType,
+    socialConnectionType,
   ],
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
+import StudioDashboard from '@/components/StudioDashboard';
 
 const StudioComponent = dynamic(
   async () => {
@@ -14,5 +15,9 @@ const StudioComponent = dynamic(
 );
 
 export default function StudioPage() {
-  return <StudioComponent />;
+  return (
+    <StudioDashboard>
+      <StudioComponent />
+    </StudioDashboard>
+  );
 }

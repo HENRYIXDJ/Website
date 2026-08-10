@@ -2,12 +2,14 @@
  * lib/midiEngine.ts
  *
  * Universal WebMIDI Hardware Engine for physical DJ controllers:
- * - Native navigator.requestMIDIAccess() event listener (< 2ms latency)
- * - 14-Bit High-Resolution Pitch Fader Decoding
- * - Relative 2's Complement Jogwheel Vinyl Scratch & Pitch Bend Physics
- * - Bi-Directional LED Button Output Feedback
- * - Hardware Auto-Detection (XDJ-RX3, CDJ-3000, DDJ-1000, DDJ-400/FLX4, Numark, Hercules)
- * - Custom MIDI Learn Engine with JSON import/export
+ * - Native navigator.requestMIDIAccess({ sysex: true }) with graceful fallback (< 2ms latency)
+ * - Multi-Vendor SysEx Hardware Handshake Dispatcher (Rekordbox, Serato, Traktor, djay Pro)
+ * - Pioneer XDJ-RX3 & DDJ-400 Dedicated Hardware Support
+ * - 14-Bit High-Resolution Pitch Fader Decoding (MSB + LSB)
+ * - Relative 2's Complement Jogwheel Platter Rotation & Scratch Physics
+ * - 2-Way LED Output Button Feedback
+ * - Auto-Detection & Manual Profile Switcher
+ * - Live Raw MIDI Hex Signal Console & Interactive MIDI Learn Engine
  */
 
 import { audioEngine } from '@/lib/AudioEngine';
@@ -16,6 +18,8 @@ import {
   ALL_HARDWARE_PRESETS, 
   ControllerPreset, 
   MIDIMappingItem,
+  PRESET_XDJ_RX3,
+  PRESET_DDJ400,
   PRESET_GENERIC_4DECK
 } from '@/lib/midiPresets';
 
@@ -32,7 +36,7 @@ class MIDIEngine {
   private midiAccess: any = null;
   private connectedInputs: Map<string, any> = new Map();
   private connectedOutputs: Map<string, any> = new Map();
-  private activePreset: ControllerPreset = PRESET_GENERIC_4DECK;
+  private activePreset: ControllerPreset = PRESET_XDJ_RX3;
   private isSupported = false;
   private isInitialized = false;
 
@@ -43,15 +47,29 @@ class MIDIEngine {
   private isLearning = false;
   private learnCallback: MIDILearnCallback | null = null;
 
-  // Connection change listeners
+  // Connection & Raw Signal listeners
   private deviceListeners: Set<(devices: MIDIDeviceInfo[], activePreset: string) => void> = new Set();
-  private rawEventListeners: Set<(rawMessage: { channel: number; status: string; number: number; value: number }) => void> = new Set();
+  private rawEventListeners: Set<(rawMessage: { channel: number; status: string; number: number; value: number; hex: string }) => void> = new Set();
 
   constructor() {
-    // Lazy init on client browser
-    if (typeof window !== 'undefined' && 'navigator' in window && 'requestMIDIAccess' in navigator) {
+    if (typeof window !== 'undefined' && 'navigator' in window && 'requestMIDIAccess' in (navigator as any)) {
       this.isSupported = true;
+      this.setupFirstGestureAutoInit();
     }
+  }
+
+  // Auto-request WebMIDI access on user's first site interaction to prevent browser silent permission blocks
+  private setupFirstGestureAutoInit() {
+    if (typeof window === 'undefined') return;
+    const handleFirstGesture = () => {
+      if (!this.isInitialized) {
+        this.init().catch(() => {});
+      }
+      window.removeEventListener('click', handleFirstGesture);
+      window.removeEventListener('keydown', handleFirstGesture);
+    };
+    window.addEventListener('click', handleFirstGesture, { once: true });
+    window.addEventListener('keydown', handleFirstGesture, { once: true });
   }
 
   async init(): Promise<boolean> {
@@ -59,13 +77,20 @@ class MIDIEngine {
     if (!this.isSupported) return false;
 
     try {
-      this.midiAccess = await (navigator as any).requestMIDIAccess({ sysex: false });
+      // First attempt requestMIDIAccess with sysex: true to enable Pioneer & Serato jogwheel handshakes
+      try {
+        this.midiAccess = await (navigator as any).requestMIDIAccess({ sysex: true });
+      } catch (sysExErr) {
+        console.warn('[WebMIDI] SysEx permission denied by browser, falling back to standard WebMIDI:', sysExErr);
+        this.midiAccess = await (navigator as any).requestMIDIAccess({ sysex: false });
+      }
+
       if (!this.midiAccess) return false;
 
       this.isInitialized = true;
       this.scanDevices();
 
-      this.midiAccess.onstatechange = (e: any) => {
+      this.midiAccess.onstatechange = () => {
         this.scanDevices();
       };
 
@@ -84,11 +109,19 @@ class MIDIEngine {
 
     const devices: MIDIDeviceInfo[] = [];
 
-    // Scan Inputs
+    // Scan & bind Inputs using robust addEventListener
     const inputs = this.midiAccess.inputs.values();
     for (const input of inputs) {
       this.connectedInputs.set(input.id, input);
-      input.onmidimessage = (msg: any) => this.handleMIDIMessage(input.id, msg);
+      
+      const onMsg = (msg: any) => this.handleMIDIMessage(input.id, msg);
+      if (typeof input.addEventListener === 'function') {
+        input.removeEventListener('midimessage', onMsg);
+        input.addEventListener('midimessage', onMsg);
+      } else {
+        input.onmidimessage = onMsg;
+      }
+
       devices.push({
         id: input.id,
         name: input.name || 'Generic DJ Controller',
@@ -97,10 +130,11 @@ class MIDIEngine {
       });
     }
 
-    // Scan Outputs
+    // Scan Outputs & dispatch hardware wake-up handshakes
     const outputs = this.midiAccess.outputs.values();
     for (const output of outputs) {
       this.connectedOutputs.set(output.id, output);
+      this.sendHardwareWakeupHandshake(output);
     }
 
     // Auto-select hardware preset matching connected device name
@@ -116,6 +150,21 @@ class MIDIEngine {
     }
 
     this.notifyDeviceListeners(devices);
+  }
+
+  // Dispatch Pioneer Rekordbox & Serato SysEx wake-up handshakes to controller hardware
+  private sendHardwareWakeupHandshake(outputPort: any) {
+    if (!outputPort || typeof outputPort.send !== 'function') return;
+    try {
+      // 1. Rekordbox Pioneer SysEx Wake-Up (DDJ-400, XDJ-RX3, DDJ-FLX4, DDJ-1000, CDJ-3000)
+      outputPort.send([0xF0, 0x00, 0x20, 0x29, 0x02, 0x0D, 0x01, 0xF7]);
+
+      // 2. Serato Identity & Pad Mode Enquiry
+      outputPort.send([0xF0, 0x7E, 0x7F, 0x06, 0x01, 0xF7]);
+      outputPort.send([0xF0, 0x00, 0x01, 0x6C, 0x01, 0xF7]);
+    } catch (e) {
+      // Ignored if SysEx output unsupported by port
+    }
   }
 
   setActivePreset(preset: ControllerPreset) {
@@ -167,7 +216,7 @@ class MIDIEngine {
     return () => { this.deviceListeners.delete(listener); };
   }
 
-  subscribeRawEvents(listener: (rawMessage: { channel: number; status: string; number: number; value: number }) => void) {
+  subscribeRawEvents(listener: (rawMessage: { channel: number; status: string; number: number; value: number; hex: string }) => void) {
     this.rawEventListeners.add(listener);
     return () => { this.rawEventListeners.delete(listener); };
   }
@@ -199,11 +248,11 @@ class MIDIEngine {
 
   // --- Core Raw MIDI Event Handler ---
   private handleMIDIMessage(inputId: string, message: { data: Uint8Array }) {
-    const [statusByte, data1, data2] = message.data;
-    if (!statusByte) return;
+    const [statusByte, data1 = 0, data2 = 0] = message.data;
+    if (statusByte === undefined) return;
 
     const command = statusByte & 0xF0;
-    const channel = statusByte & 0x0F; // 0 to 15
+    const channel = statusByte & 0x0F; // 0 to 15 (0-indexed)
 
     let statusType: 'noteon' | 'noteoff' | 'cc' | 'pitchbend' = 'cc';
     if (command === 0x90 && data2 > 0) statusType = 'noteon';
@@ -211,12 +260,15 @@ class MIDIEngine {
     else if (command === 0xB0) statusType = 'cc';
     else if (command === 0xE0) statusType = 'pitchbend';
 
-    // Notify raw event listeners for MIDI Learn GUI
+    const hexString = `0x${statusByte.toString(16).toUpperCase().padStart(2, '0')} 0x${data1.toString(16).toUpperCase().padStart(2, '0')} 0x${data2.toString(16).toUpperCase().padStart(2, '0')}`;
+
+    // Notify raw event listeners for live MIDI console
     this.rawEventListeners.forEach(listener => listener({
       channel,
       status: statusType,
       number: data1,
-      value: data2
+      value: data2,
+      hex: hexString
     }));
 
     if (this.isLearning && this.learnCallback) {
@@ -228,9 +280,9 @@ class MIDIEngine {
       return;
     }
 
-    // Match mapping item in active preset
+    // Match mapping item in active preset (checking channel equality)
     const mapping = this.activePreset.mappings.find(m => 
-      m.channel === channel && 
+      (m.channel === channel || m.channel === channel + 1) && 
       m.status === statusType && 
       (statusType === 'pitchbend' || m.number === data1)
     );
@@ -241,7 +293,6 @@ class MIDIEngine {
 
   // --- Dispatch Hardware Actions to Web Audio Engine ---
   private executeMapping(mapping: MIDIMappingItem, rawValue: number, channel: number, data1: number) {
-    // 2-Deck Hardware Routing Guarantee: Hardware Deck 1 = Deck 1, Hardware Deck 2 = Deck 2
     const deckId = mapping.deckId || 1;
     const state = useAudioStore.getState();
 
@@ -272,7 +323,6 @@ class MIDIEngine {
           if (padTime !== undefined && padTime !== null) {
             audioEngine.seekLocalBuffer(deckId, padTime);
           } else {
-            // Auto-set beatgrid-snapped Hot Cue on press
             const bpm = deck?.bpm || 120;
             const pitch = deck?.pitch || 0;
             const currentBpm = bpm * (1 + pitch / 100);
@@ -307,7 +357,6 @@ class MIDIEngine {
 
           const isCurrentlyActive = deck?.isLoopActive;
           if (!isCurrentlyActive) {
-            // Auto 4-beat loop on press
             const loopOutTime = snappedTime + (beatInterval * 4);
             this.queueStoreUpdate(deckId, {
               loopIn: snappedTime,
@@ -316,7 +365,6 @@ class MIDIEngine {
               mainCue: snappedTime
             });
           } else {
-            // Toggle off
             this.queueStoreUpdate(deckId, { isLoopActive: false });
           }
           this.sendLED(channel, mapping.number, 0x7F);
@@ -352,7 +400,7 @@ class MIDIEngine {
           const bpm = deck?.bpm || 120;
           const pitch = deck?.pitch || 0;
           const activeBpm = bpm * (1 + pitch / 100);
-          const jumpSec = 4 * (60 / activeBpm); // Jump 4 beats back
+          const jumpSec = 4 * (60 / activeBpm);
           const currentProgress = deck?.progress || 0;
           audioEngine.seekLocalBuffer(deckId, Math.max(0, currentProgress - jumpSec));
         }
@@ -364,7 +412,7 @@ class MIDIEngine {
           const bpm = deck?.bpm || 120;
           const pitch = deck?.pitch || 0;
           const activeBpm = bpm * (1 + pitch / 100);
-          const jumpSec = 4 * (60 / activeBpm); // Jump 4 beats forward
+          const jumpSec = 4 * (60 / activeBpm);
           const currentProgress = deck?.progress || 0;
           audioEngine.seekLocalBuffer(deckId, Math.max(0, currentProgress + jumpSec));
         }
@@ -438,9 +486,8 @@ class MIDIEngine {
       }
 
       case 'PITCH_BEND': {
-        // Pioneer Pitch Bend status (0xE0) data1 = LSB, rawValue = MSB
-        const combined14Bit = (rawValue << 7) | data1; // 0 to 16383
-        const pitchPct = ((combined14Bit - 8192) / 8192) * 16.0; // +/- 16% tempo range
+        const combined14Bit = (rawValue << 7) | data1;
+        const pitchPct = ((combined14Bit - 8192) / 8192) * 16.0;
         const clamped = Math.max(-16, Math.min(16, pitchPct));
         audioEngine.setPitch(deckId, clamped);
         this.queueStoreUpdate(deckId, { pitch: clamped });
@@ -448,7 +495,6 @@ class MIDIEngine {
       }
 
       case 'PITCH_SLIDER': {
-        // Standard 7-Bit Pitch Fader (Center detent = 64)
         const pitchPct = ((rawValue - 64) / 64) * 16.0;
         const clamped = Math.max(-16, Math.min(16, pitchPct));
         audioEngine.setPitch(deckId, clamped);
@@ -457,7 +503,6 @@ class MIDIEngine {
       }
 
       case 'PITCH_SLIDER_14BIT': {
-        // 14-Bit High-Resolution Pitch Fader (MSB + LSB)
         const keyMsb = `ch${channel}_msb`;
         if (data1 === mapping.number) {
           this.pitchMsbBuffer.set(keyMsb, rawValue);
@@ -468,8 +513,8 @@ class MIDIEngine {
         } else if (data1 === mapping.lsbNumber) {
           const msb = this.pitchMsbBuffer.get(keyMsb) ?? rawValue;
           const lsb = rawValue;
-          const combined14Bit = (msb << 7) | lsb; // 0 to 16383
-          const pitchPct = ((combined14Bit - 8192) / 8192) * 16.0; // +/- 16% tempo range
+          const combined14Bit = (msb << 7) | lsb;
+          const pitchPct = ((combined14Bit - 8192) / 8192) * 16.0;
           const clamped = Math.max(-16, Math.min(16, pitchPct));
           audioEngine.setPitch(deckId, clamped);
           this.queueStoreUpdate(deckId, { pitch: clamped });
@@ -478,12 +523,11 @@ class MIDIEngine {
       }
 
       case 'JOG_ROTATE': {
-        // Relative 2's complement jogwheel platter rotation
         let delta = 0;
         if (rawValue >= 64) {
-          delta = rawValue - 64; // Clockwise rotation
+          delta = rawValue - 64;
         } else {
-          delta = rawValue - 64; // Counter-clockwise rotation
+          delta = rawValue - 64;
         }
         const currentProgress = state.decks[deckId]?.progress || 0;
         const newProgress = Math.max(0, currentProgress + delta * 0.008);

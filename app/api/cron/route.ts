@@ -4,7 +4,7 @@ import { Upload } from '@aws-sdk/lib-storage';
 import { createClient } from '@sanity/client';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
 
-export const maxDuration = 300; // Allow up to 5 minutes for sync
+export const dynamic = 'force-dynamic';
 
 function base64UrlEncode(str: string | Uint8Array): string {
   let base64: string;

@@ -18,9 +18,10 @@ export const liveStreamType = defineType({
       description: 'Enter direct HLS stream URL (.m3u8), YouTube video/live link, Twitch channel link, or Mux playback ID.',
     }),
     defineField({
-      name: 'viewerUserId',
-      title: 'Mux Viewer User ID (Metadata)',
+      name: 'obsStreamKey',
+      title: 'OBS Ingest Stream Key',
       type: 'string',
+      description: 'Secret RTMP key configured in OBS Studio',
     }),
     defineField({
       name: 'status',
@@ -37,6 +38,13 @@ export const liveStreamType = defineType({
       validation: Rule => Rule.required(),
     }),
     defineField({
+      name: 'countdownMinutes',
+      title: 'Countdown Offset (Minutes)',
+      type: 'number',
+      description: '0 = Go Live Immediately; 5, 10, 15, 30, 60 = Countdown Timer before broadcast',
+      initialValue: 5,
+    }),
+    defineField({
       name: 'scheduledTime',
       title: 'Scheduled Time',
       type: 'datetime',
@@ -47,6 +55,22 @@ export const liveStreamType = defineType({
       title: 'Ended At Time',
       type: 'datetime',
       description: 'Timestamp when the active broadcast concluded.',
+    }),
+    defineField({
+      name: 'multiPlatformTargets',
+      title: 'Multi-Platform Restream Destinations',
+      type: 'array',
+      of: [
+        {
+          type: 'object',
+          fields: [
+            defineField({ name: 'platform', title: 'Platform', type: 'string' }),
+            defineField({ name: 'enabled', title: 'Enabled', type: 'boolean' }),
+            defineField({ name: 'streamKey', title: 'Stream Key', type: 'string' }),
+            defineField({ name: 'targetUrl', title: 'Target RTMP URL', type: 'string' }),
+          ],
+        },
+      ],
     }),
     defineField({
       name: 'diagnosticsResolution',
