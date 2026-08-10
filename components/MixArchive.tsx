@@ -69,8 +69,10 @@ export default function MixArchive({
   const alignSyncPlayback = audioEngine.alignSyncPlayback.bind(audioEngine);
   const getQuantizedDelay = audioEngine.getQuantizedDelay.bind(audioEngine);
 
-  const audioElementsRef = { current: audioEngine.audioElements };
-  const widgetRefs = { current: audioEngine.widgetRefs };
+  const audioElementsRef = useRef(audioEngine.audioElements);
+  audioElementsRef.current = audioEngine.audioElements;
+  const widgetRefs = useRef(audioEngine.widgetRefs);
+  widgetRefs.current = audioEngine.widgetRefs;
 
   const decksRef = useRef(decks);
   useEffect(() => { decksRef.current = decks; }, [decks]);
@@ -379,7 +381,7 @@ export default function MixArchive({
     } else {
       executeCue();
     }
-  }, [decks, playLockoutBlip, initAudioDSP, widgetRefs, seekLocalBuffer, setDecks, getQuantizedDelay]);
+  }, [decks, initAudioDSP, widgetRefs, seekLocalBuffer, setDecks, getQuantizedDelay]);
 
   // --- Platter Physics & Loop Roll Tick useEffect ---
   useEffect(() => {

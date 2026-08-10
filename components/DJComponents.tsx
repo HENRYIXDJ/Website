@@ -391,11 +391,11 @@ export function Preloader({
 
   useEffect(() => {
     if (stage === 4) {
-      onComplete();
+      onComplete?.();
     } else if (onEnter) {
       onEnter();
     }
-  }, []);
+  }, [stage, onComplete, onEnter]);
 
   // If already complete, notify parent immediately
   useEffect(() => {
@@ -680,7 +680,7 @@ export function LEDEqualizer({
 
     frame = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(frame);
-  }, [analyserNode, deckAnalysers, leftDeckId, rightDeckId, leftPlaying, rightPlaying, isPlaying]);
+  }, [analyserNode, deckAnalysers, leftDeckId, rightDeckId, leftPlaying, rightPlaying, isPlaying, leftTrim, leftVolume, rightTrim, rightVolume]);
 
   return (
     <div className="flex gap-2 items-center h-16 bg-black p-1 rounded-none border border-zinc-900 w-full justify-between relative overflow-hidden select-none">

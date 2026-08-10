@@ -33,7 +33,8 @@ export default function MixPortfolio({
   const togglePlayGlobal = audioEngine.togglePlayGlobal.bind(audioEngine);
   const seekLocalBuffer = audioEngine.seekLocalBuffer.bind(audioEngine);
 
-  const widgetRefs = { current: audioEngine.widgetRefs };
+  const widgetRefs = React.useRef(audioEngine.widgetRefs);
+  widgetRefs.current = audioEngine.widgetRefs;
 
   const seekDeckToTime = React.useCallback((deckId: number, seekPosSec: number) => {
     const deck = useAudioStore.getState().decks[deckId];

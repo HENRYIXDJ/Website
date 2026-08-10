@@ -19,6 +19,13 @@ export function MIDILearnModal({ isOpen, onClose }: MIDILearnModalProps) {
   const [rawLogs, setRawLogs] = useState<string[]>([]);
   const [isInitializing, setIsInitializing] = useState(false);
 
+  const handleRequestPermissions = React.useCallback(async () => {
+    playClick();
+    setIsInitializing(true);
+    await midiEngine.init();
+    setIsInitializing(false);
+  }, []);
+
   useEffect(() => {
     if (!isOpen) return;
 
@@ -41,14 +48,7 @@ export function MIDILearnModal({ isOpen, onClose }: MIDILearnModalProps) {
       unsubDevices();
       unsubRaw();
     };
-  }, [isOpen]);
-
-  const handleRequestPermissions = async () => {
-    playClick();
-    setIsInitializing(true);
-    await midiEngine.init();
-    setIsInitializing(false);
-  };
+  }, [isOpen, handleRequestPermissions]);
 
   const handleSelectPreset = (presetId: string) => {
     playClick();
