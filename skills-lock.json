@@ -1,17 +1,11 @@
 {
   "version": 1,
   "skills": {
-    "sanity-best-practices": {
-      "source": "sanity-io/agent-toolkit",
+    "resend": {
+      "source": "resend/resend-skills",
       "sourceType": "github",
-      "skillPath": "skills/sanity-best-practices/SKILL.md",
-      "computedHash": "4aac15e16306c7bc30d4ad6078058641e61a1cc176eee48b87fba3f3ba8fd771"
-    },
-    "workflow-init": {
-      "source": "vercel/workflow",
-      "sourceType": "github",
-      "skillPath": "skills/workflow-init/SKILL.md",
-      "computedHash": "e74ed0468589670865a7dc1dcf4f8cd21c3dce164e5caa66d74c5800d70dfe68"
+      "skillPath": "skills/resend/SKILL.md",
+      "computedHash": "2b07552d7ad20b61c89d93bcd378f52c0379453a983f277dffb20d8f9b86494a"
     }
   }
 }

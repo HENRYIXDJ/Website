@@ -1,0 +1,939 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { S3Client, HeadObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { Upload } from '@aws-sdk/lib-storage';
+import { createClient } from '@sanity/client';
+import { getCloudflareContext } from '@opennextjs/cloudflare';
+
+export const dynamic = 'force-dynamic';
+
+function base64UrlEncode(str: string | Uint8Array): string {
+  let base64: string;
+  if (typeof str === 'string') {
+    base64 = btoa(unescape(encodeURIComponent(str)));
+  } else {
+    base64 = btoa(String.fromCharCode(...Array.from(str)));
+  }
+  return base64.replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+}
+
+function base64ToArrayBuffer(b64: string): ArrayBuffer {
+  const binaryString = atob(b64);
+  const len = binaryString.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes.buffer;
+}
+
+function cleanPemKey(pem: string): string {
+  return pem
+    .replace(/-----BEGIN PRIVATE KEY-----/, '')
+    .replace(/-----END PRIVATE KEY-----/, '')
+    .replace(/\s+/g, '');
+}
+
+async function getGoogleAccessToken(
+  clientEmail: string,
+  privateKeyPem: string
+): Promise<string> {
+  const iat = Math.floor(Date.now() / 1000);
+  const exp = iat + 3600;
+
+  const header = { alg: 'RS256', typ: 'JWT' };
+  const payload = {
+    iss: clientEmail,
+    scope: 'https://www.googleapis.com/auth/drive.readonly',
+    aud: 'https://oauth2.googleapis.com/token',
+    exp,
+    iat,
+  };
+
+  const headerEncoded = base64UrlEncode(JSON.stringify(header));
+  const payloadEncoded = base64UrlEncode(JSON.stringify(payload));
+  const message = `${headerEncoded}.${payloadEncoded}`;
+
+  const cleanKey = cleanPemKey(privateKeyPem);
+  const keyBuffer = base64ToArrayBuffer(cleanKey);
+
+  const cryptoKey = await crypto.subtle.importKey(
+    'pkcs8',
+    keyBuffer,
+    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+
+  const encoder = new TextEncoder();
+  const signatureBuffer = await crypto.subtle.sign(
+    'RSASSA-PKCS1-v1_5',
+    cryptoKey,
+    encoder.encode(message)
+  );
+
+  const signatureEncoded = base64UrlEncode(new Uint8Array(signatureBuffer));
+  const assertion = `${message}.${signatureEncoded}`;
+
+  const response = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${assertion}`,
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Failed to fetch Google access token: ${errText}`);
+  }
+
+  const data: any = await response.json();
+  return data.access_token;
+}
+
+function slugify(text: string): string {
+  return text
+    .toString()
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/[^\w\-]+/g, '')
+    .replace(/\-\-+/g, '-');
+}
+
+function cleanMixTitle(fileName: string, mixType: string): string {
+  const nameWithoutExt = fileName.substring(0, fileName.lastIndexOf('.')) || fileName;
+  const normalized = nameWithoutExt.toLowerCase();
+
+  if (mixType === 'Corner New Cross') {
+    const nightMatch = normalized.match(/night\s*(\d+)/) || normalized.match(/n\s*(\d+)/);
+    if (nightMatch) {
+      return `Corner New Cross: Night ${nightMatch[1]}`;
+    }
+    return `Corner New Cross: ${nameWithoutExt}`;
+  }
+
+  const sessionMatch = normalized.match(/session\s*(\d+)/) || normalized.match(/s\s*(\d+)/);
+  if (sessionMatch) {
+    return `${mixType}: Session ${sessionMatch[1]}`;
+  }
+
+  return `${mixType}: ${nameWithoutExt}`;
+}
+export async function GET(request: NextRequest) {
+  const authHeader = request.headers.get('authorization');
+  const cronSecret = process.env.CRON_SECRET;
+  const isProduction = process.env.NODE_ENV === 'production';
+  
+  if (isProduction || cronSecret) {
+    if (!cronSecret) {
+      console.error('CRON_SECRET is missing in production environment');
+      return NextResponse.json({ error: 'Cron secret not configured' }, { status: 500 });
+    }
+    if (authHeader !== `Bearer ${cronSecret}`) {
+      return NextResponse.json({ error: 'Unauthorized key transmission' }, { status: 401 });
+    }
+  } else {
+    console.warn('Bypassing cron authorization check (development mode)');
+  }
+
+  // Parse Google credentials
+  const googleSAJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+  if (!googleSAJson) {
+    return NextResponse.json({ error: 'Missing GOOGLE_SERVICE_ACCOUNT_JSON' }, { status: 500 });
+  }
+
+  let googleCredentials: any;
+  try {
+    googleCredentials = JSON.parse(googleSAJson);
+  } catch (err: any) {
+    return NextResponse.json({ error: 'Failed to parse GOOGLE_SERVICE_ACCOUNT_JSON' }, { status: 500 });
+  }
+
+  // Get OAuth2 Access Token
+  let googleAccessToken: string;
+  try {
+    googleAccessToken = await getGoogleAccessToken(
+      googleCredentials.client_email,
+      googleCredentials.private_key
+    );
+  } catch (err: any) {
+    console.error('Failed to authenticate with Google Service Account:', err);
+    return NextResponse.json({ error: `Google auth failed: ${err.message}` }, { status: 500 });
+  }
+
+  let r2Endpoint = process.env.R2_ENDPOINT;
+  const bucketName = process.env.R2_BUCKET_NAME || '';
+  if (r2Endpoint && bucketName && r2Endpoint.endsWith(`/${bucketName}`)) {
+    r2Endpoint = r2Endpoint.slice(0, -(bucketName.length + 1));
+  }
+
+  const s3Client = new S3Client({
+    endpoint: r2Endpoint,
+    region: 'auto',
+    credentials: {
+      accessKeyId: process.env.R2_ACCESS_KEY_ID || '',
+      secretAccessKey: process.env.R2_SECRET_ACCESS_KEY || '',
+    },
+  });
+
+  const sanityClient = createClient({
+    projectId: process.env.SANITY_PROJECT_ID || 'r6mln4n3',
+    dataset: process.env.SANITY_DATASET || 'production',
+    apiVersion: '2023-01-01',
+    token: process.env.SANITY_WRITE_TOKEN,
+    useCdn: false,
+  });
+
+  // Native Cloudflare Context & Binding detection
+  let ctx: any = null;
+  let r2Binding: any = null;
+  try {
+    const cloudflareContext = getCloudflareContext();
+    ctx = cloudflareContext.ctx;
+    r2Binding = (cloudflareContext.env as any).R2_BUCKET;
+  } catch (err) {
+    ctx = (globalThis as any).MINIFLARE_EXECUTION_CONTEXT || null;
+    r2Binding = (process.env.R2_BUCKET as any) || (globalThis as any).R2_BUCKET;
+  }
+
+  let uploadCount = 0;
+  const MAX_UPLOADS_PER_RUN = 2; // Prevent worker execution time/CPU limit timeout
+
+  interface R2FileInfo {
+    exists: boolean;
+    size?: number;
+    gdId?: string;
+    gdMd5?: string;
+  }
+
+  async function getR2FileInfo(key: string): Promise<R2FileInfo> {
+    if (r2Binding && typeof r2Binding.head === 'function') {
+      try {
+        const obj = await r2Binding.head(key);
+        if (!obj) return { exists: false };
+        return {
+          exists: true,
+          size: obj.size,
+          gdId: obj.customMetadata?.['gd-id'],
+          gdMd5: obj.customMetadata?.['gd-md5'],
+        };
+      } catch (err) {
+        return { exists: false };
+      }
+    }
+    try {
+      const command = new HeadObjectCommand({
+        Bucket: process.env.R2_BUCKET_NAME || '',
+        Key: key,
+      });
+      const res = await s3Client.send(command);
+      return {
+        exists: true,
+        size: res.ContentLength,
+        gdId: res.Metadata?.['gd-id'],
+        gdMd5: res.Metadata?.['gd-md5'],
+      };
+    } catch (error: any) {
+      return { exists: false };
+    }
+  }
+
+  async function deleteFromR2(key: string) {
+    console.log(`Deleting object from R2: ${key}...`);
+    try {
+      if (r2Binding && typeof r2Binding.delete === 'function') {
+        await r2Binding.delete(key);
+        return;
+      }
+      const command = new DeleteObjectCommand({
+        Bucket: process.env.R2_BUCKET_NAME || '',
+        Key: key,
+      });
+      await s3Client.send(command);
+    } catch (err: any) {
+      console.error(`Failed to delete R2 object ${key}:`, err.message);
+    }
+  }
+
+  async function findFolderId(name: string, parentId?: string): Promise<string | null> {
+    let query = `name = '${name}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
+    if (parentId) {
+      query += ` and '${parentId}' in parents`;
+    }
+
+    const url = new URL('https://www.googleapis.com/drive/v3/files');
+    url.searchParams.set('q', query);
+    url.searchParams.set('fields', 'files(id)');
+
+    const res = await fetch(url.toString(), {
+      headers: { Authorization: `Bearer ${googleAccessToken}` },
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error(`Failed to find folder ID: ${errText}`);
+      return null;
+    }
+
+    const data: any = await res.json();
+    return data.files?.[0]?.id || null;
+  }
+
+  interface DriveFileInfo {
+    id: string;
+    name: string;
+    parentName?: string;
+    size?: string;
+    md5Checksum?: string;
+    modifiedTime?: string;
+  }
+
+  async function getAllFilesRecursively(
+    parentFolderId: string,
+    mimeTypes: string[],
+    parentFolderName?: string
+  ): Promise<DriveFileInfo[]> {
+    const files: DriveFileInfo[] = [];
+    try {
+      const mimeQuery = mimeTypes.map(m => `mimeType = '${m}'`).join(' or ');
+      const fileQuery = `'${parentFolderId}' in parents and trashed = false and (${mimeQuery})`;
+
+      const url = new URL('https://www.googleapis.com/drive/v3/files');
+      url.searchParams.set('q', fileQuery);
+      url.searchParams.set('fields', 'files(id, name, size, md5Checksum, modifiedTime)');
+      url.searchParams.set('pageSize', '1000');
+
+      const filesRes = await fetch(url.toString(), {
+        headers: { Authorization: `Bearer ${googleAccessToken}` },
+      });
+
+      if (filesRes.ok) {
+        const filesData: any = await filesRes.json();
+        if (filesData.files) {
+          for (const f of filesData.files) {
+            if (f.id && f.name) {
+              files.push({
+                id: f.id,
+                name: f.name,
+                parentName: parentFolderName,
+                size: f.size || undefined,
+                md5Checksum: f.md5Checksum || undefined,
+                modifiedTime: f.modifiedTime || undefined,
+              });
+            }
+          }
+        }
+      }
+
+      const folderQuery = `'${parentFolderId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
+      const fUrl = new URL('https://www.googleapis.com/drive/v3/files');
+      fUrl.searchParams.set('q', folderQuery);
+      fUrl.searchParams.set('fields', 'files(id, name)');
+      fUrl.searchParams.set('pageSize', '100');
+
+      const foldersRes = await fetch(fUrl.toString(), {
+        headers: { Authorization: `Bearer ${googleAccessToken}` },
+      });
+
+      if (foldersRes.ok) {
+        const foldersData: any = await foldersRes.json();
+        if (foldersData.files) {
+          for (const folder of foldersData.files) {
+            if (folder.id && folder.name) {
+              const subFiles = await getAllFilesRecursively(folder.id, mimeTypes, folder.name);
+              files.push(...subFiles);
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Warning reading files recursively:', err);
+    }
+    return files;
+  }
+
+  async function uploadToR2(fileId: string, key: string, contentType: string, md5Checksum?: string | null) {
+    const driveRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+      headers: { Authorization: `Bearer ${googleAccessToken}` },
+    });
+
+    if (!driveRes.ok) {
+      const errText = await driveRes.text();
+      throw new Error(`Failed to download file ${fileId} from Drive: ${errText}`);
+    }
+
+    if (!driveRes.body) {
+      throw new Error(`Empty body returned for file ${fileId} from Drive`);
+    }
+
+    if (r2Binding && typeof r2Binding.put === 'function') {
+      console.log(`Using native R2 binding.put for key: ${key}`);
+      await r2Binding.put(key, driveRes.body, {
+        httpMetadata: { contentType },
+        customMetadata: {
+          'gd-id': fileId,
+          'gd-md5': md5Checksum || '',
+        }
+      });
+      return;
+    }
+
+    console.log(`Using S3 client upload fallback for key: ${key}`);
+    const upload = new Upload({
+      client: s3Client,
+      params: {
+        Bucket: process.env.R2_BUCKET_NAME || '',
+        Key: key,
+        Body: driveRes.body,
+        ContentType: contentType,
+        Metadata: {
+          'gd-id': fileId,
+          'gd-md5': md5Checksum || '',
+        }
+      },
+    });
+
+    await upload.done();
+  }
+
+  function matchArtworkFile(mixName: string, mixType: string, files: any[]): any | null {
+    const normalizedMixType = mixType.toLowerCase().trim();
+    const eligibleFiles = files.filter(f => !f.parentName || f.parentName.toLowerCase().trim() === normalizedMixType);
+    const normalizedMixName = mixName.toLowerCase().replace(/[:\-]/g, ' ').replace(/\s+/g, ' ').trim();
+    
+    let found = eligibleFiles.find(f => {
+      const baseName = f.name?.substring(0, f.name.lastIndexOf('.')) || f.name || '';
+      return baseName.toLowerCase().trim() === mixName.toLowerCase().trim();
+    });
+    if (found) return found;
+
+    if (mixType === 'Knight Club') {
+      const sessionMatch = normalizedMixName.match(/session\s*(\d+)/);
+      if (sessionMatch) {
+        const sessionNum = sessionMatch[1];
+        found = eligibleFiles.find(f => {
+          const baseName = f.name?.substring(0, f.name.lastIndexOf('.')) || f.name || '';
+          const normBase = baseName.toLowerCase().trim();
+          return normBase === `session ${sessionNum}` || normBase === `session${sessionNum}`;
+        });
+        if (found) return found;
+      }
+    }
+
+    if (mixType === 'Royal Court') {
+      const sessionMatch = normalizedMixName.match(/session\s*(\d+)/);
+      if (sessionMatch) {
+        const sessionNum = sessionMatch[1];
+        found = eligibleFiles.find(f => {
+          const baseName = f.name?.substring(0, f.name.lastIndexOf('.')) || f.name || '';
+          const normBase = baseName.toLowerCase().trim();
+          return normBase.includes(`session ${sessionNum}`) || normBase.includes(`session${sessionNum}`);
+        });
+        if (found) return found;
+      }
+    }
+
+    if (mixType === 'Corner New Cross') {
+      const nightMatch = normalizedMixName.match(/night\s*(\d+)/);
+      if (nightMatch) {
+        const nightNum = nightMatch[1];
+        found = eligibleFiles.find(f => {
+          const baseName = f.name?.substring(0, f.name.lastIndexOf('.')) || f.name || '';
+          const normBase = baseName.toLowerCase().trim();
+          return normBase.includes(`n${nightNum}`) || normBase.includes(`night ${nightNum}`);
+        });
+        if (found) return found;
+      }
+    }
+
+    const numberMatch = normalizedMixName.match(/\d+/);
+    if (numberMatch) {
+      const num = numberMatch[0];
+      found = eligibleFiles.find(f => {
+        const baseName = f.name?.substring(0, f.name.lastIndexOf('.')) || f.name || '';
+        return baseName.includes(num);
+      });
+      if (found) return found;
+    }
+
+    return null;
+  }
+
+  function matchTracklistFile(mixName: string, mixType: string, files: any[]): any | null {
+    const normalizedMixType = mixType.toLowerCase().trim();
+    const eligibleFiles = files.filter(f => !f.parentName || f.parentName.toLowerCase().trim() === normalizedMixType);
+    const normalizedMixName = mixName.toLowerCase().trim();
+    
+    let found = eligibleFiles.find(f => {
+      const baseName = f.name?.substring(0, f.name.lastIndexOf('.')) || f.name || '';
+      return baseName.toLowerCase().trim() === normalizedMixName;
+    });
+    if (found) return found;
+
+    found = eligibleFiles.find(f => {
+      const baseName = f.name?.substring(0, f.name.lastIndexOf('.')) || f.name || '';
+      const normBase = baseName.toLowerCase().trim();
+      return normalizedMixName.includes(normBase) || normBase.includes(normalizedMixName);
+    });
+    return found || null;
+  }
+
+  async function downloadFileText(fileId: string): Promise<string> {
+    const driveRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+      headers: { Authorization: `Bearer ${googleAccessToken}` },
+    });
+
+    if (!driveRes.ok) {
+      const errText = await driveRes.text();
+      throw new Error(`Failed to download text file ${fileId} from Drive: ${errText}`);
+    }
+
+    return driveRes.text();
+  }
+
+  function detectMixType(fileName: string): string {
+    const norm = fileName.toLowerCase();
+    if (norm.includes('knight club') || norm.includes('kc ')) {
+      return 'Knight Club';
+    }
+    if (norm.includes('royal court') || norm.includes('rc ')) {
+      return 'Royal Court';
+    }
+    if (norm.includes('corner new cross') || norm.includes('cnc')) {
+      return 'Corner New Cross';
+    }
+    return 'Knight Club';
+  }
+
+  async function runSync(): Promise<string[]> {
+    const rootId = await findFolderId('Henry IX Website');
+    if (!rootId) {
+      throw new Error("Root folder 'Henry IX Website' not found in Drive");
+    }
+
+    const mixesId = await findFolderId('Mixes', rootId);
+    if (!mixesId) {
+      throw new Error("Mixes folder not found");
+    }
+
+    const mixAudioId = await findFolderId('Mix Audio', mixesId);
+    if (!mixAudioId) {
+      throw new Error("Mix Audio folder not found");
+    }
+
+    const tracklistsFolderId = await findFolderId('Mix Tracklists', mixesId) || await findFolderId('Mix Track Lists', mixesId);
+    const artworkFolderId = await findFolderId('Mix Artwork', mixesId);
+
+    let artworkFiles: DriveFileInfo[] = [];
+    if (artworkFolderId) {
+      artworkFiles = await getAllFilesRecursively(artworkFolderId, ['image/jpeg', 'image/png', 'image/webp']);
+    }
+
+    let tracklistFiles: DriveFileInfo[] = [];
+    if (tracklistsFolderId) {
+      tracklistFiles = await getAllFilesRecursively(tracklistsFolderId, ['text/plain']);
+    }
+
+    const matchedArtworkIds = new Set<string>();
+    
+    const mixTypeFoldersUrl = new URL('https://www.googleapis.com/drive/v3/files');
+    mixTypeFoldersUrl.searchParams.set('q', `'${mixAudioId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`);
+    mixTypeFoldersUrl.searchParams.set('fields', 'files(id, name)');
+    const mixTypeFoldersRes = await fetch(mixTypeFoldersUrl.toString(), {
+      headers: { Authorization: `Bearer ${googleAccessToken}` },
+    });
+    if (!mixTypeFoldersRes.ok) {
+      const errText = await mixTypeFoldersRes.text();
+      throw new Error(`Failed to list mix type folders: ${errText}`);
+    }
+    const mixTypeFoldersData: any = await mixTypeFoldersRes.json();
+    const mixTypeFolders = mixTypeFoldersData.files || [];
+    const syncResults: string[] = [];
+
+    for (const mixFolder of mixTypeFolders) {
+      const mixType = mixFolder.name!;
+      
+      const mp3sUrl = new URL('https://www.googleapis.com/drive/v3/files');
+      mp3sUrl.searchParams.set('q', `'${mixFolder.id}' in parents and mimeType = 'audio/mpeg' and trashed = false`);
+      mp3sUrl.searchParams.set('fields', 'files(id, name, size, md5Checksum, modifiedTime)');
+      const mp3sRes = await fetch(mp3sUrl.toString(), {
+        headers: { Authorization: `Bearer ${googleAccessToken}` },
+      });
+      if (!mp3sRes.ok) {
+        const errText = await mp3sRes.text();
+        throw new Error(`Failed to list mp3 files: ${errText}`);
+      }
+      const mp3sData: any = await mp3sRes.json();
+      const mp3Files = mp3sData.files || [];
+      for (const mp3 of mp3Files) {
+        const fileName = mp3.name!;
+        const mixName = fileName.substring(0, fileName.lastIndexOf('.')) || fileName;
+        const cleanTitle = cleanMixTitle(fileName, mixType);
+        const cleanSlug = slugify(cleanTitle);
+        const audioR2Key = `Mixes/${mixType}/Mix Audio/${fileName}`;
+
+        let tracklistText = '';
+        const tracklistFile = matchTracklistFile(mixName, mixType, tracklistFiles);
+        if (tracklistFile) {
+          tracklistText = await downloadFileText(tracklistFile.id);
+        }
+
+        const artworkFile = matchArtworkFile(mixName, mixType, artworkFiles);
+        let artworkR2Key: string | null = null;
+        if (artworkFile) {
+          artworkR2Key = `Mixes/${mixType}/Mix Artwork/${artworkFile.name}`;
+          matchedArtworkIds.add(artworkFile.id);
+        }
+
+        const existing = await sanityClient.fetch(
+          `*[_type == "mix" && (slug.current == $slug || title == $title || audioFile == $audioFile)][0]`,
+          { slug: cleanSlug, title: cleanTitle, audioFile: `/${audioR2Key}` }
+        );
+
+        // Perform existence & metadata checks in R2
+        const audioR2Info = await getR2FileInfo(audioR2Key);
+        const artworkR2Info = artworkR2Key ? await getR2FileInfo(artworkR2Key) : { exists: false };
+
+        // Check for content changes (size or MD5 mismatch)
+        const driveAudioSize = mp3.size ? parseInt(mp3.size, 10) : undefined;
+        const driveAudioMd5 = mp3.md5Checksum;
+        let audioChanged = false;
+        if (audioR2Info.exists) {
+          if (driveAudioSize !== undefined && audioR2Info.size !== undefined && driveAudioSize !== audioR2Info.size) {
+            console.log(`    Detected audio size mismatch for "${audioR2Key}": Drive size = ${driveAudioSize}, R2 size = ${audioR2Info.size}`);
+            audioChanged = true;
+          } else if (driveAudioMd5 && audioR2Info.gdMd5 && driveAudioMd5 !== audioR2Info.gdMd5) {
+            console.log(`    Detected audio MD5 mismatch for "${audioR2Key}": Drive MD5 = ${driveAudioMd5}, R2 MD5 = ${audioR2Info.gdMd5}`);
+            audioChanged = true;
+          } else if (mp3.id && audioR2Info.gdId && mp3.id !== audioR2Info.gdId) {
+            console.log(`    Detected audio ID mismatch for "${audioR2Key}": Drive ID = ${mp3.id}, R2 ID = ${audioR2Info.gdId}`);
+            audioChanged = true;
+          }
+        }
+
+        const driveArtworkSize = artworkFile?.size ? parseInt(artworkFile.size, 10) : undefined;
+        const driveArtworkMd5 = artworkFile?.md5Checksum;
+        let artworkChanged = false;
+        if (artworkR2Info.exists && artworkFile) {
+          if (driveArtworkSize !== undefined && artworkR2Info.size !== undefined && driveArtworkSize !== artworkR2Info.size) {
+            console.log(`    Detected artwork size mismatch for "${artworkR2Key}": Drive size = ${driveArtworkSize}, R2 size = ${artworkR2Info.size}`);
+            artworkChanged = true;
+          } else if (driveArtworkMd5 && artworkR2Info.gdMd5 && driveArtworkMd5 !== artworkR2Info.gdMd5) {
+            console.log(`    Detected artwork MD5 mismatch for "${artworkR2Key}": Drive MD5 = ${driveArtworkMd5}, R2 MD5 = ${artworkR2Info.gdMd5}`);
+            artworkChanged = true;
+          } else if (artworkFile.id && artworkR2Info.gdId && artworkFile.id !== artworkR2Info.gdId) {
+            console.log(`    Detected artwork ID mismatch for "${artworkR2Key}": Drive ID = ${artworkFile.id}, R2 ID = ${artworkR2Info.gdId}`);
+            artworkChanged = true;
+          }
+        }
+
+        if (existing) {
+          let needsPatch = false;
+          const patchData: any = {};
+
+          if (existing.title !== cleanTitle) {
+            patchData.title = cleanTitle;
+            patchData.slug = { _type: 'slug', current: cleanSlug };
+            needsPatch = true;
+          }
+
+          const currentAudioFile = existing.audioFile;
+          const expectedAudioFile = `/${audioR2Key}`;
+          if (currentAudioFile !== expectedAudioFile || !audioR2Info.exists || audioChanged) {
+            if (currentAudioFile && currentAudioFile !== expectedAudioFile) {
+              const oldKey = currentAudioFile.startsWith('/') ? currentAudioFile.slice(1) : currentAudioFile;
+              console.log(`    Audio path changed from ${currentAudioFile} to ${expectedAudioFile}. Deleting old asset from R2...`);
+              await deleteFromR2(oldKey);
+            }
+            if (audioChanged) {
+              console.log(`    Audio file content changed. Deleting old asset from R2...`);
+              await deleteFromR2(audioR2Key);
+            }
+
+            if (!audioR2Info.exists && !audioChanged) {
+              if (uploadCount >= MAX_UPLOADS_PER_RUN) {
+                console.log(`[CRON] Max uploads limit reached (${MAX_UPLOADS_PER_RUN}). Skipping audio sync for ${cleanTitle} until next run.`);
+                continue;
+              }
+              await uploadToR2(mp3.id!, audioR2Key, 'audio/mpeg', mp3.md5Checksum);
+              uploadCount++;
+            } else {
+              if (uploadCount >= MAX_UPLOADS_PER_RUN) {
+                console.log(`[CRON] Max uploads limit reached (${MAX_UPLOADS_PER_RUN}). Skipping updated audio sync for ${cleanTitle} until next run.`);
+                continue;
+              }
+              await uploadToR2(mp3.id!, audioR2Key, 'audio/mpeg', mp3.md5Checksum);
+              uploadCount++;
+            }
+            if (currentAudioFile !== expectedAudioFile) {
+              patchData.audioFile = expectedAudioFile;
+              needsPatch = true;
+            }
+          }
+
+          const currentArtworkFile = existing.artworkFile;
+          const expectedArtworkFile = artworkR2Key ? `/${artworkR2Key}` : undefined;
+          if (artworkFile && (currentArtworkFile !== expectedArtworkFile || !artworkR2Info.exists || artworkChanged)) {
+            if (currentArtworkFile && currentArtworkFile !== expectedArtworkFile) {
+              const oldKey = currentArtworkFile.startsWith('/') ? currentArtworkFile.slice(1) : currentArtworkFile;
+              console.log(`    Artwork path changed from ${currentArtworkFile} to ${expectedArtworkFile}. Deleting old asset from R2...`);
+              await deleteFromR2(oldKey);
+            }
+            if (artworkChanged && artworkR2Key) {
+              console.log(`    Artwork file content changed. Deleting old asset from R2...`);
+              await deleteFromR2(artworkR2Key);
+            }
+
+            if (!artworkR2Info.exists && !artworkChanged) {
+              if (uploadCount >= MAX_UPLOADS_PER_RUN) {
+                console.log(`[CRON] Max uploads limit reached (${MAX_UPLOADS_PER_RUN}). Skipping artwork sync for ${cleanTitle} until next run.`);
+                continue;
+              }
+              const artworkContentType = artworkFile.name.endsWith('.png') ? 'image/png' : artworkFile.name.endsWith('.webp') ? 'image/webp' : 'image/jpeg';
+              await uploadToR2(artworkFile.id, artworkR2Key!, artworkContentType, artworkFile.md5Checksum);
+              uploadCount++;
+            } else {
+              if (uploadCount >= MAX_UPLOADS_PER_RUN) {
+                console.log(`[CRON] Max uploads limit reached (${MAX_UPLOADS_PER_RUN}). Skipping updated artwork sync for ${cleanTitle} until next run.`);
+                continue;
+              }
+              const artworkContentType = artworkFile.name.endsWith('.png') ? 'image/png' : artworkFile.name.endsWith('.webp') ? 'image/webp' : 'image/jpeg';
+              await uploadToR2(artworkFile.id, artworkR2Key!, artworkContentType, artworkFile.md5Checksum);
+              uploadCount++;
+            }
+            if (currentArtworkFile !== expectedArtworkFile) {
+              patchData.artworkFile = expectedArtworkFile;
+              needsPatch = true;
+            }
+          }
+
+          if (tracklistText && existing.tracklist !== tracklistText) {
+            patchData.tracklist = tracklistText;
+            needsPatch = true;
+          }
+
+          if (needsPatch) {
+            await sanityClient.patch(existing._id).set(patchData).commit();
+            syncResults.push(`Updated ${cleanTitle}`);
+          }
+          continue;
+        }
+
+        // New mix discovered
+        if (uploadCount >= MAX_UPLOADS_PER_RUN) {
+          console.log(`[CRON] Max uploads limit reached (${MAX_UPLOADS_PER_RUN}). Skipping new mix creation for ${cleanTitle} until next run.`);
+          continue;
+        }
+
+        await uploadToR2(mp3.id!, audioR2Key, 'audio/mpeg', mp3.md5Checksum);
+        uploadCount++;
+
+        if (artworkFile && artworkR2Key) {
+          if (uploadCount >= MAX_UPLOADS_PER_RUN) {
+            console.log(`[CRON] Max uploads limit reached (${MAX_UPLOADS_PER_RUN}). Skipping artwork upload for ${cleanTitle} until next run.`);
+            continue;
+          }
+          const artworkContentType = artworkFile.name.endsWith('.png') ? 'image/png' : artworkFile.name.endsWith('.webp') ? 'image/webp' : 'image/jpeg';
+          await uploadToR2(artworkFile.id, artworkR2Key, artworkContentType, artworkFile.md5Checksum);
+          uploadCount++;
+        }
+
+        const mixDoc = {
+          _type: 'mix',
+          title: cleanTitle,
+          slug: {
+            _type: 'slug',
+            current: cleanSlug,
+          },
+          audioFile: `/${audioR2Key}`,
+          artworkFile: artworkR2Key ? `/${artworkR2Key}` : undefined,
+          tracklist: tracklistText || undefined,
+          bpm: 120,
+          cuePoints: [],
+        };
+
+        const createdMix = await sanityClient.create(mixDoc);
+        syncResults.push(`Created ${cleanTitle}`);
+
+        const mixGroupTitle = mixType;
+        const mixGroupSlug = slugify(mixGroupTitle);
+        const existingGroup = await sanityClient.fetch(
+          `*[_type == "mixGroup" && title == $title][0]`,
+          { title: mixGroupTitle }
+        );
+
+        if (existingGroup) {
+          await sanityClient
+            .patch(existingGroup._id)
+            .setIfMissing({ mixes: [] })
+            .append('mixes', [{ _type: 'reference', _ref: createdMix._id }])
+            .commit();
+        } else {
+          const newGroupDoc = {
+            _type: 'mixGroup',
+            title: mixGroupTitle,
+            slug: {
+              _type: 'slug',
+              current: mixGroupSlug,
+            },
+            description: `Auto-generated collection for ${mixGroupTitle} mixes`,
+            mixes: [{ _type: 'reference', _ref: createdMix._id }],
+          };
+          await sanityClient.create(newGroupDoc);
+        }
+      }
+    }
+
+    // Post-process unmatched artworks (for bulk uploading artworks without audio yet)
+    const unmatchedArtworks = artworkFiles.filter(a => !matchedArtworkIds.has(a.id));
+    console.log(`[CRON] Processing ${unmatchedArtworks.length} unmatched artwork files (bulk uploaded artworks)...`);
+    
+    for (const artworkFile of unmatchedArtworks) {
+      const mixType = artworkFile.parentName || detectMixType(artworkFile.name);
+      const cleanTitle = cleanMixTitle(artworkFile.name, mixType);
+      const cleanSlug = slugify(cleanTitle);
+      
+      const artworkR2Key = `Mixes/${mixType}/Mix Artwork/${artworkFile.name}`;
+      
+      const existing = await sanityClient.fetch(
+        `*[_type == "mix" && (slug.current == $slug || title == $title)][0]`,
+        { slug: cleanSlug, title: cleanTitle }
+      );
+      
+      const artworkR2Info = await getR2FileInfo(artworkR2Key);
+
+      const driveArtworkSize = artworkFile.size ? parseInt(artworkFile.size, 10) : undefined;
+      const driveArtworkMd5 = artworkFile.md5Checksum;
+      let artworkChanged = false;
+      if (artworkR2Info.exists) {
+        if (driveArtworkSize !== undefined && artworkR2Info.size !== undefined && driveArtworkSize !== artworkR2Info.size) {
+          console.log(`    Detected unmatched artwork size mismatch for "${artworkR2Key}": Drive size = ${driveArtworkSize}, R2 size = ${artworkR2Info.size}`);
+          artworkChanged = true;
+        } else if (driveArtworkMd5 && artworkR2Info.gdMd5 && driveArtworkMd5 !== artworkR2Info.gdMd5) {
+          console.log(`    Detected unmatched artwork MD5 mismatch for "${artworkR2Key}": Drive MD5 = ${driveArtworkMd5}, R2 MD5 = ${artworkR2Info.gdMd5}`);
+          artworkChanged = true;
+        } else if (artworkFile.id && artworkR2Info.gdId && artworkFile.id !== artworkR2Info.gdId) {
+          console.log(`    Detected unmatched artwork ID mismatch for "${artworkR2Key}": Drive ID = ${artworkFile.id}, R2 ID = ${artworkR2Info.gdId}`);
+          artworkChanged = true;
+        }
+      }
+      
+      if (existing) {
+        let needsPatch = false;
+        const patchData: any = {};
+        
+        const currentArtworkFile = existing.artworkFile;
+        const expectedArtworkFile = `/${artworkR2Key}`;
+        
+        if (currentArtworkFile !== expectedArtworkFile || !artworkR2Info.exists || artworkChanged) {
+          if (currentArtworkFile && currentArtworkFile !== expectedArtworkFile) {
+            const oldKey = currentArtworkFile.startsWith('/') ? currentArtworkFile.slice(1) : currentArtworkFile;
+            console.log(`    Artwork path changed from ${currentArtworkFile} to ${expectedArtworkFile}. Deleting old asset from R2...`);
+            await deleteFromR2(oldKey);
+          }
+          if (artworkChanged) {
+            console.log(`    Artwork file content changed. Deleting old asset from R2...`);
+            await deleteFromR2(artworkR2Key);
+          }
+          
+          if (!artworkR2Info.exists && !artworkChanged) {
+            if (uploadCount >= MAX_UPLOADS_PER_RUN) {
+              console.log(`[CRON] Max uploads limit reached (${MAX_UPLOADS_PER_RUN}). Skipping unmatched artwork sync for ${cleanTitle} until next run.`);
+              continue;
+            }
+            const artworkContentType = artworkFile.name.endsWith('.png') ? 'image/png' : artworkFile.name.endsWith('.webp') ? 'image/webp' : 'image/jpeg';
+            await uploadToR2(artworkFile.id, artworkR2Key, artworkContentType, artworkFile.md5Checksum);
+            uploadCount++;
+          } else {
+            if (uploadCount >= MAX_UPLOADS_PER_RUN) {
+              console.log(`[CRON] Max uploads limit reached (${MAX_UPLOADS_PER_RUN}). Skipping updated unmatched artwork sync for ${cleanTitle} until next run.`);
+              continue;
+            }
+            const artworkContentType = artworkFile.name.endsWith('.png') ? 'image/png' : artworkFile.name.endsWith('.webp') ? 'image/webp' : 'image/jpeg';
+            await uploadToR2(artworkFile.id, artworkR2Key, artworkContentType, artworkFile.md5Checksum);
+            uploadCount++;
+          }
+          if (currentArtworkFile !== expectedArtworkFile) {
+            patchData.artworkFile = expectedArtworkFile;
+            needsPatch = true;
+          }
+        }
+        
+        if (needsPatch) {
+          await sanityClient.patch(existing._id).set(patchData).commit();
+          syncResults.push(`Updated unmatched artwork for ${cleanTitle}`);
+        }
+      } else {
+        if (uploadCount >= MAX_UPLOADS_PER_RUN) {
+          console.log(`[CRON] Max uploads limit reached (${MAX_UPLOADS_PER_RUN}). Skipping new artwork-only mix for ${cleanTitle} until next run.`);
+          continue;
+        }
+        
+        const artworkContentType = artworkFile.name.endsWith('.png') ? 'image/png' : artworkFile.name.endsWith('.webp') ? 'image/webp' : 'image/jpeg';
+        await uploadToR2(artworkFile.id, artworkR2Key, artworkContentType, artworkFile.md5Checksum);
+        uploadCount++;
+        
+        const mixDoc = {
+          _type: 'mix',
+          title: cleanTitle,
+          slug: {
+            _type: 'slug',
+            current: cleanSlug,
+          },
+          artworkFile: `/${artworkR2Key}`,
+          bpm: 120,
+          cuePoints: [],
+        };
+        
+        const createdMix = await sanityClient.create(mixDoc);
+        syncResults.push(`Created artwork-only mix ${cleanTitle}`);
+        
+        const mixGroupTitle = mixType;
+        const mixGroupSlug = slugify(mixGroupTitle);
+        const existingGroup = await sanityClient.fetch(
+          `*[_type == "mixGroup" && title == $title][0]`,
+          { title: mixGroupTitle }
+        );
+        
+        if (existingGroup) {
+          await sanityClient
+            .patch(existingGroup._id)
+            .setIfMissing({ mixes: [] })
+            .append('mixes', [{ _type: 'reference', _ref: createdMix._id }])
+            .commit();
+        } else {
+          const newGroupDoc = {
+            _type: 'mixGroup',
+            title: mixGroupTitle,
+            slug: {
+              _type: 'slug',
+              current: mixGroupSlug,
+            },
+            description: `Auto-generated collection for ${mixGroupTitle} mixes`,
+            mixes: [{ _type: 'reference', _ref: createdMix._id }],
+          };
+          await sanityClient.create(newGroupDoc);
+        }
+      }
+    }
+
+    return syncResults;
+  }
+
+  if (ctx && typeof ctx.waitUntil === 'function') {
+    console.log('[CRON] Detected Cloudflare Worker execution context. Triggering background sync via ctx.waitUntil.');
+    ctx.waitUntil(
+      runSync()
+        .then(results => console.log('[CRON] Background sync completed successfully:', results))
+        .catch(err => console.error('[CRON] Background sync failed:', err))
+    );
+    return NextResponse.json({ success: true, status: 'Background sync triggered' });
+  }
+
+  console.log('[CRON] No execution context found. Running sync synchronously in foreground.');
+  try {
+    const processed = await runSync();
+    return NextResponse.json({ success: true, processed });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message || 'Sync failed' }, { status: 500 });
+  }
+}

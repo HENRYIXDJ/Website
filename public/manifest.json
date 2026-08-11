@@ -1,0 +1,17 @@
+{
+  "name": "HENRY IX | DJ",
+  "short_name": "HENRY IX",
+  "description": "Explore the world of HENRY IX. Listen to iconic DJ sets in house, techno, edm, pop, R&B, Hip-Hop and Rap, Queer Disco and House.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#D8163F",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    }
+  ]
+}
