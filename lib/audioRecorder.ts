@@ -40,7 +40,18 @@ class SetRecorderEngine {
         return false;
       }
 
-      // Tap master output stream
+      if (ctx.state === 'suspended') {
+        ctx.resume().catch(() => {});
+      }
+
+      // Disconnect old stream destination if one was still attached
+      if (this.streamDestination) {
+        try {
+          masterNode.disconnect(this.streamDestination);
+        } catch {}
+      }
+
+      // Tap master output stream without interfering with speakers
       this.streamDestination = ctx.createMediaStreamDestination();
       masterNode.connect(this.streamDestination);
 
@@ -49,8 +60,9 @@ class SetRecorderEngine {
       }
 
       const mimeType = 
-        format === 'mp3' && MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' :
-        MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : '';
+        format === 'mp3' && typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' :
+        typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' :
+        typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '';
 
       this.mediaRecorder = new MediaRecorder(this.streamDestination.stream, mimeType ? { mimeType } : undefined);
       this.audioChunks = [];
@@ -75,6 +87,7 @@ class SetRecorderEngine {
       this.startTime = Date.now();
       this.currentDuration = 0;
 
+      if (this.timerInterval) clearInterval(this.timerInterval);
       this.timerInterval = setInterval(() => {
         this.currentDuration = Math.floor((Date.now() - this.startTime) / 1000);
         this.updateState({ duration: this.currentDuration });
@@ -100,7 +113,18 @@ class SetRecorderEngine {
    */
   public stopRecording(): Promise<Blob | null> {
     return new Promise((resolve) => {
-      if (this.timerInterval) clearInterval(this.timerInterval);
+      if (this.timerInterval) {
+        clearInterval(this.timerInterval);
+        this.timerInterval = null;
+      }
+
+      const masterNode = audioEngine.getMasterGainNode();
+      if (this.streamDestination && masterNode) {
+        try {
+          masterNode.disconnect(this.streamDestination);
+        } catch {}
+        this.streamDestination = null;
+      }
 
       if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
         this.mediaRecorder.onstop = () => {
@@ -114,6 +138,7 @@ class SetRecorderEngine {
         };
         this.mediaRecorder.stop();
       } else {
+        this.updateState({ isRecording: false, isPaused: false });
         resolve(this.currentState.recordedBlob);
       }
     });

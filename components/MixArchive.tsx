@@ -560,10 +560,33 @@ export default function MixArchive({
 
   const triggerHotCueRef = useRef(triggerHotCue);
   useEffect(() => { triggerHotCueRef.current = triggerHotCue; }, [triggerHotCue]);
+  const modalStatesRef = useRef({
+    isShortcutsModalOpen,
+    isMasterCrateExpanded,
+    isStageVisualizerOpen,
+    isRecordModalOpen,
+    isMIDIOpen,
+  });
+  useEffect(() => {
+    modalStatesRef.current = {
+      isShortcutsModalOpen,
+      isMasterCrateExpanded,
+      isStageVisualizerOpen,
+      isRecordModalOpen,
+      isMIDIOpen,
+    };
+  });
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (isShortcutsModalOpen || isMasterCrateExpanded || isStageVisualizerOpen || isRecordModalOpen || isMIDIOpen) {
+      const {
+        isShortcutsModalOpen: shortcutsOpen,
+        isMasterCrateExpanded: crateExpanded,
+        isStageVisualizerOpen: stageFxOpen,
+        isMIDIOpen: midiOpen,
+      } = modalStatesRef.current;
+
+      if (shortcutsOpen || crateExpanded || stageFxOpen || midiOpen) {
         return;
       }
 
@@ -587,7 +610,7 @@ export default function MixArchive({
         return;
       }
 
-      // Read state dynamically from Zustand to avoid re-binding keydown listener on slider drag/deck changes
+      // Read state dynamically from Zustand
       const state = useAudioStore.getState();
       const currentCrossfader = state.crossfader;
 
@@ -611,97 +634,121 @@ export default function MixArchive({
       // DECK 1 (Primary Left)
       if (e.code === 'Space') {
         e.preventDefault();
-        togglePlayGlobalRef.current?.(1);
+        const togglePlayGlobal = togglePlayGlobalRef.current;
+        if (togglePlayGlobal) togglePlayGlobal(1);
       } else if (e.key === 'c' || e.key === 'C') {
         e.preventDefault();
-        triggerHotCueRef.current?.(1, 0.0, 0);
+        const triggerHotCue = triggerHotCueRef.current;
+        if (triggerHotCue) triggerHotCue(1, 0.0, 0);
       } else if (e.key === 's' || e.key === 'S') {
         e.preventDefault();
         triggerSync(1, 2);
       } else if (e.key === '1') {
         e.preventDefault();
-        triggerHotCueRef.current?.(1, 0.0, 0);
+        const triggerHotCue = triggerHotCueRef.current;
+        if (triggerHotCue) triggerHotCue(1, 0.0, 0);
       } else if (e.key === '2') {
         e.preventDefault();
-        triggerHotCueRef.current?.(1, 0.25, 1);
+        const triggerHotCue = triggerHotCueRef.current;
+        if (triggerHotCue) triggerHotCue(1, 0.25, 1);
       } else if (e.key === '3') {
         e.preventDefault();
-        triggerHotCueRef.current?.(1, 0.5, 2);
+        const triggerHotCue = triggerHotCueRef.current;
+        if (triggerHotCue) triggerHotCue(1, 0.5, 2);
       } else if (e.key === '4') {
         e.preventDefault();
-        triggerHotCueRef.current?.(1, 0.75, 3);
+        const triggerHotCue = triggerHotCueRef.current;
+        if (triggerHotCue) triggerHotCue(1, 0.75, 3);
       }
 
       // DECK 2 (Primary Right)
       else if (e.key === 'Enter') {
         e.preventDefault();
-        togglePlayGlobalRef.current?.(2);
+        const togglePlayGlobal = togglePlayGlobalRef.current;
+        if (togglePlayGlobal) togglePlayGlobal(2);
       } else if (e.key === 'l' || e.key === 'L') {
         e.preventDefault();
-        triggerHotCueRef.current?.(2, 0.0, 0);
+        const triggerHotCue = triggerHotCueRef.current;
+        if (triggerHotCue) triggerHotCue(2, 0.0, 0);
       } else if (e.key === 'd' || e.key === 'D') {
         e.preventDefault();
         triggerSync(2, 1);
       } else if (e.key === '7') {
         e.preventDefault();
-        triggerHotCueRef.current?.(2, 0.0, 0);
+        const triggerHotCue = triggerHotCueRef.current;
+        if (triggerHotCue) triggerHotCue(2, 0.0, 0);
       } else if (e.key === '8') {
         e.preventDefault();
-        triggerHotCueRef.current?.(2, 0.25, 1);
+        const triggerHotCue = triggerHotCueRef.current;
+        if (triggerHotCue) triggerHotCue(2, 0.25, 1);
       } else if (e.key === '9') {
         e.preventDefault();
-        triggerHotCueRef.current?.(2, 0.5, 2);
+        const triggerHotCue = triggerHotCueRef.current;
+        if (triggerHotCue) triggerHotCue(2, 0.5, 2);
       } else if (e.key === '0') {
         e.preventDefault();
-        triggerHotCueRef.current?.(2, 0.75, 3);
+        const triggerHotCue = triggerHotCueRef.current;
+        if (triggerHotCue) triggerHotCue(2, 0.75, 3);
       }
 
       // DECK 3 (Secondary Left)
       else if (e.key === 'q' || e.key === 'Q') {
         e.preventDefault();
-        togglePlayGlobalRef.current?.(3);
+        const togglePlayGlobal = togglePlayGlobalRef.current;
+        if (togglePlayGlobal) togglePlayGlobal(3);
       } else if (e.key === 'a' || e.key === 'A') {
         e.preventDefault();
-        triggerHotCueRef.current?.(3, 0.0, 0);
+        const triggerHotCue = triggerHotCueRef.current;
+        if (triggerHotCue) triggerHotCue(3, 0.0, 0);
       } else if (e.key === 'w' || e.key === 'W') {
         e.preventDefault();
         triggerSync(3, 1);
       } else if (e.key === 'e' || e.key === 'E') {
         e.preventDefault();
-        triggerHotCueRef.current?.(3, 0.0, 0);
+        const triggerHotCue = triggerHotCueRef.current;
+        if (triggerHotCue) triggerHotCue(3, 0.0, 0);
       } else if (e.key === 'r' || e.key === 'R') {
         e.preventDefault();
-        triggerHotCueRef.current?.(3, 0.25, 1);
+        const triggerHotCue = triggerHotCueRef.current;
+        if (triggerHotCue) triggerHotCue(3, 0.25, 1);
       } else if (e.key === 't' || e.key === 'T') {
         e.preventDefault();
-        triggerHotCueRef.current?.(3, 0.5, 2);
+        const triggerHotCue = triggerHotCueRef.current;
+        if (triggerHotCue) triggerHotCue(3, 0.5, 2);
       } else if (e.key === 'y' || e.key === 'Y') {
         e.preventDefault();
-        triggerHotCueRef.current?.(3, 0.75, 3);
+        const triggerHotCue = triggerHotCueRef.current;
+        if (triggerHotCue) triggerHotCue(3, 0.75, 3);
       }
 
       // DECK 4 (Secondary Right)
       else if (e.key === 'p' || e.key === 'P') {
         e.preventDefault();
-        togglePlayGlobalRef.current?.(4);
+        const togglePlayGlobal = togglePlayGlobalRef.current;
+        if (togglePlayGlobal) togglePlayGlobal(4);
       } else if (e.key === 'k' || e.key === 'K') {
         e.preventDefault();
-        triggerHotCueRef.current?.(4, 0.0, 0);
+        const triggerHotCue = triggerHotCueRef.current;
+        if (triggerHotCue) triggerHotCue(4, 0.0, 0);
       } else if (e.key === 'o' || e.key === 'O') {
         e.preventDefault();
         triggerSync(4, 2);
       } else if (e.key === 'u' || e.key === 'U') {
         e.preventDefault();
-        triggerHotCueRef.current?.(4, 0.0, 0);
+        const triggerHotCue = triggerHotCueRef.current;
+        if (triggerHotCue) triggerHotCue(4, 0.0, 0);
       } else if (e.key === 'i' || e.key === 'I') {
         e.preventDefault();
-        triggerHotCueRef.current?.(4, 0.25, 1);
+        const triggerHotCue = triggerHotCueRef.current;
+        if (triggerHotCue) triggerHotCue(4, 0.25, 1);
       } else if (e.key === '[') {
         e.preventDefault();
-        triggerHotCueRef.current?.(4, 0.5, 2);
+        const triggerHotCue = triggerHotCueRef.current;
+        if (triggerHotCue) triggerHotCue(4, 0.5, 2);
       } else if (e.key === ']') {
         e.preventDefault();
-        triggerHotCueRef.current?.(4, 0.75, 3);
+        const triggerHotCue = triggerHotCueRef.current;
+        if (triggerHotCue) triggerHotCue(4, 0.75, 3);
       }
 
       // Mixer Arrow crossfader controls
@@ -716,7 +763,7 @@ export default function MixArchive({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [setCrossfader, setDecks, isMasterCrateExpanded, isShortcutsModalOpen, isStageVisualizerOpen, isRecordModalOpen, isMIDIOpen]);
+  }, [setCrossfader, setDecks]);
 
   function handleMouseMove({ currentTarget, clientX, clientY }: React.MouseEvent) {
     const { left, top } = currentTarget.getBoundingClientRect();
