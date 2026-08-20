@@ -18,6 +18,8 @@ interface DeckToolbarProps {
   onToggleRecording: () => void;
   onSaveRecording: () => void;
   onOpenShortcuts: () => void;
+  onOpenStageFX?: () => void;
+  onOpenRecordModal?: () => void;
 }
 
 export function DeckToolbar({
@@ -32,6 +34,8 @@ export function DeckToolbar({
   onToggleRecording,
   onSaveRecording,
   onOpenShortcuts,
+  onOpenStageFX,
+  onOpenRecordModal,
 }: DeckToolbarProps) {
   const [isFullscreen, setIsFullscreen] = useState(false);
 
@@ -109,7 +113,7 @@ export function DeckToolbar({
 
       {/* LIVE SET RECORDING ENGINE BUTTON */}
       <button
-        onClick={onToggleRecording}
+        onClick={onOpenRecordModal || onToggleRecording}
         className={cn(
           "px-2.5 py-1 rounded-none text-[7.5px] md:text-[8px] font-mono font-bold tracking-wider uppercase transition-all border cursor-pointer flex items-center gap-1.5 active:scale-95",
           recordingState.isRecording
@@ -117,19 +121,20 @@ export function DeckToolbar({
             : "bg-zinc-950 hover:bg-zinc-900 border-zinc-900 hover:border-zinc-800 text-zinc-400 hover:text-zinc-200"
         )}
       >
-        <span className={cn("w-2 h-2 rounded-full", recordingState.isRecording ? "bg-red-500" : "bg-zinc-600")} />
+        <span className={cn("w-2 h-2 rounded-full", recordingState.isRecording ? "bg-red-500 animate-ping" : "bg-zinc-600")} />
         {recordingState.isRecording
           ? `REC [ ${formatTime(recordingState.duration)} ]`
           : 'REC SET'}
       </button>
 
-      {/* DOWNLOAD RECORDED SET BUTTON */}
-      {recordingState.recordedBlob && !recordingState.isRecording && (
+      {/* STAGE FX AUDIO-REACTIVE FULLSCREEN VISUALIZER */}
+      {onOpenStageFX && (
         <button
-          onClick={onSaveRecording}
-          className="px-2.5 py-1 bg-emerald-950 hover:bg-emerald-900 border border-emerald-800 rounded-none text-emerald-400 font-mono text-[7.5px] md:text-[8px] font-bold tracking-wider uppercase transition-all cursor-pointer flex items-center gap-1 active:scale-95 shadow-[0_0_8px_rgba(16,185,129,0.3)]"
+          onClick={onOpenStageFX}
+          title="Toggle Fullscreen Audio-Reactive Stage Visualizer (V)"
+          className="px-2.5 py-1 bg-zinc-950 hover:bg-primary hover:text-black border border-zinc-900 hover:border-primary rounded-none text-zinc-300 transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 text-[7.5px] md:text-[8px] font-black tracking-wider uppercase shadow-[0_0_8px_rgba(216,22,63,0.2)]"
         >
-          <span>⬇ SAVE SET (.WAV)</span>
+          <span>⚡</span> STAGE FX
         </button>
       )}
 

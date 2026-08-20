@@ -52,11 +52,12 @@ export function ChannelVUMeter({ deckId, trim, volume, isPlaying }: ChannelVUMet
       // Smooth decay animation for analog VU meter physics
       level = level < targetLevel ? targetLevel : level * 0.88;
 
+      const isClipping = targetLevel >= 0.88;
       const segmentHeight = (canvas.height - (TOTAL_LEDS - 1) * 2) / TOTAL_LEDS;
       const activeSegments = Math.round(level * TOTAL_LEDS);
 
       for (let i = 0; i < TOTAL_LEDS; i++) {
-        // LED index 0 is top (Red peak), index 11 is bottom (Green)
+        // LED index 0 is top (Red peak CLIP), index 11 is bottom (Green)
         const ledIndexFromBottom = TOTAL_LEDS - 1 - i;
         const isActive = ledIndexFromBottom < activeSegments;
 
@@ -64,12 +65,16 @@ export function ChannelVUMeter({ deckId, trim, volume, isPlaying }: ChannelVUMet
         let colorOn = '#10b981'; // Emerald Green
         let colorOff = 'rgba(16, 185, 129, 0.15)';
 
-        if (ledIndexFromBottom >= 9) {
-          // Top 3 LEDs: Red (Overdrive / Clip)
+        if (ledIndexFromBottom === TOTAL_LEDS - 1) {
+          // Topmost LED: CLIP indicator
+          colorOn = '#ff0033'; // Vivid Clip Red
+          colorOff = 'rgba(255, 0, 51, 0.15)';
+        } else if (ledIndexFromBottom >= 9) {
+          // Top 3 LEDs: Red (Overdrive / +3dB)
           colorOn = '#f43f5e'; // Pioneer Accent Red
           colorOff = 'rgba(244, 63, 94, 0.15)';
         } else if (ledIndexFromBottom >= 6) {
-          // Middle 3 LEDs: Yellow
+          // Middle 3 LEDs: Yellow (0dB)
           colorOn = '#eab308'; // Pioneer Gold/Yellow
           colorOff = 'rgba(234, 179, 8, 0.15)';
         }
@@ -85,6 +90,14 @@ export function ChannelVUMeter({ deckId, trim, volume, isPlaying }: ChannelVUMet
         }
 
         ctx.fillRect(0, y, canvas.width, segmentHeight);
+      }
+
+      // If clipping, draw subtle CLIP flash
+      if (isClipping) {
+        ctx.fillStyle = '#ff0033';
+        ctx.shadowColor = 'rgba(255, 0, 51, 0.9)';
+        ctx.shadowBlur = 10;
+        ctx.fillRect(0, 0, canvas.width, segmentHeight);
       }
 
       animFrameRef.current = requestAnimationFrame(render);

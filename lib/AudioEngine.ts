@@ -148,6 +148,10 @@ export class AudioEngine {
     return this.masterAnalyser;
   }
 
+  public getMasterAnalyser(): AnalyserNode | null {
+    return this.masterAnalyser;
+  }
+
   /**
    * Ensure a specific deck's DSP nodes and audio elements are set up
    */
@@ -297,6 +301,14 @@ export class AudioEngine {
         lastProgressUpdate = now;
         useAudioStore.getState().setDeck(deckId, { progress: audio.currentTime });
 
+        // Auto-mark as played in session history if playing for >= 10s
+        if (audio.currentTime >= 10) {
+          const currentDeck = useAudioStore.getState().decks[deckId];
+          if (currentDeck?.id && currentDeck.id !== 'locked') {
+            useAudioStore.getState().addPlayedTrackId(currentDeck.id);
+          }
+        }
+
         // Continuous Pro DJ Link phase lock drift corrector
         const currentDeck = useAudioStore.getState().decks[deckId];
         if (currentDeck?.isPlaying && currentDeck?.syncEnabled && currentDeck?.syncMode !== 'BPM') {
@@ -364,8 +376,12 @@ export class AudioEngine {
 
     const clamped = Math.max(0, Math.min(100, value));
     let gain: number;
-    if (clamped < 50) {
-      gain = -32 * (1 - clamped / 50);
+    if (clamped <= 5) {
+      // True Pioneer DJM Isolator Total Kill (-∞ dB)
+      gain = -70;
+    } else if (clamped < 50) {
+      // Smooth logarithmic isolator slope
+      gain = -36 * Math.pow((50 - clamped) / 45, 1.25);
     } else {
       gain = (band === 'low' ? 12 : 10) * ((clamped - 50) / 50);
     }
@@ -696,9 +712,135 @@ export class AudioEngine {
   }
 
   /**
-   * Load track URL onto specified deck (local/remote or SoundCloud mode)
+   * Pioneer CDJ standard CUE button pointer down (Hold-to-preview / Back to Cue)
    */
-  playTrack(track: any, targetDeckId?: number) {
+  handleCueDown(deckId: number) {
+    const state = useAudioStore.getState();
+    const deck = state.decks[deckId];
+    if (!deck || deck.id === 'locked') {
+      playLockoutBlip();
+      return;
+    }
+
+    this.initAudioDSP();
+    const audio = this.audioElements[deckId];
+    const cuePos = deck.mainCue !== undefined ? deck.mainCue : (deck.firstBeatOffset || 0);
+
+    if (deck.isPlaying) {
+      // While playing: immediately stop and return to cue point
+      if (audio) {
+        audio.pause();
+        audio.currentTime = cuePos;
+      }
+      useAudioStore.getState().setDeck(deckId, { isPlaying: false, isCueStuttering: false, progress: cuePos });
+      playClick(1100, 'sine', 0.03);
+    } else {
+      // While paused: start hold-to-preview
+      if (audio) {
+        audio.currentTime = cuePos;
+        this.playPending[deckId] = true;
+        audio.play().then(() => {
+          this.playPending[deckId] = false;
+        }).catch(() => {
+          this.playPending[deckId] = false;
+        });
+      }
+      useAudioStore.getState().setDeck(deckId, { isCueStuttering: true, progress: cuePos });
+      playClick(1200, 'sine', 0.03);
+    }
+  }
+
+  /**
+   * Pioneer CDJ standard CUE button pointer up (Release preview -> pause & return to cue)
+   */
+  handleCueUp(deckId: number) {
+    const state = useAudioStore.getState();
+    const deck = state.decks[deckId];
+    if (!deck || deck.id === 'locked') return;
+
+    if (deck.isCueStuttering) {
+      const audio = this.audioElements[deckId];
+      const cuePos = deck.mainCue !== undefined ? deck.mainCue : (deck.firstBeatOffset || 0);
+      if (audio) {
+        audio.pause();
+        audio.currentTime = cuePos;
+      }
+      useAudioStore.getState().setDeck(deckId, { isPlaying: false, isCueStuttering: false, progress: cuePos });
+    }
+  }
+
+  /**
+   * Set temporary main cue point at current playhead (while paused)
+   */
+  setTemporaryCue(deckId: number, targetTime?: number) {
+    const state = useAudioStore.getState();
+    const deck = state.decks[deckId];
+    if (!deck || deck.id === 'locked') return;
+
+    const audio = this.audioElements[deckId];
+    const newCueTime = targetTime !== undefined ? targetTime : (audio ? audio.currentTime : deck.progress);
+    useAudioStore.getState().setDeck(deckId, { mainCue: newCueTime });
+    playClick(1300, 'sine', 0.03);
+  }
+
+  /**
+   * Halve active loop length (/2)
+   */
+  halveLoop(deckId: number) {
+    const state = useAudioStore.getState();
+    const deck = state.decks[deckId];
+    if (!deck || deck.id === 'locked') return;
+
+    const audio = this.audioElements[deckId];
+    const curTime = audio ? audio.currentTime : deck.progress;
+    const loopIn = (deck.loopIn !== null && deck.loopIn !== undefined) ? deck.loopIn : curTime;
+    let curLen = (deck.loopOut !== null && deck.loopOut !== undefined) ? (deck.loopOut - loopIn) : (60 / (deck.bpm || 120)) * 4;
+    if (curLen <= 0) curLen = (60 / (deck.bpm || 120)) * 4;
+
+    const newLen = Math.max(0.04, curLen / 2);
+    useAudioStore.getState().setDeck(deckId, {
+      loopIn,
+      loopOut: loopIn + newLen,
+      isLoopActive: true
+    });
+    playClick(1000, 'sine', 0.02);
+  }
+
+  /**
+   * Double active loop length (x2)
+   */
+  doubleLoop(deckId: number) {
+    const state = useAudioStore.getState();
+    const deck = state.decks[deckId];
+    if (!deck || deck.id === 'locked') return;
+
+    const audio = this.audioElements[deckId];
+    const curTime = audio ? audio.currentTime : deck.progress;
+    const loopIn = (deck.loopIn !== null && deck.loopIn !== undefined) ? deck.loopIn : curTime;
+    let curLen = (deck.loopOut !== null && deck.loopOut !== undefined) ? (deck.loopOut - loopIn) : (60 / (deck.bpm || 120)) * 4;
+    if (curLen <= 0) curLen = (60 / (deck.bpm || 120)) * 4;
+
+    const newLen = Math.min(deck.duration || 600, curLen * 2);
+    useAudioStore.getState().setDeck(deckId, {
+      loopIn,
+      loopOut: loopIn + newLen,
+      isLoopActive: true
+    });
+    playClick(1100, 'sine', 0.02);
+  }
+
+  /**
+   * Explicitly load a track onto a target deck in a paused, cued state (Rekordbox / CDJ style).
+   */
+  loadTrack(track: any, targetDeckId?: number) {
+    return this.playTrack(track, targetDeckId, false);
+  }
+
+  /**
+   * Load and optionally play a track on a target deck.
+   * If autoplay is false (default for Crate / Hardware loading), the track is cued in paused state.
+   */
+  playTrack(track: any, targetDeckId?: number, autoplay: boolean = false) {
     let deckId: 1 | 2 | 3 | 4 = 1;
     if (targetDeckId && [1, 2, 3, 4].includes(targetDeckId)) {
       deckId = targetDeckId as 1 | 2 | 3 | 4;
@@ -707,8 +849,8 @@ export class AudioEngine {
       else if (track.id === 'kc-2') deckId = 2;
       else if (track.id === 'kc-3') deckId = 3;
       else if (track.id === 'kc-4') deckId = 4;
-      else if (track.id.startsWith('rc-')) deckId = 2;
-      else if (track.id.startsWith('cnc-')) deckId = 3;
+      else if (track.id?.startsWith('rc-')) deckId = 2;
+      else if (track.id?.startsWith('cnc-')) deckId = 3;
     }
 
     const state = useAudioStore.getState();
@@ -735,6 +877,13 @@ export class AudioEngine {
     const isLocal = !track.url?.includes('soundcloud.com') && !track.link?.includes('soundcloud.com');
 
     if (deck.id === track.id) {
+      if (!autoplay) {
+        // Track is already loaded; do NOT auto-toggle playback. Just ensure it's cued to first beat.
+        const firstBeatOffset = track.firstBeatOffset || 0.0;
+        this.seekToFirstBeatOneOfBar(deckId, firstBeatOffset, deck.bpm || 120);
+        return true;
+      }
+
       const targetPlaying = !deck.isPlaying;
       if (deck.scMode && widget) {
         try { targetPlaying ? widget.play() : widget.pause(); } catch (e) {
@@ -789,7 +938,7 @@ export class AudioEngine {
         }
         useAudioStore.getState().setDeck(deckId, { isPlaying: targetPlaying });
       }
-      return;
+      return true;
     }
 
     const audio = this.audioElements[deckId];
@@ -821,6 +970,12 @@ export class AudioEngine {
         firstBeatOffset: firstBeatOffset,
         artworkUrl: track.artworkUrl,
       });
+
+      if (autoplay && audio) {
+        audio.play().then(() => {
+          useAudioStore.getState().setDeck(deckId, { isPlaying: true });
+        }).catch(() => {});
+      }
 
       // Trigger background BPM analysis for remote files if not already detected
       if (!detectedBpm && track.url && !track.url.startsWith('blob:')) {

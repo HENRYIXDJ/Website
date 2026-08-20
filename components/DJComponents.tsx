@@ -381,13 +381,14 @@ export function Preloader({
   onEnter?: () => void;
   isConsentPending?: boolean;
 }) {
-  const [stage, setStage] = useState(() => {
-    if (typeof window !== 'undefined' && sessionStorage.getItem('hasVisited')) {
-      return 4;
-    }
-    return 0;
-  });
+  const [stage, setStage] = useState(0);
   const [displayedLogs, setDisplayedLogs] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && sessionStorage.getItem('hasVisited')) {
+      queueMicrotask(() => setStage(4));
+    }
+  }, []);
 
   useEffect(() => {
     if (stage === 4) {
@@ -396,13 +397,6 @@ export function Preloader({
       onEnter();
     }
   }, [stage, onComplete, onEnter]);
-
-  // If already complete, notify parent immediately
-  useEffect(() => {
-    if (stage === 4) {
-      onComplete();
-    }
-  }, [stage, onComplete]);
 
   // Start stage 0: Play CRT turn-on click and display horizontal line
   useEffect(() => {

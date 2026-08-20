@@ -13,26 +13,27 @@ interface CookieConsentBannerProps {
 }
 
 export default function CookieConsentBanner({ onConsentSaved }: CookieConsentBannerProps) {
-  const [preferences, setPreferences] = useState<CookiePreferences>(() => {
-    if (typeof window === 'undefined') return { necessary: true, analytics: false, marketing: false };
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) return JSON.parse(saved);
-    } catch {}
-    return { necessary: true, analytics: false, marketing: false };
+  const [preferences, setPreferences] = useState<CookiePreferences>({
+    necessary: true,
+    analytics: false,
+    marketing: false,
   });
 
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isVisible, setIsVisible] = useState(() => {
-    if (typeof window === 'undefined') return false;
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       const cookieExists = document.cookie.includes('henryix_consent');
-      return !saved && !cookieExists;
-    } catch {
-      return true;
-    }
-  });
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        queueMicrotask(() => setPreferences(parsed));
+      } else if (!cookieExists) {
+        queueMicrotask(() => setIsVisible(true));
+      }
+    } catch {}
+  }, []);
 
   // Listen for custom trigger event to open preferences anytime (e.g. from footer)
   useEffect(() => {

@@ -3,7 +3,7 @@ import { createClient } from 'next-sanity';
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json().catch(() => ({}));
+    const body = (await req.json().catch(() => ({}))) as { subscription?: any; email?: string };
     const { subscription, email } = body;
 
     if (!subscription && !email) {

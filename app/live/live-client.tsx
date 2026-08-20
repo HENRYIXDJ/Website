@@ -3,6 +3,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import dynamic from 'next/dynamic';
+import PageShell from '@/components/PageShell';
+import { playClick, playTick } from '@/lib/audioUtils';
+import { cn } from '@/lib/utils';
+
 const HlsPlayer = dynamic(() => Promise.resolve(({ src, title }: { src: string; title: string }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -66,9 +70,6 @@ function getTwitchChannel(url: string) {
   const match = url.match(/(?:twitch\.tv\/)([a-zA-Z0-9_]+)/i);
   return match ? match[1] : null;
 }
-import PageShell from '@/components/PageShell';
-import { playClick, playTick } from '@/lib/audioUtils';
-import { cn } from '@/lib/utils';
 
 interface ChatMessage {
   id: string;

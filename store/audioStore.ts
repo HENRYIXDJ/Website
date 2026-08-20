@@ -43,6 +43,7 @@ export interface DeckState {
   isLoopActive?: boolean;
   firstBeatOffset?: number;
   zoomLevel?: number; // Waveform pixels per second zoom level
+  tempoRange?: 6 | 10 | 16 | 100;
   jogMode: 'VINYL' | 'CDJ';
   masterTempo: boolean;
   isMaster: boolean;
@@ -74,6 +75,7 @@ export interface AudioStoreState {
   isEcoMode: boolean;
   playLockEnabled: boolean;
   detectedBpms: Record<string, number>;
+  playedTrackIds: string[];
 
   // ---------- Actions ----------
   setDeck: (id: number, patch: Partial<DeckState>) => void;
@@ -89,6 +91,7 @@ export interface AudioStoreState {
   setDetectedBpm: (trackId: string, bpm: number) => void;
   setIsEcoMode: (val: boolean) => void;
   setPlayLockEnabled: (val: boolean) => void;
+  addPlayedTrackId: (id: string) => void;
 
   // Legacy-compat: full decks setter (accepts updater fn or object)
   setDecks: (updater: Record<number, DeckState> | ((prev: Record<number, DeckState>) => Record<number, DeckState>)) => void;
@@ -191,6 +194,7 @@ const INITIAL_DECKS: Record<number, DeckState> = {
     waveformPeaks: generateStaticPeaks(500),
     cuePoints: [0, 1127, 2112, 2772],
     firstBeatOffset: 0.413793,
+    tempoRange: 10,
     jogMode: 'VINYL',
     masterTempo: true,
     isMaster: false,
@@ -210,6 +214,7 @@ const INITIAL_DECKS: Record<number, DeckState> = {
     loopIn: null, loopOut: null, isLoopActive: false,
     waveformPeaks: generateStaticPeaks(500),
     firstBeatOffset: 0.394737,
+    tempoRange: 10,
     cuePoints: [0, 2468, 4084, 6270],
     jogMode: 'VINYL',
     masterTempo: true,
@@ -230,6 +235,7 @@ const INITIAL_DECKS: Record<number, DeckState> = {
     loopIn: null, loopOut: null, isLoopActive: false,
     waveformPeaks: generateStaticPeaks(500),
     firstBeatOffset: 0.0,
+    tempoRange: 10,
     cuePoints: [0, 1940, 3685, 5509],
     jogMode: 'VINYL',
     masterTempo: true,
@@ -250,6 +256,7 @@ const INITIAL_DECKS: Record<number, DeckState> = {
     loopIn: null, loopOut: null, isLoopActive: false,
     waveformPeaks: generateStaticPeaks(500),
     firstBeatOffset: 0.0,
+    tempoRange: 10,
     cuePoints: [0, 1834, 3582, 5552],
     jogMode: 'VINYL',
     masterTempo: true,
@@ -280,6 +287,7 @@ export const useAudioStore = create<AudioStoreState>()(
     isEcoMode: typeof navigator !== 'undefined' && !!navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4,
     playLockEnabled: true,
     detectedBpms: {},
+    playedTrackIds: [],
 
     // Atomic deck patch — only touches the specified deck
     setDeck: (id, patch) =>
@@ -308,6 +316,10 @@ export const useAudioStore = create<AudioStoreState>()(
       })),
     setIsEcoMode: (val: boolean) => set({ isEcoMode: val }),
     setPlayLockEnabled: (val: boolean) => set({ playLockEnabled: val }),
+    addPlayedTrackId: (id: string) =>
+      set(s => ({
+        playedTrackIds: s.playedTrackIds.includes(id) ? s.playedTrackIds : [...s.playedTrackIds, id]
+      })),
 
     // Legacy-compat: accepts an updater function or a plain object
     setDecks: updater => {

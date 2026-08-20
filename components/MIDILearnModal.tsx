@@ -29,7 +29,7 @@ export function MIDILearnModal({ isOpen, onClose }: MIDILearnModalProps) {
   useEffect(() => {
     if (!isOpen) return;
 
-    handleRequestPermissions();
+    midiEngine.init().catch(console.error);
 
     const unsubDevices = midiEngine.subscribeDevices((devs, activePresetName) => {
       setDevices(devs);
@@ -48,7 +48,7 @@ export function MIDILearnModal({ isOpen, onClose }: MIDILearnModalProps) {
       unsubDevices();
       unsubRaw();
     };
-  }, [isOpen, handleRequestPermissions]);
+  }, [isOpen]);
 
   const handleSelectPreset = (presetId: string) => {
     playClick();

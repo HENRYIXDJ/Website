@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server';
 import { safeSanityFetch } from '@/sanity/lib/client';
 
 export const dynamic = 'force-dynamic';

@@ -8,6 +8,7 @@ import { playClick, playLockoutBlip, SUPPORTED_AUDIO_ACCEPT, isSupportedAudioFil
 import { detectCamelotKey, isHarmonicallyCompatible, getHarmonicCompatibilityInfo, CAMELOT_MAP } from '@/lib/proTrackAnalysis';
 import { useAudioStore } from '@/store/audioStore';
 import { DeckBadge, DeckId } from './DeckBadge';
+import { HarmonicRadarDrawer } from './HarmonicRadarDrawer';
 
 interface DeckBrowserPanelProps {
   deckCount?: 2 | 4;
@@ -43,6 +44,7 @@ export function DeckBrowserPanel({
   const decks = useAudioStore(s => s.decks);
   const playLockEnabled = useAudioStore(s => s.playLockEnabled);
   const setPlayLockEnabled = useAudioStore(s => s.setPlayLockEnabled);
+  const playedTrackIds = useAudioStore(s => s.playedTrackIds || []);
   const activeDeckObj = decks[activeDeckId];
   const masterKey = activeDeckObj?.isPlaying ? detectCamelotKey(activeDeckObj?.title || '', activeDeckObj?.bpm || 120).code : null;
 
@@ -55,23 +57,12 @@ export function DeckBrowserPanel({
   const [showFoldersSidebar, setShowFoldersSidebar] = useState(true);
   const [selectedTargetDeck, setSelectedTargetDeck] = useState<DeckId>(activeDeckId);
   const [prevActiveDeckId, setPrevActiveDeckId] = useState<DeckId>(activeDeckId);
+  const [selectedTrackIndex, setSelectedTrackIndex] = useState<number>(0);
 
   if (activeDeckId !== prevActiveDeckId) {
     setPrevActiveDeckId(activeDeckId);
     setSelectedTargetDeck(activeDeckId);
   }
-
-  // ESC key handler to exit expanded view
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isExpanded) {
-        setIsExpanded(false);
-        onCloseExpanded?.();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isExpanded, onCloseExpanded]);
 
   const tracks: any[] = browserFolder === 'all'
     ? (mixGroups || []).flatMap(g => g.mixes || [])
@@ -129,6 +120,35 @@ export function DeckBrowserPanel({
 
     return sortDirection === 'asc' ? res : -res;
   });
+
+  // Keyboard navigation for track list
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+      if (e.key === 'Escape' && isExpanded) {
+        setIsExpanded(false);
+        onCloseExpanded?.();
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedTrackIndex(prev => Math.min(filteredTracks.length - 1, prev + 1));
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedTrackIndex(prev => Math.max(0, prev - 1));
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (filteredTracks[selectedTrackIndex]) {
+          onTrackSelect(filteredTracks[selectedTrackIndex], selectedTargetDeck);
+          if (isExpanded) {
+            setIsExpanded(false);
+            onCloseExpanded?.();
+          }
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isExpanded, onCloseExpanded, filteredTracks, selectedTrackIndex, selectedTargetDeck, onTrackSelect]);
 
   const deckTargetIds: DeckId[] = deckCount === 4 ? [1, 2, 3, 4] : [1, 2];
 
@@ -502,25 +522,50 @@ export function DeckBrowserPanel({
                   const trackBpm = detectedBpms[mix.id] || mix.bpm || 120;
                   const keyObj = detectCamelotKey(mix.title, trackBpm);
                   const harmInfo = masterKey ? getHarmonicCompatibilityInfo(masterKey, keyObj.code) : null;
+                  const isPlayed = playedTrackIds.includes(mix.id);
+                  const isSelected = index === selectedTrackIndex;
 
                   return (
                     <div 
                       key={mix.id}
                       draggable={true}
+                      onClick={() => setSelectedTrackIndex(index)}
+                      onDoubleClick={(e) => {
+                        e.stopPropagation();
+                        if (playLockEnabled && decks[selectedTargetDeck]?.isPlaying) {
+                          playLockoutBlip();
+                          return;
+                        }
+                        onTrackSelect(mix, selectedTargetDeck);
+                      }}
                       onDragStart={(e) => {
                         e.dataTransfer.setData('application/json', JSON.stringify(mix));
                         e.dataTransfer.setData('text/plain', mix.id);
                         e.dataTransfer.effectAllowed = 'copy';
                       }}
-                      title="Drag onto deck to load track"
-                      className="grid grid-cols-[6%_48%_16%_14%_16%] items-center px-2 py-1 rounded-none select-none border border-transparent bg-black hover:bg-zinc-950 hover:border-zinc-800 transition-colors cursor-grab active:cursor-grabbing group"
+                      title="Double-click to load, or drag onto deck"
+                      className={cn(
+                        "grid grid-cols-[6%_48%_16%_14%_16%] items-center px-2 py-1 rounded-none select-none border transition-colors cursor-grab active:cursor-grabbing group",
+                        isSelected
+                          ? "bg-zinc-900 border-primary/60 text-white"
+                          : isPlayed
+                            ? "bg-black border-transparent text-zinc-400 opacity-75 hover:opacity-100 hover:bg-zinc-950 hover:border-zinc-800"
+                            : "bg-black border-transparent hover:bg-zinc-950 hover:border-zinc-800"
+                      )}
                     >
-                      <span className="text-[8px] text-zinc-500 font-mono font-bold">
-                        {idxStr}
+                      <span className={cn("text-[8px] font-mono font-bold", isPlayed ? "text-emerald-500/70" : "text-zinc-500")}>
+                        {isPlayed ? "✓" : idxStr}
                       </span>
 
                       <div className="flex items-center gap-1.5 truncate pr-1">
-                        <span className="truncate uppercase tracking-wide text-[9px] font-bold text-zinc-200">🎵 {mix.title}</span>
+                        <span className={cn("truncate uppercase tracking-wide text-[9px] font-bold", isPlayed ? "text-zinc-400" : "text-zinc-200")}>
+                          🎵 {mix.title}
+                        </span>
+                        {isPlayed && (
+                          <span className="text-[6px] bg-emerald-950/60 border border-emerald-500/40 text-emerald-400 px-1 py-0.2 rounded-none font-bold shrink-0 uppercase font-mono">
+                            PLAYED
+                          </span>
+                        )}
                         {harmInfo && harmInfo.isCompatible && (
                           <span 
                             className="text-[6px] border px-1 py-0.2 rounded-none font-bold shrink-0 uppercase font-mono"
@@ -568,6 +613,13 @@ export function DeckBrowserPanel({
             </div>
           </div>
         </div>
+
+        {/* CAMELOT HARMONIC RADAR MIX ASSISTANT */}
+        <HarmonicRadarDrawer
+          mixGroups={mixGroups}
+          onLoadTrack={(track, targetDeck) => onTrackSelect(track, targetDeck as DeckId)}
+          targetDeckId={selectedTargetDeck}
+        />
 
         {/* BOTTOM USB / LOCAL FILE LOADER BAR */}
         {onLoadLocalFile && (
@@ -806,25 +858,52 @@ export function DeckBrowserPanel({
                         const trackBpm = detectedBpms[mix.id] || mix.bpm || 120;
                         const keyObj = detectCamelotKey(mix.title, trackBpm);
                         const isHarmonicMatch = masterKey ? isHarmonicallyCompatible(masterKey, keyObj.code) : false;
+                        const isPlayed = playedTrackIds.includes(mix.id);
+                        const isSelected = index === selectedTrackIndex;
 
                         return (
                           <div
                             key={mix.id}
                             draggable={true}
+                            onClick={() => setSelectedTrackIndex(index)}
+                            onDoubleClick={(e) => {
+                              e.stopPropagation();
+                              if (playLockEnabled && decks[selectedTargetDeck]?.isPlaying) {
+                                playLockoutBlip();
+                                return;
+                              }
+                              onTrackSelect(mix, selectedTargetDeck);
+                              setIsExpanded(false);
+                              onCloseExpanded?.();
+                            }}
                             onDragStart={(e) => {
                               e.dataTransfer.setData('application/json', JSON.stringify(mix));
                               e.dataTransfer.setData('text/plain', mix.id);
                               e.dataTransfer.effectAllowed = 'copy';
                             }}
-                            title="Drag onto deck to load track"
-                            className="grid grid-cols-[6%_48%_18%_14%_14%] items-center px-4 py-3 rounded-none select-none border border-zinc-900 bg-black hover:bg-zinc-950 transition-colors cursor-grab active:cursor-grabbing group"
+                            title="Double-click to load into active deck"
+                            className={cn(
+                              "grid grid-cols-[6%_48%_18%_14%_14%] items-center px-4 py-3 rounded-none select-none border transition-colors cursor-grab active:cursor-grabbing group",
+                              isSelected
+                                ? "bg-zinc-900 border-primary/60 text-white"
+                                : isPlayed
+                                  ? "bg-black border-zinc-900 text-zinc-400 opacity-75 hover:opacity-100 hover:bg-zinc-950"
+                                  : "bg-black border-zinc-900 hover:bg-zinc-950"
+                            )}
                           >
-                            <span className="text-xs font-mono text-zinc-500 font-bold">
-                              {idxStr}
+                            <span className={cn("text-xs font-mono font-bold", isPlayed ? "text-emerald-500/70" : "text-zinc-500")}>
+                              {isPlayed ? "✓" : idxStr}
                             </span>
 
                             <div className="flex items-center gap-2 truncate pr-2">
-                              <span className="truncate uppercase text-xs font-bold tracking-wide text-zinc-200">🎵 {mix.title}</span>
+                              <span className={cn("truncate uppercase text-xs font-bold tracking-wide", isPlayed ? "text-zinc-400" : "text-zinc-200")}>
+                                🎵 {mix.title}
+                              </span>
+                              {isPlayed && (
+                                <span className="text-[8px] bg-emerald-950/80 border border-emerald-500/50 text-emerald-400 px-1.5 py-0.5 rounded-none font-black shrink-0">
+                                  PLAYED
+                                </span>
+                              )}
                               {isHarmonicMatch && (
                                 <span className="text-[8px] bg-emerald-950 border border-emerald-500 text-emerald-400 px-1.5 py-0.5 rounded-none font-black shrink-0">
                                   HARMONIC MATCH

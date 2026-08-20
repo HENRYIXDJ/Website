@@ -41,16 +41,17 @@ export default function ClientLayoutWrappers({ children }: { children?: React.Re
   const setPreloaderComplete = useAudioStore(s => s.setPreloaderComplete);
   const isCDJView = useAudioStore(s => s.isCDJView);
 
-  const [isConsentPending, setIsConsentPending] = useState(() => {
-    if (typeof window === 'undefined') return false;
+  const [isConsentPending, setIsConsentPending] = useState(false);
+
+  useEffect(() => {
     try {
       const saved = localStorage.getItem('henryix_cookie_consent_v1');
       const cookieExists = document.cookie.includes('henryix_consent');
-      return !saved && !cookieExists;
-    } catch {
-      return false;
-    }
-  });
+      if (!saved && !cookieExists) {
+        queueMicrotask(() => setIsConsentPending(true));
+      }
+    } catch {}
+  }, []);
 
   useEffect(() => {
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {

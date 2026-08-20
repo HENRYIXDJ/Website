@@ -9,6 +9,7 @@ interface HotCuePadsProps {
   deleteMode: boolean;
   onToggleDeleteMode: () => void;
   onHotCuePress: (pad: 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H') => void;
+  onDeleteCue?: (pad: 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H') => void;
 }
 
 export function HotCuePads({
@@ -17,6 +18,7 @@ export function HotCuePads({
   deleteMode,
   onToggleDeleteMode,
   onHotCuePress,
+  onDeleteCue,
 }: HotCuePadsProps) {
   return (
     <div className={cn("w-full flex items-center justify-between border-b border-zinc-800", isCompact ? "pb-1 gap-1" : "pb-2 gap-1.5")}>
@@ -38,9 +40,14 @@ export function HotCuePads({
             <button
               key={pad}
               onPointerDown={() => onHotCuePress(pad)}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                onDeleteCue?.(pad);
+              }}
+              title={hasCue ? `Hot Cue ${pad} (${hotCues[pad]!.toFixed(1)}s) - Right click to clear` : `Set Hot Cue ${pad}`}
               className={cn(
                 "rounded-none font-mono tracking-widest font-black uppercase border transition-all cursor-pointer flex items-center justify-center relative",
-                isCompact ? "h-5 text-[7px]" : "h-7 text-[9.5px]",
+                isCompact ? "h-6 text-[8.5px]" : "h-8 text-[11px]",
                 hasCue 
                   ? padColors
                   : "bg-zinc-950/60 border-zinc-800 text-zinc-600 hover:text-zinc-400 hover:border-zinc-700"
@@ -48,7 +55,7 @@ export function HotCuePads({
             >
               {pad}
               {hasCue && !isCompact && (
-                <span className="absolute bottom-0.5 right-1 text-[5px] text-zinc-500 font-mono">
+                <span className="absolute bottom-0.5 right-1 text-[6px] text-zinc-400 font-mono font-bold">
                   {hotCues[pad]!.toFixed(1)}s
                 </span>
               )}
@@ -62,7 +69,7 @@ export function HotCuePads({
         onPointerDown={onToggleDeleteMode}
         className={cn(
           "rounded-none font-mono tracking-[0.2em] font-black uppercase border cursor-pointer leading-none shrink-0 transition-all",
-          isCompact ? "px-1.5 h-5 text-[6px]" : "px-2.5 h-7 text-[7.5px]",
+          isCompact ? "px-2 h-6 text-[7px]" : "px-3 h-8 text-[8.5px]",
           deleteMode 
             ? "bg-red-950 text-red-400 border-red-500 animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.5)]" 
             : "bg-zinc-950/80 text-zinc-500 border-zinc-800 hover:text-zinc-300 hover:border-zinc-700"

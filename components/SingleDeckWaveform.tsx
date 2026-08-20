@@ -65,30 +65,6 @@ export function SingleDeckWaveform({
 
   const pixelsPerSecond = deck?.zoomLevel || 55;
 
-  const handleZoomIn = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    const currentZoom = deck?.zoomLevel || 55;
-    const newZoom = Math.min(140, currentZoom + 20);
-    useAudioStore.getState().setDeck(deckId, { zoomLevel: newZoom });
-  };
-
-  const handleZoomOut = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    const currentZoom = deck?.zoomLevel || 55;
-    const newZoom = Math.max(25, currentZoom - 20);
-    useAudioStore.getState().setDeck(deckId, { zoomLevel: newZoom });
-  };
-
-  const handleSetDownbeat = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    const audio = audioEngine.audioElements[deckId];
-    const currentProgress = audio ? audio.currentTime : (deck?.progress || 0);
-    useAudioStore.getState().setDeck(deckId, { 
-      firstBeatOffset: currentProgress,
-      mainCue: currentProgress
-    });
-  };
-
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -151,14 +127,11 @@ export function SingleDeckWaveform({
         canvas.style.height = `${height}px`;
       }
 
-      ctx.clearRect(0, 0, width * dpr, height * dpr);
-
-      // Support High-DPI screen drawing scale
       ctx.save();
       ctx.scale(dpr, dpr);
 
-      // 1. CHASSIS BACKGROUND (OLED ABSOLUTE BLACK)
-      ctx.fillStyle = '#000000'; 
+      // Dark background
+      ctx.fillStyle = '#000000';
       ctx.fillRect(0, 0, width, height);
 
       // High-Contrast Horizontal central splits
@@ -686,37 +659,7 @@ export function SingleDeckWaveform({
   };
 
   return (
-    <div className="relative w-full h-full min-h-[20px] md:min-h-[48px] max-h-[100px] bg-black rounded-none border border-zinc-900 overflow-hidden flex items-center justify-center select-none shrink-0 z-10">
-      {/* Zoom & Set Downbeat Toolbar */}
-      <div className="absolute top-1 right-1 z-20 flex items-center gap-1 bg-black px-1.5 py-0.5 rounded-none border border-zinc-900 pointer-events-auto">
-        <button
-          onClick={handleSetDownbeat}
-          className="px-1.5 py-0.5 rounded-none border border-amber-500/40 bg-amber-950/40 text-amber-400 hover:bg-amber-900/60 font-mono text-[7px] font-black uppercase leading-none cursor-pointer"
-          title="Set current playhead position as Beat 1 Downbeat"
-        >
-          SET BEAT 1
-        </button>
-        <div className="flex items-center gap-0.5 border-l border-zinc-800 pl-1">
-          <button
-            onClick={handleZoomOut}
-            className="w-4 h-4 rounded-none border border-zinc-800 bg-black text-zinc-400 hover:text-white flex items-center justify-center font-mono text-[9px] font-bold cursor-pointer"
-            title="Zoom Out Waveform"
-          >
-            -
-          </button>
-          <span className="text-[6.5px] font-mono text-zinc-400 font-bold px-0.5">
-            {deck?.zoomLevel || 55}px
-          </span>
-          <button
-            onClick={handleZoomIn}
-            className="w-4 h-4 rounded-none border border-zinc-800 bg-black text-zinc-400 hover:text-white flex items-center justify-center font-mono text-[9px] font-bold cursor-pointer"
-            title="Zoom In Waveform"
-          >
-            +
-          </button>
-        </div>
-      </div>
-
+    <div className="relative w-full h-full min-h-[36px] md:min-h-[56px] bg-black rounded-none border border-zinc-900/80 overflow-hidden flex items-center justify-center select-none shrink-0 z-10">
       <canvas 
         ref={canvasRef} 
         className={cn("w-full h-full block touch-none", dragState ? 'cursor-grabbing' : 'cursor-grab')} 

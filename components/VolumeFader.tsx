@@ -70,7 +70,7 @@ export function VolumeFader({
   }, [onChange, isLocked]);
 
   return (
-    <div ref={containerRef} className="relative flex-grow min-h-[50px] max-h-[140px] w-[32cqw] max-w-[28px] min-w-[14px] bg-black border border-zinc-900 focus-within:border-zinc-500 rounded-none flex items-center justify-center overflow-hidden">
+    <div ref={containerRef} className="relative flex-grow min-h-[50px] max-h-[140px] w-[32cqw] max-w-[28px] min-w-[14px] bg-black border border-zinc-900 hover:border-zinc-700 focus-within:border-zinc-500 rounded-none flex items-center justify-center overflow-hidden transition-colors">
       <input 
         type="range"
         min="0"

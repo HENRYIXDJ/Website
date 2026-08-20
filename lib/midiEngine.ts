@@ -18,9 +18,7 @@ import {
   ALL_HARDWARE_PRESETS, 
   ControllerPreset, 
   MIDIMappingItem,
-  PRESET_XDJ_RX3,
-  PRESET_DDJ400,
-  PRESET_GENERIC_4DECK
+  PRESET_XDJ_RX3
 } from '@/lib/midiPresets';
 
 export interface MIDIDeviceInfo {

@@ -7,7 +7,6 @@ import MixUploaderPanel from './MixUploaderPanel';
 import PodcastStudioPanel from './PodcastStudioPanel';
 import SocialSyncPanel from './SocialSyncPanel';
 import GalleryAlbumOrganizer from './GalleryAlbumOrganizer';
-import AsciiDitherGlitch from './AsciiDitherGlitch';
 import { playClick } from '@/lib/audioUtils';
 
 interface StudioDashboardProps {
