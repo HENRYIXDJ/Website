@@ -11,7 +11,7 @@ import { midiEngine } from '@/lib/midiEngine';
 import { MIDILearnModal } from './MIDILearnModal';
 import { useUsbLibrary } from '@/lib/useUsbLibrary';
 import { setRecorder, RecordingState } from '@/lib/audioRecorder';
-import { playClick, playTick, playLockoutBlip } from '@/lib/audioUtils';
+import { playClick, playTick, playLockoutBlip, playNeedleDrop } from '@/lib/audioUtils';
 import { 
   formatTime, 
   formatPlayheadTime, 
@@ -1393,27 +1393,59 @@ function StackedWaveformDeckItem({
                       </div>
 
                       {track.tracklist ? (
-                        <div className="mt-3 border-t border-zinc-900 pt-3 max-h-36 overflow-y-auto custom-scrollbar flex flex-col gap-1 z-20 relative">
-                          <span className="text-[8px] font-mono text-zinc-500 uppercase tracking-widest font-black mb-1 select-none">
-                            Tracklist (Click to Seek)
-                          </span>
-                          {parseTracklist(track.tracklist).map((item, idx) => (
-                            <div key={idx} className="text-[10px] text-zinc-400 font-mono flex gap-2 items-center leading-normal">
-                              {item.isTimestamp ? (
-                                <button
+                        <div className="mt-3 border-t border-zinc-900 pt-3 max-h-40 overflow-y-auto custom-scrollbar flex flex-col gap-1 z-20 relative">
+                          <div className="flex items-center justify-between text-[8px] font-mono text-zinc-500 uppercase tracking-widest font-black mb-1 select-none">
+                            <span>Track Chapters</span>
+                            <span className="text-[7px] text-zinc-600">Click to Needle-Drop</span>
+                          </div>
+                          {(() => {
+                            const parsedItems = parseTracklist(track.tracklist);
+                            const primaryDeckId = playingOnDecks.length > 0 ? playingOnDecks[0] : leftActiveDeck;
+                            const isThisLoaded = playingOnDecks.length > 0;
+                            const currentDeckProg = decks[primaryDeckId]?.progress || 0;
+
+                            return parsedItems.map((item, idx) => {
+                              const nextItem = parsedItems[idx + 1];
+                              const isItemActive = isThisLoaded && item.isTimestamp && currentDeckProg >= item.seconds && (!nextItem || (nextItem.isTimestamp && currentDeckProg < nextItem.seconds));
+
+                              return (
+                                <div 
+                                  key={idx} 
                                   onClick={(e) => {
-                                    e.stopPropagation();
-                                    const playingDeckId = playingOnDecks[0] || leftActiveDeck;
-                                    seekDeckToTime(playingDeckId, item.seconds);
+                                    if (item.isTimestamp) {
+                                      e.stopPropagation();
+                                      playNeedleDrop();
+                                      if (isThisLoaded) {
+                                        seekLocalBuffer(primaryDeckId, item.seconds);
+                                        if (!decks[primaryDeckId]?.isPlaying) {
+                                          togglePlayGlobal(primaryDeckId);
+                                        }
+                                      } else {
+                                        playTrack(track, leftActiveDeck);
+                                        setTimeout(() => {
+                                          seekLocalBuffer(leftActiveDeck, item.seconds);
+                                        }, 150);
+                                      }
+                                    }
                                   }}
-                                  className="text-primary hover:text-red-400 cursor-pointer font-bold select-none hover:underline shrink-0"
+                                  className={cn(
+                                    "text-[10px] font-mono flex gap-2 items-center leading-normal px-1.5 py-0.5 rounded transition-colors cursor-pointer group",
+                                    isItemActive ? "bg-primary/20 text-white border-l-2 border-primary" : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/50"
+                                  )}
                                 >
-                                  {item.timestampText}
-                                </button>
-                              ) : null}
-                              <span className="truncate select-text">{item.text}</span>
-                            </div>
-                          ))}
+                                  {item.isTimestamp ? (
+                                    <span className={cn(
+                                      "font-bold select-none shrink-0 font-mono text-[9px]",
+                                      isItemActive ? "text-primary font-black animate-pulse" : "text-primary/70 group-hover:text-primary"
+                                    )}>
+                                      {isItemActive ? `▶ ${item.timestampText}` : item.timestampText}
+                                    </span>
+                                  ) : null}
+                                  <span className="truncate select-text">{item.text}</span>
+                                </div>
+                              );
+                            });
+                          })()}
                         </div>
                       ) : (
                         <div className="text-xs text-zinc-400 mt-2 line-clamp-2">

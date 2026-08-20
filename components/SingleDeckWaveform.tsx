@@ -113,7 +113,12 @@ export function SingleDeckWaveform({
         return;
       }
 
-      // Optimize CPU usage: if not playing, not dragging, and state hasn't changed, skip redrawing
+      // Optimize CPU usage: skip redrawing if tab is in background or state is static
+      if (typeof document !== 'undefined' && document.hidden) {
+        frameId = requestAnimationFrame(render);
+        return;
+      }
+
       const stateKey = `${width}_${height}_${pixelsPerSecond}_${currentDeck.eqLow}_${currentDeck.eqMid}_${currentDeck.eqHi}_${currentDeck.volume}_${currentDeck.isLoopActive}_${currentDeck.mainCue}_${currentDeck.bpm}_${currentDeck.pitch}_${currentDeck.firstBeatOffset}`;
       if (!isCurrentlyPlaying && !drag && lastDrawnProgressRef.current === targetProgress && lastDrawnDeckStateRef.current === stateKey) {
         frameId = requestAnimationFrame(render);

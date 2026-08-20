@@ -115,8 +115,8 @@ export default function AudioVisualizerBackground({
         dataArrayRef.current = new Uint8Array(bufferLength);
 
         const tick = () => {
-          if (!isIntersectingRef.current || !isPlayingRef.current) {
-            rafRef.current = window.setTimeout(tick, 250) as unknown as number;
+          if (!isIntersectingRef.current || !isPlayingRef.current || (typeof document !== 'undefined' && document.hidden)) {
+            rafRef.current = window.setTimeout(tick, 300) as unknown as number;
             return;
           }
           if (analyser && dataArrayRef.current) {
