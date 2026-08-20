@@ -78,7 +78,7 @@ const nextConfig: NextConfig = {
         (resource: any) => {
           if (
             resource.context &&
-            (resource.context.includes('/sanity/') || resource.context.includes('/@sanity/'))
+            /[\\/](@sanity|sanity)[\\/]/.test(resource.context)
           ) {
             resource.request = path.resolve(__dirname, 'lib/react-shim.js');
           }

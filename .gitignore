@@ -1,9 +1,14 @@
-/.swc
-/.agents/
-/node_modules/
-/.next/
-/.vercel/
-/.open-next/
+.swc
+.agents/
+node_modules/
+.next/
+.vercel/
+.open-next/
+.sanity/
+HENRY-IX-*/
+studio-henryixwebsite/
+
+
 
 # Local env files
 .env

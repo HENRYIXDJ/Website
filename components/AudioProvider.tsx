@@ -3,6 +3,7 @@
 import React, { useEffect, createContext, useContext, useMemo } from 'react';
 import { useAudioStore } from '@/store/audioStore';
 import { audioEngine } from '@/lib/AudioEngine';
+import { playLockoutBlip } from '@/lib/audioUtils';
 import { FloatingPlayer } from '@/components/FloatingPlayer';
 
 // Context wrapper for backward compatibility with components using useAudio()
