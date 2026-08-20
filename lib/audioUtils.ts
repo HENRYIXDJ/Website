@@ -283,6 +283,36 @@ export const playTabClick = () => {
   } catch (e) {}
 };
 
+export const playNeedleDrop = () => {
+  if (typeof window === 'undefined' || _isMuted) return;
+  try {
+    const ctx = getSharedAudioCtx();
+    if (!ctx) return;
+    const duration = 0.025;
+    const osc = ctx.createOscillator();
+    const filter = ctx.createBiquadFilter();
+    const gain = ctx.createGain();
+
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(140, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(35, ctx.currentTime + duration);
+
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(750, ctx.currentTime);
+    filter.Q.setValueAtTime(3.0, ctx.currentTime);
+
+    gain.gain.setValueAtTime(0.035, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + duration);
+
+    osc.connect(filter);
+    filter.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start();
+    osc.stop(ctx.currentTime + duration);
+  } catch (e) {}
+};
+
 export const SUPPORTED_AUDIO_ACCEPT = "audio/*,.mp3,.m4a,.aac,.flac,.wav,.aiff,.aif,.alac,.caf,.ogg,.opus,.webm,.mp4,.m4b";
 
 export function isSupportedAudioFile(file: File): { supported: boolean; isDrm?: boolean; reason?: string } {

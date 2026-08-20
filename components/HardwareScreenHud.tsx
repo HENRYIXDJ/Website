@@ -4,6 +4,7 @@ import React from 'react';
 import { cn } from '@/lib/utils';
 import { formatTime } from '@/lib/mixes';
 import { analyzeTrack, getCurrentPhrase } from '@/lib/proTrackAnalysis';
+import { getBeatPhaseState } from '@/lib/proBeatgridEngine';
 
 interface HardwareScreenHudProps {
   deckId: 1 | 2 | 3 | 4;
@@ -13,6 +14,7 @@ interface HardwareScreenHudProps {
   pitch: number;
   progress: number;
   duration: number;
+  firstBeatOffset?: number;
   keySig?: string;
   isPlaying: boolean;
   isCompact: boolean;
@@ -27,21 +29,26 @@ export function HardwareScreenHud({
   pitch,
   progress,
   duration,
+  firstBeatOffset = 0,
   keySig,
   isPlaying,
   isCompact,
   themeColor,
 }: HardwareScreenHudProps) {
-  const activeBpm = (bpm || 120) * (1 + (pitch || 0) / 100);
+  const baseBpm = bpm || 120;
+  const activeBpm = baseBpm * (1 + (pitch || 0) / 100);
   const remainTime = Math.max(0, (duration || 0) - (progress || 0));
 
-  const analysis = analyzeTrack(title, bpm || 120, duration || 300);
+  const analysis = analyzeTrack(title, baseBpm, duration || 300);
   const activeKey = keySig || `${analysis.key} (${analysis.keyName})`;
   const activePhrase = getCurrentPhrase(progress, analysis.phrases);
 
+  // Exact 4-beat bar & phase state (Rekordbox / CDJ-3000 meter)
+  const beatState = getBeatPhaseState(progress, baseBpm, firstBeatOffset);
+
   return (
     <div 
-      className={cn("w-full bg-black border border-zinc-800 rounded-none flex flex-col justify-between select-none relative overflow-hidden", isCompact ? "p-1 h-12" : "p-2 h-16")}
+      className={cn("w-full bg-black border border-zinc-800 rounded-none flex flex-col justify-between select-none relative overflow-hidden", isCompact ? "p-1 h-14" : "p-2 h-18")}
       style={{ borderTop: `2px solid ${themeColor}` }}
     >
       {/* Top Bar: Deck ID & Track Title & Phrase Badge */}
@@ -58,11 +65,29 @@ export function HardwareScreenHud({
         </span>
       </div>
 
-      {/* Center Readouts: BPM, Pitch Rate & Key */}
+      {/* Center Readouts: BPM, 4-Beat Bar Division & Pitch Rate */}
       <div className="flex items-center justify-between font-mono my-0.5">
         <div className="flex items-baseline gap-1">
           <span className="text-[6px] text-zinc-500 font-bold uppercase">BPM</span>
           <span className="text-sm font-black tracking-tight text-white">{activeBpm.toFixed(1)}</span>
+        </div>
+
+        {/* Rekordbox CDJ-3000 Style 4-Beat Bar Indicator */}
+        <div className="flex items-center gap-0.5 px-1 py-0.5 bg-zinc-950 border border-zinc-800">
+          <span className="text-[6px] text-zinc-500 font-bold mr-1">BAR {beatState.barIndex}</span>
+          {[1, 2, 3, 4].map(b => (
+            <span
+              key={b}
+              className={cn(
+                "w-3 h-3 flex items-center justify-center text-[7px] font-black border transition-all",
+                isPlaying && beatState.beatInBar === b
+                  ? "bg-primary border-primary text-black font-black shadow-[0_0_6px_var(--color-primary-glow)]"
+                  : "bg-black border-zinc-800 text-zinc-600"
+              )}
+            >
+              {b}
+            </span>
+          ))}
         </div>
 
         <div className="flex items-baseline gap-1">

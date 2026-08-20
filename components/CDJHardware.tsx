@@ -10,6 +10,7 @@ import { Play, Pause, Lock, Upload } from 'lucide-react';
 import { HotCuePads } from './HotCuePads';
 import { JogWheelPlatter } from './JogWheelPlatter';
 import { PitchFader } from './PitchFader';
+import { quantizeAudioTime } from '@/lib/proBeatgridEngine';
 
 interface CDJHardwareProps {
   deckId: 1 | 2 | 3 | 4;
@@ -227,13 +228,12 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
     }
 
     if (savedTime === null || savedTime === undefined) {
-      // Save Hot Cue: snap to closest beat of the beatgrid
-      const bpm = deck.bpm || 120;
-      const beatInterval = 60 / bpm;
+      // Save Hot Cue: snap to closest beat of the beatgrid (using unpitched base BPM)
+      const baseBpm = deck.bpm || 120;
       const offset = deck.firstBeatOffset || 0;
-      const elapsed = currentProgress - offset;
-      const closestBeatIndex = Math.round(elapsed / beatInterval);
-      const snappedTime = Math.max(0, offset + closestBeatIndex * beatInterval);
+      const snappedTime = deck.quantizeEnabled
+        ? quantizeAudioTime(currentProgress, baseBpm, offset, 1)
+        : currentProgress;
 
       playClick(880, 'sine', 0.02); // high beep
       setDeck(deckId, {
@@ -277,14 +277,12 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
     const currentProgress = deck.progress || 0;
     playClick(900, 'sine', 0.015);
 
-    const bpm = deck.bpm || 120;
-    const pitch = deck.pitch || 0;
-    const currentBpm = bpm * (1 + pitch / 100);
-    const beatInterval = 60 / currentBpm;
+    const baseBpm = deck.bpm || 120;
+    const beatInterval = 60 / baseBpm;
     const offset = deck.firstBeatOffset || 0;
-    const elapsed = currentProgress - offset;
-    const closestBeatIndex = Math.round(elapsed / beatInterval);
-    const snappedTime = Math.max(0, offset + closestBeatIndex * beatInterval);
+    const snappedTime = deck.quantizeEnabled
+      ? quantizeAudioTime(currentProgress, baseBpm, offset, 1)
+      : currentProgress;
 
     // Setup 4-beat simulated long press: 500ms
     loopInTimerRef.current = setTimeout(() => {
@@ -302,7 +300,7 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
 
     // SHORT PRESS DEFAULT (until/unless timer fires): Set loopIn and mainCue
     setDeck(deckId, { 
-      loopIn: snappedTime,
+      loopIn: snappedTime, 
       mainCue: snappedTime
     });
   };
@@ -326,9 +324,15 @@ export default function CDJHardware({ deckId }: CDJHardwareProps) {
     const currentProgress = deck.progress || 0;
     playClick(850, 'sine', 0.015);
 
+    const baseBpm = deck.bpm || 120;
+    const offset = deck.firstBeatOffset || 0;
+    const snappedOut = deck.quantizeEnabled
+      ? quantizeAudioTime(currentProgress, baseBpm, offset, 1)
+      : currentProgress;
+
     if (deck.loopIn !== null && deck.loopIn !== undefined) {
       setDeck(deckId, { 
-        loopOut: currentProgress, 
+        loopOut: snappedOut, 
         isLoopActive: true 
       });
     }

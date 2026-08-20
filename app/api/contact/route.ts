@@ -13,6 +13,19 @@ export async function POST(req: Request) {
       );
     }
 
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(String(email).trim())) {
+      return NextResponse.json(
+        { error: 'Please enter a valid email address.' },
+        { status: 400 }
+      );
+    }
+
+    const cleanName = String(name).trim().slice(0, 100);
+    const cleanEmail = String(email).trim().slice(0, 150);
+    const cleanSubject = subject ? String(subject).trim().slice(0, 150) : '';
+    const cleanMessage = String(message).trim().slice(0, 3000);
+
     // Verify Turnstile if token is provided
     if (turnstileToken) {
       const isHuman = await verifyTurnstileToken(turnstileToken);
@@ -27,9 +40,9 @@ export async function POST(req: Request) {
     // Save to D1 database
     try {
       await saveContactSubmissionToD1({
-        name,
-        email,
-        message: subject ? `[${subject}] ${message}` : message,
+        name: cleanName,
+        email: cleanEmail,
+        message: cleanSubject ? `[${cleanSubject}] ${cleanMessage}` : cleanMessage,
       });
     } catch (d1Err) {
       console.warn('D1 database insert skipped or failed:', d1Err);
@@ -38,10 +51,10 @@ export async function POST(req: Request) {
     // Queue email dispatch
     try {
       await queueEmailPayload({
-        to: email,
-        subject: `Thanks for reaching out, ${name}`,
-        name,
-        message: subject ? `[${subject}] ${message}` : message,
+        to: cleanEmail,
+        subject: `Thanks for reaching out, ${cleanName}`,
+        name: cleanName,
+        message: cleanSubject ? `[${cleanSubject}] ${cleanMessage}` : cleanMessage,
       });
     } catch (queueErr) {
       console.warn('Queue email dispatch skipped or failed:', queueErr);
@@ -51,7 +64,7 @@ export async function POST(req: Request) {
   } catch (err: any) {
     console.error('Contact submit API error:', err);
     return NextResponse.json(
-      { error: err.message || 'Failed to submit form' },
+      { error: 'An unexpected error occurred while processing your request.' },
       { status: 500 }
     );
   }

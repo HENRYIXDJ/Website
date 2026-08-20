@@ -76,6 +76,10 @@ export interface AudioStoreState {
   playLockEnabled: boolean;
   detectedBpms: Record<string, number>;
   playedTrackIds: string[];
+  crossfaderCurve: 'SMOOTH' | 'FAST_CUT';
+  eqMode: 'ISOLATOR' | 'CLASSIC';
+  isSplitCue: boolean;
+  uiSoundMuted: boolean;
 
   // ---------- Actions ----------
   setDeck: (id: number, patch: Partial<DeckState>) => void;
@@ -92,6 +96,10 @@ export interface AudioStoreState {
   setIsEcoMode: (val: boolean) => void;
   setPlayLockEnabled: (val: boolean) => void;
   addPlayedTrackId: (id: string) => void;
+  setCrossfaderCurve: (curve: 'SMOOTH' | 'FAST_CUT') => void;
+  setEqMode: (mode: 'ISOLATOR' | 'CLASSIC') => void;
+  setIsSplitCue: (val: boolean) => void;
+  setUiSoundMuted: (val: boolean) => void;
 
   // Legacy-compat: full decks setter (accepts updater fn or object)
   setDecks: (updater: Record<number, DeckState> | ((prev: Record<number, DeckState>) => Record<number, DeckState>)) => void;
@@ -288,6 +296,10 @@ export const useAudioStore = create<AudioStoreState>()(
     playLockEnabled: true,
     detectedBpms: {},
     playedTrackIds: [],
+    crossfaderCurve: 'SMOOTH',
+    eqMode: 'ISOLATOR',
+    isSplitCue: false,
+    uiSoundMuted: false,
 
     // Atomic deck patch — only touches the specified deck
     setDeck: (id, patch) =>
@@ -320,6 +332,10 @@ export const useAudioStore = create<AudioStoreState>()(
       set(s => ({
         playedTrackIds: s.playedTrackIds.includes(id) ? s.playedTrackIds : [...s.playedTrackIds, id]
       })),
+    setCrossfaderCurve: (curve) => set({ crossfaderCurve: curve }),
+    setEqMode: (mode) => set({ eqMode: mode }),
+    setIsSplitCue: (val) => set({ isSplitCue: val }),
+    setUiSoundMuted: (val) => set({ uiSoundMuted: val }),
 
     // Legacy-compat: accepts an updater function or a plain object
     setDecks: updater => {

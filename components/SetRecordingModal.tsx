@@ -55,6 +55,36 @@ export function SetRecordingModal({ isOpen, onClose }: SetRecordingModalProps) {
     setRecorder.downloadRecordedSet(setName.replace(/\s+/g, '_'));
   };
 
+  const handleDownloadCueSheet = () => {
+    playClick(1000, 'sine', 0.03);
+    const dateStr = new Date().toISOString().slice(0, 10);
+    let text = `=================================================\n`;
+    text += `HENRY IX LIVE DJ SET RECORDING - TRACKLIST & CUE SHEET\n`;
+    text += `DATE: ${dateStr}\n`;
+    text += `SESSION NAME: ${setName}\n`;
+    text += `RECORDED DURATION: ${formatTime(recorderState.duration)}\n`;
+    text += `TOTAL TRACKS PLAYED: ${playedTrackIds.length}\n`;
+    text += `=================================================\n\n`;
+    if (playedTrackIds.length === 0) {
+      text += `No distinct tracks logged during this take.\n`;
+    } else {
+      playedTrackIds.forEach((tId, idx) => {
+        text += `[${(idx + 1).toString().padStart(2, '0')}] ${tId}\n`;
+      });
+    }
+    text += `\nExported from HENRY IX Web DJ Pro Audio Console\n`;
+
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${setName.replace(/\s+/g, '_')}_CUESHEET.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -108,7 +138,7 @@ export function SetRecordingModal({ isOpen, onClose }: SetRecordingModalProps) {
             </div>
 
             {/* Skeuomorphic Cassette Tape Graphic */}
-            <div className="relative w-full h-36 bg-zinc-900 border-2 border-zinc-800 p-3 flex flex-col justify-between overflow-hidden shadow-inner">
+            <div className="relative w-full bg-zinc-900 border-2 border-zinc-800 p-3 flex flex-col gap-2 overflow-hidden shadow-inner">
               {/* Cassette Screw Accents */}
               <div className="absolute top-1 left-1 w-1.5 h-1.5 rounded-full bg-zinc-700" />
               <div className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-zinc-700" />
@@ -118,62 +148,79 @@ export function SetRecordingModal({ isOpen, onClose }: SetRecordingModalProps) {
               {/* Label Header */}
               <div className="flex items-center justify-between border-b border-zinc-800 pb-1 text-[8px] text-zinc-400 font-black">
                 <span className="text-primary font-bold">TYPE II // HIGH BIAS CHROME</span>
-                <span className="text-zinc-500">44.1 KHZ / 32-BIT FLOAT</span>
+                <span className="text-zinc-500 font-mono tracking-widest">{recorderState.format.toUpperCase()} 44.1kHz</span>
               </div>
 
-              {/* Spools & Central Window */}
-              <div className="flex items-center justify-center gap-6 my-auto">
-                {/* Left Spool */}
-                <div className={cn("w-12 h-12 rounded-full border-2 border-zinc-700 bg-zinc-950 flex items-center justify-center", recorderState.isRecording && "animate-spin-slow")}>
-                  <div className="w-4 h-4 rounded-full border border-zinc-600 bg-zinc-900 flex items-center justify-center">
-                    <div className="w-1.5 h-1.5 rounded-full bg-zinc-700" />
+              {/* Tape Spindles Window */}
+              <div className="relative w-full h-16 bg-black border border-zinc-800 rounded-none flex items-center justify-around px-8 shadow-inner overflow-hidden">
+                {/* Left Spindle */}
+                <div className={cn(
+                  "w-12 h-12 rounded-full border-4 border-zinc-700 bg-zinc-900 flex items-center justify-center relative",
+                  recorderState.isRecording && "animate-[spin_4s_linear_infinite]"
+                )}>
+                  <div className="w-4 h-4 rounded-full bg-white/20 border border-white/40 flex items-center justify-center">
+                    <div className="w-1.5 h-1.5 rounded-full bg-black" />
                   </div>
+                  <div className="absolute w-1 h-3 bg-zinc-600 top-0.5" />
+                  <div className="absolute w-1 h-3 bg-zinc-600 bottom-0.5" />
+                  <div className="absolute h-1 w-3 bg-zinc-600 left-0.5" />
+                  <div className="absolute h-1 w-3 bg-zinc-600 right-0.5" />
                 </div>
 
-                {/* Center Window */}
-                <div className="w-28 h-8 bg-zinc-950/80 border border-zinc-800 flex flex-col items-center justify-center text-center">
-                  <span className="text-[7px] text-zinc-500 font-bold uppercase">RECORD TIME</span>
-                  <span className={cn("text-sm font-black font-mono tracking-widest", recorderState.isRecording ? "text-primary animate-pulse" : "text-zinc-300")}>
+                {/* Central Tape View Window */}
+                <div className="flex flex-col items-center justify-center gap-1 z-10">
+                  <span className="text-[14px] font-black tracking-widest font-mono text-zinc-100">
                     {formatTime(recorderState.duration)}
+                  </span>
+                  <span className={cn(
+                    "text-[7px] font-bold tracking-widest px-1.5 py-0.2 uppercase font-mono border",
+                    recorderState.isRecording 
+                      ? "bg-red-950/80 border-red-500 text-red-400 animate-pulse" 
+                      : "bg-zinc-950 border-zinc-800 text-zinc-500"
+                  )}>
+                    {recorderState.isRecording ? "REC ● ACTIVE" : "STANDBY"}
                   </span>
                 </div>
 
-                {/* Right Spool */}
-                <div className={cn("w-12 h-12 rounded-full border-2 border-zinc-700 bg-zinc-950 flex items-center justify-center", recorderState.isRecording && "animate-spin-slow")}>
-                  <div className="w-4 h-4 rounded-full border border-zinc-600 bg-zinc-900 flex items-center justify-center">
-                    <div className="w-1.5 h-1.5 rounded-full bg-zinc-700" />
+                {/* Right Spindle */}
+                <div className={cn(
+                  "w-12 h-12 rounded-full border-4 border-zinc-700 bg-zinc-900 flex items-center justify-center relative",
+                  recorderState.isRecording && "animate-[spin_3s_linear_infinite]"
+                )}>
+                  <div className="w-4 h-4 rounded-full bg-white/20 border border-white/40 flex items-center justify-center">
+                    <div className="w-1.5 h-1.5 rounded-full bg-black" />
                   </div>
+                  <div className="absolute w-1 h-3 bg-zinc-600 top-0.5" />
+                  <div className="absolute w-1 h-3 bg-zinc-600 bottom-0.5" />
+                  <div className="absolute h-1 w-3 bg-zinc-600 left-0.5" />
+                  <div className="absolute h-1 w-3 bg-zinc-600 right-0.5" />
                 </div>
               </div>
 
-              {/* Cassette Footer Info */}
-              <div className="flex items-center justify-between text-[7px] text-zinc-500 font-bold">
-                <span>HENRY IX SOUND SYSTEMS</span>
-                <span className={cn(recorderState.isRecording ? "text-red-400 font-black animate-pulse" : "text-zinc-500")}>
-                  {recorderState.isRecording ? '● MASTER TAPE RUNNING' : 'READY TO RECORD'}
-                </span>
+              {/* Tape Brand Footer */}
+              <div className="flex items-center justify-between text-[7px] text-zinc-500 font-bold uppercase pt-1">
+                <span>MASTER CASSETTE C-90</span>
+                <span className="text-zinc-400">HX-PRO NR ON</span>
               </div>
             </div>
 
-            {/* Set Name Input */}
-            <div className="flex flex-col gap-1">
-              <label className="text-[7.5px] font-bold text-zinc-500 uppercase tracking-wider">
-                SET / RECORDING TITLE:
-              </label>
-              <input
-                type="text"
-                value={setName}
-                onChange={(e) => setSetName(e.target.value)}
-                className="w-full px-2.5 py-1.5 bg-black border border-zinc-800 text-xs font-mono font-bold text-zinc-200 focus:border-primary outline-none"
-                placeholder="HENRY_IX_LIVE_SET"
-              />
-            </div>
-
-            {/* Format Selector & Stats */}
-            <div className="grid grid-cols-2 gap-3 text-[8px]">
+            {/* Session Settings & Metadata */}
+            <div className="grid grid-cols-2 gap-3 text-[8.5px]">
               <div className="flex flex-col gap-1">
-                <span className="text-zinc-500 font-bold uppercase">AUDIO ENCODING:</span>
-                <div className="flex items-center gap-1 bg-black border border-zinc-800 p-0.5">
+                <span className="text-zinc-500 font-bold uppercase">SET / TAPE TITLE:</span>
+                <input
+                  type="text"
+                  value={setName}
+                  onChange={(e) => setSetName(e.target.value)}
+                  disabled={recorderState.isRecording}
+                  className="w-full bg-black border border-zinc-800 text-zinc-200 px-2 py-1 focus:outline-none focus:border-primary disabled:opacity-50 text-[9px] font-bold"
+                  placeholder="SET_TITLE"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <span className="text-zinc-500 font-bold uppercase">CODEC:</span>
+                <div className="flex items-center border border-zinc-800 bg-black p-0.5">
                   {(['wav', 'mp3', 'webm'] as const).map(fmt => (
                     <button
                       key={fmt}
@@ -193,11 +240,17 @@ export function SetRecordingModal({ isOpen, onClose }: SetRecordingModalProps) {
                 </div>
               </div>
 
-              <div className="flex flex-col gap-1">
-                <span className="text-zinc-500 font-bold uppercase">SESSION STATS:</span>
-                <div className="p-1.5 bg-black border border-zinc-800 text-zinc-400 flex flex-col justify-center gap-0.5">
-                  <span className="text-zinc-300">PLAYED IN SET: <strong className="text-white">{playedTrackIds.length} TRACKS</strong></span>
-                  <span className="text-zinc-500">MASTER BUS: 44.1KHZ PCM</span>
+              <div className="flex flex-col gap-1 col-span-2">
+                <span className="text-zinc-500 font-bold uppercase">SESSION STATS & CUE EXPORT:</span>
+                <div className="p-1.5 bg-black border border-zinc-800 text-zinc-400 flex items-center justify-between gap-2">
+                  <span className="text-zinc-300">PLAYED: <strong className="text-white">{playedTrackIds.length} TRACKS</strong> (44.1KHZ PCM)</span>
+                  <button
+                    onClick={handleDownloadCueSheet}
+                    className="px-2 py-1 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white border border-zinc-700 text-[8px] font-bold uppercase transition-colors cursor-pointer shrink-0"
+                    title="Export .txt tracklist with timestamps"
+                  >
+                    📄 EXPORT TRACKLIST (.TXT)
+                  </button>
                 </div>
               </div>
             </div>

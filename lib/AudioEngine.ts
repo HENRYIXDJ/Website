@@ -11,6 +11,7 @@
 
 import { useAudioStore, generateStaticPeaks } from '@/store/audioStore';
 import { playClick, playLockoutBlip } from '@/lib/audioUtils';
+import { calculateSyncCorrection } from '@/lib/proBeatgridEngine';
 
 export interface DeckDSPNodes {
   trimNode: GainNode;
@@ -88,6 +89,13 @@ export class AudioEngine {
   private onsetFrameId: number | null = null;
   private lcdFrameId: number | null = null;
 
+  // Microphone and real-time DSP analysis buffers
+  private micStream: MediaStream | null = null;
+  private micSourceNode: MediaStreamAudioSourceNode | null = null;
+  private micAnalyser: AnalyserNode | null = null;
+  private prevSpectrum: Float32Array = new Float32Array(256);
+  private fluxHistory: number[] = [];
+
   constructor() {}
 
   /**
@@ -126,8 +134,21 @@ export class AudioEngine {
 
       const masterAnalyser = ctx.createAnalyser();
       masterAnalyser.fftSize = 256;
+      masterAnalyser.smoothingTimeConstant = 0.50; // Fast transient tracking for punchy drums & bass
+      masterAnalyser.minDecibels = -75;
+      masterAnalyser.maxDecibels = -10;
       this.masterAnalyser = masterAnalyser;
-      masterAnalyser.connect(ctx.destination);
+
+      // Soft-knee master peak limiter (prevents digital clipping across 4 decks)
+      const masterLimiter = ctx.createDynamicsCompressor();
+      masterLimiter.threshold.value = -0.5;
+      masterLimiter.knee.value = 6;
+      masterLimiter.ratio.value = 20;
+      masterLimiter.attack.value = 0.003;
+      masterLimiter.release.value = 0.05;
+
+      masterAnalyser.connect(masterLimiter);
+      masterLimiter.connect(ctx.destination);
 
       // Start tick loops
       this.startOnsetDetectionLoop();
@@ -194,6 +215,9 @@ export class AudioEngine {
 
     const analyserNode = ctx.createAnalyser();
     analyserNode.fftSize = 256;
+    analyserNode.smoothingTimeConstant = 0.50;
+    analyserNode.minDecibels = -75;
+    analyserNode.maxDecibels = -10;
 
     trimNode.connect(lowShelf);
     lowShelf.connect(midPeak);
@@ -241,46 +265,11 @@ export class AudioEngine {
         cuePoints: newCuePoints
       });
       
-      // Auto-detect onset ONLY if track does NOT have a valid pre-configured firstBeatOffset
-      const hasPresetOffset = (deck?.firstBeatOffset || 0) > 0.01;
-      if (!hasPresetOffset && audio.src && audio.src.startsWith('http') && !audio.src.includes('soundcloud')) {
-        const absoluteUrl = new URL(audio.src).href;
-        fetch(absoluteUrl, { headers: { Range: 'bytes=0-1800000' } })
-          .then(res => { if (res.ok || res.status === 206) return res.arrayBuffer(); else throw new Error(); })
-          .then(async buffer => {
-            const actx = new OfflineAudioContext(1, 44100 * 30, 44100);
-            const audioBuffer = await actx.decodeAudioData(buffer).catch(() => null);
-            if (!audioBuffer) return;
-            const data = audioBuffer.getChannelData(0);
-            const wSize = 256;
-            for (let i = 0; i < data.length; i += wSize) {
-              let sum = 0;
-              for (let j = 0; j < wSize && i + j < data.length; j++) sum += data[i+j] * data[i+j];
-              const rms = Math.sqrt(sum / wSize);
-              if (rms > 0.010 && (i / 44100) > 0.02) {
-                const detected = i / 44100;
-                console.log(`[FIRST BEAT ONSET DETECTED] Deck ${deckId} first beat at ${detected.toFixed(3)}s`);
-                
-                const current = useAudioStore.getState().decks[deckId];
-                if (current) {
-                  let updatedCue = current.cuePoints || [];
-                  if (updatedCue.length === 0 || Math.abs(updatedCue[0] - detected) > 0.05) {
-                    updatedCue = [detected, ...updatedCue.filter(c => Math.abs(c - detected) > 0.05)];
-                  }
-                  useAudioStore.getState().setDeck(deckId, { 
-                    firstBeatOffset: detected, 
-                    mainCue: detected,
-                    cuePoints: updatedCue, 
-                    progress: current.isPlaying ? current.progress : detected 
-                  });
-                  if (!current.isPlaying && (audio.currentTime === 0 || audio.currentTime < detected)) {
-                     audio.currentTime = detected;
-                  }
-                }
-                break;
-              }
-            }
-          }).catch(() => {});
+      // Ensure mainCue and playhead position default to firstBeatOffset if stopped
+      if (!deck?.isPlaying && (audio.currentTime === 0 || audio.currentTime < offset)) {
+        try {
+          audio.currentTime = offset;
+        } catch (e) {}
       }
     });
 
@@ -374,14 +363,17 @@ export class AudioEngine {
     const nodes = this.deckNodes[deckId];
     if (!nodes) return;
 
+    const state = useAudioStore.getState();
+    const isClassic = state.eqMode === 'CLASSIC';
     const clamped = Math.max(0, Math.min(100, value));
     let gain: number;
+
     if (clamped <= 5) {
-      // True Pioneer DJM Isolator Total Kill (-∞ dB)
-      gain = -70;
+      // Classic Pioneer curve (-26dB) vs Isolator Total Kill (-70dB)
+      gain = isClassic ? -26 : -70;
     } else if (clamped < 50) {
-      // Smooth logarithmic isolator slope
-      gain = -36 * Math.pow((50 - clamped) / 45, 1.25);
+      const maxAtten = isClassic ? 26 : 36;
+      gain = -maxAtten * Math.pow((50 - clamped) / 45, 1.25);
     } else {
       gain = (band === 'low' ? 12 : 10) * ((clamped - 50) / 50);
     }
@@ -399,15 +391,20 @@ export class AudioEngine {
     if (!nodes) return;
 
     const clamped = Math.max(0, Math.min(100, value));
+    const distFromCenter = Math.abs(clamped - 50) / 50;
+    // Smooth Q-taper: gentle 0.707 Q at neutral 12 o'clock, increasing to 2.5 at extreme sweeps
+    const dynamicQ = 0.707 + 1.8 * Math.pow(distFromCenter, 1.5);
+    nodes.filterNode.Q.setTargetAtTime(dynamicQ, this.audioCtx.currentTime, 0.015);
+
     if (clamped < 50) {
       nodes.filterNode.type = 'lowpass';
       const pct = clamped / 50;
-      const frequency = 80 + 19920 * Math.pow(pct, 2.5);
+      const frequency = 60 + 19940 * Math.pow(pct, 2.5);
       nodes.filterNode.frequency.setTargetAtTime(frequency, this.audioCtx.currentTime, 0.015);
     } else if (clamped > 50) {
       nodes.filterNode.type = 'highpass';
       const pct = (clamped - 50) / 50;
-      const frequency = 15 + 5985 * Math.pow(pct, 2.5);
+      const frequency = 20 + 7980 * Math.pow(pct, 2.5);
       nodes.filterNode.frequency.setTargetAtTime(frequency, this.audioCtx.currentTime, 0.015);
     } else {
       nodes.filterNode.type = 'peaking';
@@ -448,16 +445,28 @@ export class AudioEngine {
   }
 
   /**
-   * Compute crossfader multiplier
+   * Compute crossfader multiplier with selectable curves
    */
   computeCrossfaderGain(crossfaderAssign: 'L' | 'R' | 'THRU', crossfaderPosition: number): number {
     if (crossfaderAssign === 'THRU') return 1.0;
     const clamped = Math.max(0, Math.min(100, crossfaderPosition));
+    const curve = useAudioStore.getState().crossfaderCurve;
 
+    if (curve === 'FAST_CUT') {
+      // Scratch curve: instant full volume within 4% of fader travel
+      if (crossfaderAssign === 'L') {
+        return clamped > 96 ? Math.max(0, (100 - clamped) / 4) : 1.0;
+      } else {
+        return clamped < 4 ? Math.max(0, clamped / 4) : 1.0;
+      }
+    }
+
+    // Default SMOOTH curve (Equal-Power Cosine / Sine blend)
+    const norm = clamped / 100;
     if (crossfaderAssign === 'L') {
-      return clamped <= 50 ? 1 : Math.max(0, 1 - (clamped - 50) / 50);
+      return Math.cos(norm * (Math.PI / 2));
     } else {
-      return clamped >= 50 ? 1 : Math.max(0, clamped / 50);
+      return Math.sin(norm * (Math.PI / 2));
     }
   }
 
@@ -490,7 +499,7 @@ export class AudioEngine {
   }
 
   /**
-   * Align pitch fader rate and phases of syncing decks
+   * Align pitch fader rate and phases of syncing decks (Rekordbox / CDJ-3000 logic)
    */
   alignSyncPlayback(targetDeckId: number) {
     const state = useAudioStore.getState();
@@ -512,33 +521,28 @@ export class AudioEngine {
     const audioA = this.audioElements[masterDeckId];
     if (!deckA || !audioA) return;
 
-    const activeBpmA = deckA.bpm * (1 + (deckA.pitch || 0) / 100);
-    const targetPitchB = ((activeBpmA / deckB.bpm) - 1) * 100;
-    const clampedPitchB = Math.max(-16, Math.min(16, targetPitchB));
-    
-    useAudioStore.getState().setDeck(targetDeckId, { pitch: clampedPitchB });
-    audioB.playbackRate = 1 + clampedPitchB / 100;
+    const correction = calculateSyncCorrection(
+      audioA.currentTime,
+      deckA.bpm || 120,
+      deckA.pitch || 0,
+      deckA.firstBeatOffset || 0,
+      audioB.currentTime,
+      deckB.bpm || 120,
+      deckB.firstBeatOffset || 0
+    );
 
+    // 1. Update pitch to match master tempo
+    useAudioStore.getState().setDeck(targetDeckId, { pitch: correction.targetPitch });
+    audioB.playbackRate = 1 + correction.targetPitch / 100;
+
+    // 2. Snap phase if not strictly BPM-only sync
     if (deckB.syncMode !== 'BPM') {
-      const activeBpmB = deckB.bpm * (1 + clampedPitchB / 100);
-      const activeBeatIntervalA = 60 / activeBpmA;
-      const activeBeatIntervalB = 60 / activeBpmB;
-
-      const offsetA = deckA.firstBeatOffset || 0;
-      const offsetB = deckB.firstBeatOffset || 0;
-      
-      const elapsedA = Math.max(0, audioA.currentTime - offsetA);
-      const phaseFractionA = (elapsedA % activeBeatIntervalA) / activeBeatIntervalA;
-      
       const durationB = audioB.duration || deckB.duration || 0;
-      const elapsedB = Math.max(0, audioB.currentTime - offsetB);
-      
-      const currentBeatIndexB = Math.floor(elapsedB / activeBeatIntervalB);
-      let targetTimeB = offsetB + (currentBeatIndexB + phaseFractionA) * activeBeatIntervalB;
+      let targetTimeB = audioB.currentTime + correction.timeErrorSeconds;
 
       if (targetTimeB < 0) targetTimeB = 0;
       if (durationB && targetTimeB > durationB) targetTimeB = durationB;
-      
+
       audioB.currentTime = targetTimeB;
       useAudioStore.getState().setDeck(targetDeckId, { progress: targetTimeB });
     }
@@ -1283,9 +1287,191 @@ export class AudioEngine {
   }
 
   /**
+   * Extract 7 Logarithmic Frequency Bands (Human Hearing Scale)
+   * Sub-Bass (20-60Hz), Bass (60-250Hz), Low-Mid (250-500Hz), Mid (500-2kHz),
+   * High-Mid (2k-4kHz), Presence (4k-8kHz), Brilliance (8k-20kHz)
+   */
+  getLogFrequencyBands(customAnalyser?: AnalyserNode | null) {
+    const analyser = customAnalyser !== undefined ? customAnalyser : this.masterAnalyser;
+    if (!analyser) {
+      return {
+        subBass: 0,
+        bass: 0,
+        lowMid: 0,
+        mid: 0,
+        highMid: 0,
+        presence: 0,
+        brilliance: 0,
+        kickPunch: 0,
+        snareSnap: 0,
+        rawBands: [0, 0, 0, 0, 0, 0, 0],
+        energy: 0,
+      };
+    }
+
+    const bufferLength = analyser.frequencyBinCount;
+    const freqData = new Uint8Array(bufferLength);
+    analyser.getByteFrequencyData(freqData);
+
+    const nyquist = (this.audioCtx?.sampleRate || 44100) / 2;
+    const hzPerBin = nyquist / bufferLength;
+
+    const getAverage = (startHz: number, endHz: number) => {
+      const startBin = Math.max(0, Math.floor(startHz / hzPerBin));
+      const endBin = Math.min(bufferLength - 1, Math.ceil(endHz / hzPerBin));
+      if (startBin >= endBin) return (freqData[startBin] || 0) / 255;
+      let sum = 0;
+      let count = 0;
+      for (let b = startBin; b <= endBin; b++) {
+        sum += freqData[b] || 0;
+        count++;
+      }
+      return count > 0 ? sum / (count * 255) : 0;
+    };
+
+    const rawSub = getAverage(20, 60);
+    const rawBass = getAverage(60, 250);
+    const rawLowMid = getAverage(250, 500);
+    const rawMid = getAverage(500, 2000);
+    const rawHighMid = getAverage(2000, 4000);
+    const rawPres = getAverage(4000, 8000);
+    const rawBrill = getAverage(8000, 20000);
+
+    // Dynamic non-linear expansion calibrated for punchy bass & drums
+    const subBass = Math.min(1.0, Math.pow(rawSub, 1.1) * 1.65);
+    const bass = Math.min(1.0, Math.pow(rawBass, 1.1) * 1.55);
+    const lowMid = Math.min(1.0, Math.pow(rawLowMid, 1.15) * 1.3);
+    const mid = Math.min(1.0, Math.pow(rawMid, 1.2) * 1.25);
+    const highMid = Math.min(1.0, Math.pow(rawHighMid, 1.2) * 1.35);
+    const presence = Math.min(1.0, Math.pow(rawPres, 1.2) * 1.4);
+    const brilliance = Math.min(1.0, Math.pow(rawBrill, 1.2) * 1.45);
+
+    // Dedicated drum isolators
+    const kickPunch = Math.min(1.0, Math.pow(getAverage(45, 120), 1.1) * 1.7);
+    const snareSnap = Math.min(1.0, Math.pow(getAverage(1500, 3500), 1.2) * 1.5);
+
+    const rawBands = [subBass, bass, lowMid, mid, highMid, presence, brilliance];
+    const energy = rawBands.reduce((acc, v) => acc + v, 0) / rawBands.length;
+
+    return {
+      subBass,
+      bass,
+      lowMid,
+      mid,
+      highMid,
+      presence,
+      brilliance,
+      kickPunch,
+      snareSnap,
+      rawBands,
+      energy,
+    };
+  }
+
+  /**
+   * Spectral Flux Onset & Transient Beat Tracker
+   * Measures the rate of positive energy change across spectrum bins specifically isolating kick drums and snare snaps
+   */
+  getSpectralFluxTransient(customAnalyser?: AnalyserNode | null): {
+    isBeat: boolean;
+    isKick: boolean;
+    isSnare: boolean;
+    flux: number;
+    kickFlux: number;
+    snareFlux: number;
+    confidence: number;
+  } {
+    const analyser = customAnalyser !== undefined ? customAnalyser : this.masterAnalyser;
+    if (!analyser) return { isBeat: false, isKick: false, isSnare: false, flux: 0, kickFlux: 0, snareFlux: 0, confidence: 0 };
+
+    const bufferLength = Math.min(128, analyser.frequencyBinCount);
+    const freqData = new Uint8Array(bufferLength);
+    analyser.getByteFrequencyData(freqData);
+
+    let flux = 0;
+    let kickFlux = 0;
+    let snareFlux = 0;
+
+    for (let i = 0; i < bufferLength; i++) {
+      const current = freqData[i] / 255.0;
+      const previous = this.prevSpectrum[i] || 0;
+      const diff = current - previous;
+      if (diff > 0) {
+        flux += diff;
+        if (i < 8) kickFlux += diff;       // Low frequencies (20-700Hz)
+        else if (i >= 8 && i <= 32) snareFlux += diff; // Mid/High frequencies (700-3000Hz)
+      }
+      this.prevSpectrum[i] = current;
+    }
+    flux /= bufferLength;
+    kickFlux /= 8;
+    snareFlux /= 24;
+
+    // Track rolling history (last 30 frames ~ 0.5s)
+    this.fluxHistory.push(flux);
+    if (this.fluxHistory.length > 30) this.fluxHistory.shift();
+
+    const avgFlux = this.fluxHistory.reduce((a, b) => a + b, 0) / this.fluxHistory.length;
+    const threshold = avgFlux * 1.35 + 0.015;
+    const isBeat = flux > threshold;
+    const isKick = kickFlux > threshold * 1.25;
+    const isSnare = snareFlux > threshold * 1.15;
+    const confidence = Math.min(1, flux / (threshold + 0.001));
+
+    return { isBeat, isKick, isSnare, flux, kickFlux, snareFlux, confidence };
+  }
+
+  /**
+   * Microphone Input Capture for Live Venue Visuals
+   */
+  async enableMicrophoneInput(): Promise<AnalyserNode | null> {
+    if (typeof window === 'undefined' || !navigator.mediaDevices?.getUserMedia) return null;
+    try {
+      this.initAudioDSP();
+      if (!this.audioCtx) return null;
+
+      if (this.micStream) {
+        return this.micAnalyser;
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      this.micStream = stream;
+      this.micSourceNode = this.audioCtx.createMediaStreamSource(stream);
+
+      const analyser = this.audioCtx.createAnalyser();
+      analyser.fftSize = 256;
+      analyser.smoothingTimeConstant = 0.8;
+      this.micSourceNode.connect(analyser);
+      this.micAnalyser = analyser;
+
+      return analyser;
+    } catch (err) {
+      console.warn('Microphone access denied or unavailable:', err);
+      return null;
+    }
+  }
+
+  disableMicrophoneInput() {
+    if (this.micStream) {
+      this.micStream.getTracks().forEach(track => track.stop());
+      this.micStream = null;
+    }
+    if (this.micSourceNode) {
+      try { this.micSourceNode.disconnect(); } catch (_) {}
+      this.micSourceNode = null;
+    }
+    this.micAnalyser = null;
+  }
+
+  getMicAnalyser(): AnalyserNode | null {
+    return this.micAnalyser;
+  }
+
+  /**
    * Close and clean up all listeners/contexts on shutdown
    */
   destroy() {
+    this.disableMicrophoneInput();
     if (this.onsetFrameId) cancelAnimationFrame(this.onsetFrameId);
     if (this.lcdFrameId) cancelAnimationFrame(this.lcdFrameId);
     if (this.audioCtx) this.audioCtx.close().catch(() => {});

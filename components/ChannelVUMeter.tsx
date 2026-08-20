@@ -23,6 +23,8 @@ export function ChannelVUMeter({ deckId, trim, volume, isPlaying }: ChannelVUMet
     if (!ctx) return;
 
     let level = 0;
+    let peakHoldSegment = 0;
+    let peakHoldTime = 0;
     const dataArray = new Uint8Array(64);
 
     const render = () => {
@@ -56,10 +58,18 @@ export function ChannelVUMeter({ deckId, trim, volume, isPlaying }: ChannelVUMet
       const segmentHeight = (canvas.height - (TOTAL_LEDS - 1) * 2) / TOTAL_LEDS;
       const activeSegments = Math.round(level * TOTAL_LEDS);
 
+      const now = performance.now();
+      if (activeSegments >= peakHoldSegment) {
+        peakHoldSegment = activeSegments;
+        peakHoldTime = now;
+      } else if (now - peakHoldTime > 1200) {
+        peakHoldSegment = Math.max(0, peakHoldSegment - 0.25);
+      }
+
       for (let i = 0; i < TOTAL_LEDS; i++) {
         // LED index 0 is top (Red peak CLIP), index 11 is bottom (Green)
         const ledIndexFromBottom = TOTAL_LEDS - 1 - i;
-        const isActive = ledIndexFromBottom < activeSegments;
+        const isActive = ledIndexFromBottom < activeSegments || Math.floor(peakHoldSegment) === ledIndexFromBottom;
 
         // Color thresholding: Green (bottom 6), Yellow (middle 3), Red (top 3 peak overdrive)
         let colorOn = '#10b981'; // Emerald Green

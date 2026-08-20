@@ -5,6 +5,8 @@ import { Cpu, Maximize2, Minimize2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatTime } from '@/lib/mixes';
 import { RecordingState } from '@/lib/audioRecorder';
+import { useAudioStore } from '@/store/audioStore';
+import { playClick } from '@/lib/audioUtils';
 
 interface DeckToolbarProps {
   deckCount: 2 | 4;
@@ -38,6 +40,8 @@ export function DeckToolbar({
   onOpenRecordModal,
 }: DeckToolbarProps) {
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const uiSoundMuted = useAudioStore(s => s.uiSoundMuted);
+  const setUiSoundMuted = useAudioStore(s => s.setUiSoundMuted);
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -144,6 +148,24 @@ export function DeckToolbar({
         className="px-2.5 py-1 bg-zinc-950 hover:bg-zinc-900 border border-zinc-900 hover:border-zinc-800 rounded-none text-zinc-400 hover:text-zinc-200 transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 text-[7.5px] md:text-[8px] font-bold tracking-wider uppercase"
       >
         <span>⌨️</span> Key Mapping
+      </button>
+
+      {/* UI Click Sound FX Mute Toggle */}
+      <button
+        onClick={() => {
+          const next = !uiSoundMuted;
+          setUiSoundMuted(next);
+          if (!next) playClick(900, 'sine', 0.02);
+        }}
+        title="Toggle UI click sound effects"
+        className={cn(
+          "px-2 py-1 bg-zinc-950 border rounded-none transition-all cursor-pointer flex items-center gap-1 active:scale-95 text-[7.5px] md:text-[8px] font-bold tracking-wider uppercase",
+          uiSoundMuted 
+            ? "border-zinc-800 text-zinc-600 hover:text-zinc-400" 
+            : "border-zinc-900 text-zinc-400 hover:text-zinc-200"
+        )}
+      >
+        <span>{uiSoundMuted ? '🔇 SFX: OFF' : '🔊 SFX: ON'}</span>
       </button>
 
       {/* FULLSCREEN CONSOLE TOGGLE BUTTON */}

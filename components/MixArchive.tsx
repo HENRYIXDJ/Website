@@ -29,6 +29,7 @@ import { DeckBrowserPanel } from './DeckBrowserPanel';
 import { DeckBadge } from './DeckBadge';
 import { UsbDropzoneOverlay } from './UsbDropzoneOverlay';
 import { HardwareControllerView } from './HardwareControllerView';
+import { calculateSyncCorrection } from '@/lib/proBeatgridEngine';
 import dynamic from 'next/dynamic';
 
 const MobileDJDecks = dynamic(() => import('./MobileDJDecks').then(mod => mod.MobileDJDecks), { ssr: false });
@@ -66,6 +67,12 @@ export default function MixArchive({
   const setRightActiveDeck = useAudioStore(s => s.setRightActiveDeck);
   const detectedBpms = useAudioStore(s => s.detectedBpms || {});
   const setIsCDJView = useAudioStore(s => s.setIsCDJView);
+  const eqMode = useAudioStore(s => s.eqMode);
+  const setEqMode = useAudioStore(s => s.setEqMode);
+  const crossfaderCurve = useAudioStore(s => s.crossfaderCurve);
+  const setCrossfaderCurve = useAudioStore(s => s.setCrossfaderCurve);
+  const isSplitCue = useAudioStore(s => s.isSplitCue);
+  const setIsSplitCue = useAudioStore(s => s.setIsSplitCue);
 
   // Map local references and bindings directly to global audioEngine singleton
   const playTrack = audioEngine.playTrack.bind(audioEngine);
@@ -472,42 +479,34 @@ export default function MixArchive({
               const masterDeck = decksRef.current[masterId];
               const masterAudio = audioElementsRef?.current?.[masterId];
               if (masterDeck && masterAudio && !masterAudio.paused) {
-                const activeBpmA = masterDeck.bpm * (1 + (masterDeck.pitch || 0) / 100);
+                const correction = calculateSyncCorrection(
+                  masterAudio.currentTime,
+                  masterDeck.bpm || 120,
+                  masterDeck.pitch || 0,
+                  masterDeck.firstBeatOffset || 0,
+                  audio.currentTime,
+                  deck.bpm || 120,
+                  deck.firstBeatOffset || 0
+                );
 
-                // 2. Dynamic Pitch Tracking: Automatically calculate and update pitch to track the master BPM
-                if (deck.bpm && !isNaN(deck.bpm)) {
-                  const targetPitch = ((activeBpmA / deck.bpm) - 1) * 100;
-                  const clampedPitch = Math.max(-16, Math.min(16, targetPitch));
-                  
-                  if (Math.abs(deck.pitch - clampedPitch) > 0.005) {
-                    useAudioStore.getState().setDeck(deckId, { pitch: clampedPitch });
-                    basePlaybackRate = 1 + clampedPitch / 100;
-                  }
+                // 2. Dynamic Pitch Tracking: Automatically update pitch to match master tempo
+                if (Math.abs((deck.pitch || 0) - correction.targetPitch) > 0.01) {
+                  useAudioStore.getState().setDeck(deckId, { pitch: correction.targetPitch });
+                  basePlaybackRate = 1 + correction.targetPitch / 100;
                 }
 
-                const beatInterval = 60 / activeBpmA;
-                const elapsedA = Math.max(0, masterAudio.currentTime - (masterDeck.firstBeatOffset || 0));
-                const elapsedB = Math.max(0, audio.currentTime - (deck.firstBeatOffset || 0));
-                
-                const phaseA = elapsedA % beatInterval;
-                const phaseB = elapsedB % beatInterval;
-                
-                let error = phaseA - phaseB;
-                if (error > beatInterval / 2) error -= beatInterval;
-                if (error < -beatInterval / 2) error += beatInterval;
-                
-                if (Math.abs(error) > 0.05) {
-                  // Hard snap if phase drift is very large (e.g. after scratching, seeking, or cue stutter release)
-                  const targetTime = audio.currentTime + error;
-                  const duration = audio.duration || deck.duration || 0;
-                  if (isFinite(duration) && targetTime >= 0 && targetTime <= duration) {
-                    audio.currentTime = targetTime;
+                // 3. Phase Synchronization
+                if ((deck.syncMode as string) !== 'BPM') {
+                  if (correction.needsHardSnap) {
+                    const targetTime = audio.currentTime + correction.timeErrorSeconds;
+                    const duration = audio.duration || deck.duration || 0;
+                    if (isFinite(duration) && targetTime >= 0 && targetTime <= duration) {
+                      audio.currentTime = targetTime;
+                    }
+                  } else if (correction.pllNudge !== 0) {
+                    audio.playbackRate = basePlaybackRate + correction.pllNudge;
+                    pllApplied = true;
                   }
-                } else if (Math.abs(error) > 0.003) {
-                  // Stronger nudge for fast, tight synchronization
-                  const nudge = Math.max(-0.03, Math.min(0.03, error * 1.8));
-                  audio.playbackRate = basePlaybackRate + nudge;
-                  pllApplied = true;
                 }
               }
             }
@@ -983,6 +982,43 @@ function StackedWaveformDeckItem({
   const renderMixer = () => {
     return (
       <div className="rounded-none p-2.5 px-3 flex flex-col justify-between bg-black border border-zinc-900 min-h-[180px] h-full flex-grow relative transition-all duration-300 z-10 w-full">
+        {/* Top Mixer Mode Switchers: EQ Curve & Headphone Split Cue */}
+        <div className="flex items-center justify-between w-full border-b border-zinc-900/80 pb-1 text-[7px] font-mono select-none">
+          <div className="flex items-center gap-1">
+            <span className="text-zinc-500 font-bold uppercase">EQ:</span>
+            <button
+              onClick={() => {
+                playClick(850, 'sine', 0.015);
+                setEqMode(eqMode === 'ISOLATOR' ? 'CLASSIC' : 'ISOLATOR');
+              }}
+              className={cn(
+                "px-1.5 py-0.5 border text-[7px] font-black uppercase transition-colors cursor-pointer",
+                eqMode === 'ISOLATOR' ? "bg-primary/20 border-primary/40 text-primary" : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white"
+              )}
+              title="Toggle EQ Curve: ISOLATOR (-∞dB Kill) vs CLASSIC (-26dB Shelf)"
+            >
+              {eqMode}
+            </button>
+          </div>
+
+          <div className="flex items-center gap-1">
+            <span className="text-zinc-500 font-bold uppercase">CUE:</span>
+            <button
+              onClick={() => {
+                playClick(850, 'sine', 0.015);
+                setIsSplitCue(!isSplitCue);
+              }}
+              className={cn(
+                "px-1.5 py-0.5 border text-[7px] font-black uppercase transition-colors cursor-pointer",
+                isSplitCue ? "bg-amber-500/20 border-amber-500/40 text-amber-400" : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white"
+              )}
+              title="Split Cue Monitoring (Master Left, Cue Right)"
+            >
+              {isSplitCue ? 'SPLIT ON' : 'STEREO'}
+            </button>
+          </div>
+        </div>
+
         {/* Mixer Channels Grid */}
         <div className={cn(
           "grid gap-1.5 md:gap-2.5 my-2 items-stretch justify-center z-10 flex-grow min-h-0 select-none",
@@ -1173,10 +1209,22 @@ function StackedWaveformDeckItem({
 
         {/* Master Crossfader */}
         <div className="w-full flex flex-col items-center gap-0.5 border-t border-zinc-900/80 pt-1 z-10 shrink-0 select-none">
-          <div className="flex justify-between w-full text-[6px] text-zinc-500 font-mono tracking-wider px-1 uppercase font-bold">
-            <span>1/2 DECK</span>
-            <span>CROSSFADER</span>
-            <span>3/4 DECK</span>
+          <div className="flex justify-between items-center w-full text-[6px] text-zinc-500 font-mono tracking-wider px-1 uppercase font-bold">
+            <span>1/3 L</span>
+            <button
+              onClick={() => {
+                playClick(900, 'sine', 0.02);
+                setCrossfaderCurve(crossfaderCurve === 'SMOOTH' ? 'FAST_CUT' : 'SMOOTH');
+              }}
+              className={cn(
+                "px-1 py-0.2 border text-[6px] font-black uppercase transition-colors cursor-pointer",
+                crossfaderCurve === 'FAST_CUT' ? "bg-primary/20 border-primary/40 text-primary" : "bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-white"
+              )}
+              title="Crossfader Curve: SMOOTH (Equal-Power) vs FAST CUT (Scratch)"
+            >
+              CURVE: {crossfaderCurve === 'FAST_CUT' ? 'CUT' : 'SMOOTH'}
+            </button>
+            <span>2/4 R</span>
           </div>
 
           <Crossfader

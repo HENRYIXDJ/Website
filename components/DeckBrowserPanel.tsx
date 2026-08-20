@@ -87,9 +87,13 @@ export function DeckBrowserPanel({
 
     if (selectedBpmFilter !== 'ALL') {
       const trackBpm = detectedBpms[t.id] || t.bpm || 120;
-      if (selectedBpmFilter === '±5%') {
-        const minBpm = activeBpm * 0.95;
-        const maxBpm = activeBpm * 1.05;
+      if (selectedBpmFilter === '±4%') {
+        const minBpm = activeBpm * 0.96;
+        const maxBpm = activeBpm * 1.04;
+        if (trackBpm < minBpm || trackBpm > maxBpm) return false;
+      } else if (selectedBpmFilter === '±8%') {
+        const minBpm = activeBpm * 0.92;
+        const maxBpm = activeBpm * 1.08;
         if (trackBpm < minBpm || trackBpm > maxBpm) return false;
       } else if (selectedBpmFilter === '115-124') {
         if (trackBpm < 115 || trackBpm > 124) return false;
@@ -436,7 +440,7 @@ export function DeckBrowserPanel({
 
               <div className="flex items-center gap-1.5 shrink-0">
                 <span className="text-[7.5px] text-zinc-500 font-bold uppercase tracking-wider">BPM:</span>
-                {['ALL', '±5%', '115-124', '125-130', '130+'].map(bpmRange => (
+                {['ALL', '±4%', '±8%', '115-124', '125-130', '130+'].map(bpmRange => (
                   <button
                     key={`bpm-btn-${bpmRange}`}
                     onClick={() => {

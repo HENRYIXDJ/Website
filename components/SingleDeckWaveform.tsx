@@ -5,6 +5,8 @@ import { useAudioStore } from '@/store/audioStore';
 import { cn } from '@/lib/utils';
 import { getDeterministic3BandPeaks } from '@/lib/mixes';
 import { audioEngine } from '@/lib/AudioEngine';
+import { playNeedleDrop } from '@/lib/audioUtils';
+import { getBeatPhaseState } from '@/lib/proBeatgridEngine';
 
 interface SingleDeckWaveformProps {
   deckId: 1 | 2 | 3 | 4;
@@ -186,12 +188,6 @@ export function SingleDeckWaveform({
       const otherActiveDeckId = (deckId === 1 || deckId === 3) ? rightActiveDeckRef.current : leftActiveDeckRef.current;
       const otherDeck = useAudioStore.getState().decks[otherActiveDeckId];
       if (otherDeck && otherDeck.id !== 'locked' && currentDeck.id !== 'locked') {
-        const bpmCurrent = currentDeck.bpm * (1 + (currentDeck.pitch || 0) / 100);
-        const bpmOther = otherDeck.bpm * (1 + (otherDeck.pitch || 0) / 100);
-
-        const beatIntervalCurrent = 60 / bpmCurrent;
-        const beatIntervalOther = 60 / bpmOther;
-
         // Get actual progress of other deck (considering raw elements if loaded locally)
         let progressOther = otherDeck.progress || 0;
         if (!otherDeck.scMode) {
@@ -201,14 +197,15 @@ export function SingleDeckWaveform({
           }
         }
 
-        const phaseCurrent = ((rawProgress - (currentDeck.firstBeatOffset || 0)) % beatIntervalCurrent) / beatIntervalCurrent;
-        const phaseOther = ((progressOther - (otherDeck.firstBeatOffset || 0)) % beatIntervalOther) / beatIntervalOther;
+        const phaseCurrent = getBeatPhaseState(rawProgress, currentDeck.bpm || 120, currentDeck.firstBeatOffset || 0).beatPhase;
+        const phaseOther = getBeatPhaseState(progressOther, otherDeck.bpm || 120, otherDeck.firstBeatOffset || 0).beatPhase;
 
         const isBothPlaying = isCurrentlyPlaying && (otherDeck.isPlaying || (audioEngine.audioElements[otherActiveDeckId] && !audioEngine.audioElements[otherActiveDeckId]?.paused));
 
         if (isBothPlaying) {
-          const diff = Math.abs(phaseCurrent - phaseOther);
-          isSyncGlow = diff < 0.08 || Math.abs(diff - 1) < 0.08 || Math.abs(diff + 1) < 0.08;
+          let diff = Math.abs(phaseCurrent - phaseOther);
+          if (diff > 0.5) diff = 1.0 - diff;
+          isSyncGlow = diff < 0.08;
         }
       }
 
@@ -311,15 +308,32 @@ export function SingleDeckWaveform({
         for (let b = startBeat; b <= endBeat; b++) {
           const beatTime = offset + b * beatInterval;
           const x = beatTime * pixelsPerSecond;
+          const isPhraseBoundary = b % 16 === 0;
           const isMajorBar = b % 4 === 0;
-          ctx.strokeStyle = isMajorBar ? 'rgba(255, 255, 255, 0.45)' : 'rgba(255, 255, 255, 0.22)';
-          ctx.lineWidth = isMajorBar ? 1.5 : 1;
+
+          if (isPhraseBoundary) {
+            ctx.strokeStyle = 'rgba(216, 22, 63, 0.75)'; // HENRY IX Red Phrase Line
+            ctx.lineWidth = 2;
+          } else if (isMajorBar) {
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
+            ctx.lineWidth = 1.5;
+          } else {
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
+            ctx.lineWidth = 1;
+          }
+
           ctx.beginPath();
           ctx.moveTo(x, 0);
           ctx.lineTo(x, height);
           ctx.stroke();
 
-          if (isMajorBar && b >= 0) {
+          if (isPhraseBoundary && b >= 0) {
+            ctx.fillStyle = '#d8163f';
+            ctx.font = 'bold 8px monospace';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            ctx.fillText(`P${Math.floor(b / 16) + 1}`, x, 2);
+          } else if (isMajorBar && b >= 0) {
             ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
             ctx.font = 'bold 7.5px monospace';
             ctx.textAlign = 'center';
@@ -341,11 +355,11 @@ export function SingleDeckWaveform({
           }
         }
 
-        // 2. Draw Waveform bands inside translated space
+        // 2. Draw Waveform bands inside translated space (RGB Tri-Band Palette)
         if (points.length > 0) {
-          // Low Band (Vivid Cyan/Blue foundation)
-          ctx.fillStyle = 'rgba(0, 162, 255, 0.4)';
-          ctx.strokeStyle = 'rgba(0, 190, 255, 0.85)';
+          // Low Band: Sub Bass / Kick (Crimson Red)
+          ctx.fillStyle = 'rgba(216, 22, 63, 0.5)';
+          ctx.strokeStyle = 'rgba(244, 63, 94, 0.9)';
           ctx.lineWidth = 1;
           ctx.beginPath();
           ctx.moveTo(points[0].x, halfH);
@@ -359,9 +373,9 @@ export function SingleDeckWaveform({
           ctx.fill();
           ctx.stroke();
 
-          // Mid Band (Vivid Neon Orange)
-          ctx.fillStyle = 'rgba(255, 120, 0, 0.7)';
-          ctx.strokeStyle = 'rgba(255, 150, 0, 0.95)';
+          // Mid Band: Vocals / Synths (Pioneer Amber Gold)
+          ctx.fillStyle = 'rgba(245, 158, 11, 0.65)';
+          ctx.strokeStyle = 'rgba(251, 191, 36, 0.95)';
           ctx.lineWidth = 1;
           ctx.beginPath();
           ctx.moveTo(points[0].x, halfH);
@@ -375,8 +389,8 @@ export function SingleDeckWaveform({
           ctx.fill();
           ctx.stroke();
 
-          // High Band (Pure Bright White)
-          ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+          // High Band: Hi-Hats / Transients (Cyber Cyan / Crisp White)
+          ctx.fillStyle = 'rgba(34, 211, 238, 0.85)';
           ctx.strokeStyle = 'rgba(255, 255, 255, 1)';
           ctx.lineWidth = 0.8;
           ctx.beginPath();
@@ -619,6 +633,8 @@ export function SingleDeckWaveform({
   const handleStart = (clientX: number, isShift: boolean) => {
     const currentDeck = deckRef.current;
     if (!currentDeck || currentDeck.id === 'locked') return;
+
+    playNeedleDrop();
 
     const audio = audioEngine.audioElements[deckId];
     const startTime = audio ? audio.currentTime : (currentDeck.progress || 0);

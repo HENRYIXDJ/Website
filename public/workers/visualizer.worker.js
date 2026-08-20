@@ -2,7 +2,8 @@
  * visualizer.worker.js
  *
  * Runs the audio visualizer canvas render loop entirely off the main thread
- * using OffscreenCanvas.
+ * using OffscreenCanvas with phosphor persistence decay, logarithmic audio smoothing,
+ * and high-energy drum & bass responsiveness.
  *
  * Protocol:
  *   Main thread → Worker: { type: 'init', canvas: OffscreenCanvas, width, height, isDepth, mode }
@@ -25,7 +26,7 @@ let currentState = {
   mode: 'ambient',
 };
 
-// Smoothing accumulators
+// Smoothing accumulators (Fast attack for punchy drums)
 let bassSmooth = 0;
 let midSmooth = 0;
 let highSmooth = 0;
@@ -38,39 +39,41 @@ function render() {
 
   const { frequencyData, isPlaying, mouseX, mouseY, isDepth, width, height, mode } = currentState;
 
-  ctx.clearRect(0, 0, width, height);
+  // Use phosphor persistence decay instead of full clearRect for analog warmth
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.22)';
+  ctx.fillRect(0, 0, width, height);
 
   let bass = 0, mid = 0, high = 0;
   const bufferLength = frequencyData ? frequencyData.length : 64;
 
   if (frequencyData && isPlaying) {
-    const bassEnd = Math.min(15, bufferLength);
+    const bassEnd = Math.min(12, bufferLength);
     let bassCount = 0;
     for (let i = 0; i < bassEnd; i++) { bass += frequencyData[i] || 0; bassCount++; }
     if (bassCount > 0) bass /= bassCount;
 
-    const midStart = Math.min(16, bufferLength);
-    const midEnd = Math.min(80, bufferLength);
+    const midStart = Math.min(13, bufferLength);
+    const midEnd = Math.min(64, bufferLength);
     let midCount = 0;
     for (let i = midStart; i < midEnd; i++) { mid += frequencyData[i] || 0; midCount++; }
     if (midCount > 0) mid /= midCount;
 
-    const highStart = Math.min(81, bufferLength);
-    const highEnd = Math.min(150, bufferLength);
+    const highStart = Math.min(65, bufferLength);
+    const highEnd = Math.min(128, bufferLength);
     let highCount = 0;
     for (let i = highStart; i < highEnd; i++) { high += frequencyData[i] || 0; highCount++; }
     if (highCount > 0) high /= highCount;
   } else if (isPlaying) {
     const t = performance.now() * 0.003;
-    bass = 40 + Math.sin(t) * 15;
+    bass = 45 + Math.sin(t * 2) * 20;
     mid = 30 + Math.cos(t * 1.3) * 10;
     high = 20 + Math.sin(t * 2.1) * 8;
   }
 
-  // Exponential smoothing
-  bassSmooth += (bass - bassSmooth) * 0.15;
-  midSmooth  += (mid  - midSmooth)  * 0.15;
-  highSmooth += (high - highSmooth) * 0.15;
+  // Fast exponential smoothing (0.35 attack for immediate drum punch)
+  bassSmooth += (bass - bassSmooth) * 0.35;
+  midSmooth  += (mid  - midSmooth)  * 0.25;
+  highSmooth += (high - highSmooth) * 0.25;
 
   if (!isFinite(bassSmooth)) bassSmooth = 0;
   if (!isFinite(midSmooth))  midSmooth  = 0;
@@ -85,22 +88,22 @@ function render() {
       ctx.save();
       ctx.globalCompositeOperation = 'screen';
 
-      let outerRadius = 80 + highSmooth * 1.5;
+      let outerRadius = 80 + highSmooth * 2.0;
       if (!isFinite(outerRadius) || outerRadius <= 0) outerRadius = 80;
       const outerGlow = ctx.createRadialGradient(mX, mY, 0, mX, mY, outerRadius);
-      outerGlow.addColorStop(0, isDepth ? 'rgba(216, 22, 63, 0.06)' : 'rgba(216, 22, 63, 0.03)');
-      outerGlow.addColorStop(0.5, 'rgba(6, 182, 212, 0.02)');
+      outerGlow.addColorStop(0, isDepth ? 'rgba(216, 22, 63, 0.08)' : 'rgba(216, 22, 63, 0.04)');
+      outerGlow.addColorStop(0.5, 'rgba(6, 182, 212, 0.03)');
       outerGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
       ctx.fillStyle = outerGlow;
       ctx.beginPath();
       ctx.arc(mX, mY, outerRadius, 0, Math.PI * 2);
       ctx.fill();
 
-      let innerRadius = 30 + bassSmooth * 2.2;
-      if (!isFinite(innerRadius) || innerRadius <= 0) innerRadius = 30;
+      let innerRadius = 35 + Math.pow(bassSmooth / 255, 1.1) * 220;
+      if (!isFinite(innerRadius) || innerRadius <= 0) innerRadius = 35;
       const innerGlow = ctx.createRadialGradient(mX, mY, 0, mX, mY, innerRadius);
-      innerGlow.addColorStop(0, isDepth ? 'rgba(216, 22, 63, 0.22)' : 'rgba(216, 22, 63, 0.12)');
-      innerGlow.addColorStop(0.4, 'rgba(216, 22, 63, 0.04)');
+      innerGlow.addColorStop(0, isDepth ? 'rgba(216, 22, 63, 0.35)' : 'rgba(216, 22, 63, 0.18)');
+      innerGlow.addColorStop(0.4, 'rgba(216, 22, 63, 0.08)');
       innerGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
       ctx.fillStyle = innerGlow;
       ctx.beginPath();
@@ -114,24 +117,24 @@ function render() {
     const barCount = 48;
     const barWidth = width / barCount;
     const themeColor = isDepth ? 'rgba(216, 22, 63,' : 'rgba(24, 24, 27,';
-    const maxBarHeight = height * 0.22;
+    const maxBarHeight = height * 0.28;
 
     ctx.save();
-    ctx.globalAlpha = 0.07;
+    ctx.globalAlpha = 0.12;
 
     const grad = ctx.createLinearGradient(0, height, 0, height - maxBarHeight);
-    grad.addColorStop(0, `${themeColor} 0.8)`);
-    grad.addColorStop(0.5, `${themeColor} 0.3)`);
+    grad.addColorStop(0, `${themeColor} 0.95)`);
+    grad.addColorStop(0.5, `${themeColor} 0.45)`);
     grad.addColorStop(1, `${themeColor} 0.0)`);
     ctx.fillStyle = grad;
 
     for (let i = 0; i < barCount; i++) {
       const sampleIdx = Math.max(
         0,
-        Math.min(bufferLength - 1, Math.floor(Math.pow(i / barCount, 1.8) * Math.max(1, bufferLength - 10)))
+        Math.min(bufferLength - 1, Math.floor(Math.pow(i / barCount, 1.6) * Math.max(1, bufferLength - 8)))
       );
       const rawVal = isPlaying && frequencyData ? (frequencyData[sampleIdx] || 0) : 0;
-      let barHeight = (rawVal / 255) * maxBarHeight;
+      let barHeight = Math.pow(rawVal / 255, 1.15) * maxBarHeight;
       barHeight = isPlaying
         ? Math.max(4, barHeight + Math.sin(i * 0.15 + performance.now() * 0.005) * 2)
         : 4;
@@ -144,7 +147,7 @@ function render() {
     // ── CIRCULAR NEBULA MODE ───────────────────────────────────────────────
     const centerPointX = width / 2;
     const centerPointY = height / 2;
-    const baseRadius = Math.min(width, height) * 0.18 + bassSmooth * 0.4;
+    const baseRadius = Math.min(width, height) * 0.18 + Math.pow(bassSmooth / 255, 1.15) * 140;
     const numPoints = 120;
 
     // Draw central pulsing ring
@@ -154,15 +157,15 @@ function render() {
       const angle = (i / numPoints) * Math.PI * 2 + (isPlaying ? performance.now() * 0.0003 : 0);
       const freqIndex = Math.floor((i / numPoints) * (bufferLength / 2));
       const val = isPlaying && frequencyData ? (frequencyData[freqIndex] || 0) : 0;
-      const r = baseRadius + (val / 255) * 60;
+      const r = baseRadius + Math.pow(val / 255, 1.2) * 80;
       const x = centerPointX + Math.cos(angle) * r;
       const y = centerPointY + Math.sin(angle) * r;
       if (i === 0) ctx.moveTo(x, y);
       else ctx.lineTo(x, y);
     }
     ctx.closePath();
-    ctx.strokeStyle = isDepth ? 'rgba(216, 22, 63, 0.25)' : 'rgba(24, 24, 27, 0.2)';
-    ctx.lineWidth = 3;
+    ctx.strokeStyle = isDepth ? 'rgba(216, 22, 63, 0.45)' : 'rgba(24, 24, 27, 0.25)';
+    ctx.lineWidth = 3.5;
     ctx.stroke();
     ctx.restore();
 
@@ -170,24 +173,24 @@ function render() {
     if (isPlaying) {
       ctx.save();
       ctx.globalCompositeOperation = 'screen';
-      const nebGlow = ctx.createRadialGradient(centerPointX, centerPointY, 0, centerPointX, centerPointY, baseRadius * 1.5);
-      nebGlow.addColorStop(0, isDepth ? 'rgba(211, 15, 49, 0.12)' : 'rgba(211, 15, 49, 0.06)');
-      nebGlow.addColorStop(0.6, 'rgba(6, 182, 212, 0.03)');
+      const nebGlow = ctx.createRadialGradient(centerPointX, centerPointY, 0, centerPointX, centerPointY, baseRadius * 1.6);
+      nebGlow.addColorStop(0, isDepth ? 'rgba(211, 15, 49, 0.22)' : 'rgba(211, 15, 49, 0.10)');
+      nebGlow.addColorStop(0.6, 'rgba(6, 182, 212, 0.06)');
       nebGlow.addColorStop(1, 'rgba(0,0,0,0)');
       ctx.fillStyle = nebGlow;
       ctx.beginPath();
-      ctx.arc(centerPointX, centerPointY, baseRadius * 1.5, 0, Math.PI * 2);
+      ctx.arc(centerPointX, centerPointY, baseRadius * 1.6, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
     }
 
     // Particle emission
-    if (isPlaying && bassSmooth > 35 && particles.length < 50 && Math.random() < 0.25) {
+    if (isPlaying && bassSmooth > 25 && particles.length < 75 && Math.random() < 0.45) {
       particles.push({
         x: centerPointX,
         y: centerPointY,
-        vx: (Math.random() - 0.5) * (2 + bassSmooth * 0.04),
-        vy: (Math.random() - 0.5) * (2 + bassSmooth * 0.04),
+        vx: (Math.random() - 0.5) * (3 + bassSmooth * 0.08),
+        vy: (Math.random() - 0.5) * (3 + bassSmooth * 0.08),
         life: 1.0,
         decay: 0.015 + Math.random() * 0.02,
         color: isDepth ? 'rgba(216, 22, 63,' : 'rgba(6, 182, 212,'
@@ -201,9 +204,9 @@ function render() {
       p.y += p.vy;
       p.life -= p.decay;
       if (p.life <= 0) return false;
-      ctx.fillStyle = `${p.color} ${p.life * 0.35})`;
+      ctx.fillStyle = `${p.color} ${p.life * 0.6})`;
       ctx.beginPath();
-      ctx.arc(p.x, p.y, 1.5 + p.life * 3, 0, Math.PI * 2);
+      ctx.arc(p.x, p.y, 1.5 + p.life * 3.5, 0, Math.PI * 2);
       ctx.fill();
       return true;
     });
@@ -215,12 +218,12 @@ function render() {
     const gridDepth = height - horizon;
     const lineCount = 14;
     const time = performance.now() * 0.001;
-    const speed = isPlaying ? 1.0 + bassSmooth * 0.012 : 0.15;
+    const speed = isPlaying ? 1.0 + Math.pow(bassSmooth / 255, 1.2) * 4.0 : 0.15;
     const offset = (time * speed * 25) % (gridDepth / lineCount);
 
     ctx.save();
-    ctx.strokeStyle = isDepth ? 'rgba(216, 22, 63, 0.45)' : 'rgba(255, 255, 255, 0.25)';
-    ctx.lineWidth = 1.75;
+    ctx.strokeStyle = isDepth ? 'rgba(216, 22, 63, 0.55)' : 'rgba(255, 255, 255, 0.35)';
+    ctx.lineWidth = 1.85;
 
     // Draw horizontal grid lines
     for (let i = 0; i < lineCount; i++) {
@@ -230,8 +233,8 @@ function render() {
       ctx.beginPath();
       for (let x = 0; x <= width; x += 10) {
         const xNormalized = x / width;
-        // Ripple using mid frequencies and sine wave
-        const wave = Math.sin(xNormalized * Math.PI * 6 + time * 5) * (midSmooth * 0.06) * Math.pow(i / lineCount, 2);
+        // Ripple using mid and bass frequencies
+        const wave = Math.sin(xNormalized * Math.PI * 6 + time * 5) * (midSmooth * 0.1 + bassSmooth * 0.08) * Math.pow(i / lineCount, 2);
         if (x === 0) ctx.moveTo(x, py + wave);
         else ctx.lineTo(x, py + wave);
       }
@@ -249,104 +252,41 @@ function render() {
       ctx.stroke();
     }
     ctx.restore();
-  } else if (mode === 'rta') {
-    // ── 31-BAND REAL-TIME ANALYZER (RTA) ──────────────────────────────────
-    const bandCount = 31;
-    if (!self.rtaPeaks) self.rtaPeaks = new Float32Array(bandCount);
-    
-    const marginX = width * 0.05;
-    const availableWidth = width - marginX * 2;
-    const barWidth = Math.max(2, (availableWidth / bandCount) - 4);
-    const maxBarHeight = height * 0.35;
-    const baseY = height * 0.90;
+  }
 
-    ctx.save();
-    ctx.font = '10px monospace';
-
-    for (let i = 0; i < bandCount; i++) {
-      const minLog = Math.log10(1);
-      const maxLog = Math.log10(bufferLength || 256);
-      const logIdx = Math.floor(Math.pow(10, minLog + (i / bandCount) * (maxLog - minLog)));
-      const sampleIdx = Math.max(0, Math.min(bufferLength - 1, logIdx));
-      
-      const rawVal = isPlaying && frequencyData ? (frequencyData[sampleIdx] || 0) : 0;
-      let targetHeight = (rawVal / 255) * maxBarHeight;
-      if (isPlaying && targetHeight === 0) {
-        targetHeight = 4 + Math.sin(i * 0.4 + performance.now() * 0.004) * 3;
-      }
-
-      if (targetHeight > self.rtaPeaks[i]) {
-        self.rtaPeaks[i] = targetHeight;
-      } else {
-        self.rtaPeaks[i] = Math.max(0, self.rtaPeaks[i] - 1.5);
-      }
-
-      const x = marginX + i * (barWidth + 4);
-      const y = baseY - targetHeight;
-
-      const barColor = i < 6 ? '#D8163F' : i < 22 ? '#22D3EE' : '#10B981';
-      ctx.fillStyle = `${barColor}BB`;
-      ctx.fillRect(x, y, barWidth, targetHeight);
-
-      ctx.fillStyle = '#FFFFFF';
-      const peakY = baseY - self.rtaPeaks[i];
-      ctx.fillRect(x, peakY - 2, barWidth, 2);
-    }
-
-    ctx.fillStyle = '#D8163F';
-    ctx.fillText('31-BAND RTA ISO 1/3 OCTAVE METER', marginX, baseY - maxBarHeight - 16);
-    ctx.fillStyle = '#A1A1AA';
-    ctx.fillText(`LUFS INTEGRATED: ${isPlaying ? '-14.2 LUFS' : '-INF LUFS'} | CREST FACTOR: ${isPlaying ? '11.4 dB (PUNCHY)' : '0.0 dB'}`, marginX, baseY - maxBarHeight - 4);
-    ctx.restore();
+  if (running) {
+    requestAnimationFrame(render);
   }
 }
 
+// Worker message handler
 self.onmessage = function (e) {
   const { type } = e.data;
 
-  switch (type) {
-    case 'init': {
-      canvas = e.data.canvas;
-      ctx = canvas.getContext('2d');
-      canvas.width  = e.data.width  || 1280;
-      canvas.height = e.data.height || 720;
-      currentState.width   = canvas.width;
-      currentState.height  = canvas.height;
-      currentState.isDepth = e.data.isDepth ?? true;
-      currentState.mode    = e.data.mode || 'ambient';
-      currentState.mouseX  = canvas.width  / 2;
-      currentState.mouseY  = canvas.height / 2;
-      running = true;
-      render();
-      break;
+  if (type === 'init') {
+    canvas = e.data.canvas;
+    ctx = canvas.getContext('2d');
+    currentState.width = e.data.width;
+    currentState.height = e.data.height;
+    currentState.isDepth = e.data.isDepth;
+    currentState.mode = e.data.mode || 'ambient';
+    running = true;
+    requestAnimationFrame(render);
+  } else if (type === 'frame') {
+    currentState.frequencyData = e.data.frequencyData;
+    currentState.isPlaying = e.data.isPlaying;
+    currentState.mouseX = e.data.mouseX;
+    currentState.mouseY = e.data.mouseY;
+    currentState.isDepth = e.data.isDepth;
+    currentState.mode = e.data.mode || 'ambient';
+  } else if (type === 'resize') {
+    currentState.width = e.data.width;
+    currentState.height = e.data.height;
+    if (canvas) {
+      canvas.width = e.data.width;
+      canvas.height = e.data.height;
     }
-
-    case 'frame': {
-      if (!running) break;
-      if (e.data.frequencyData) currentState.frequencyData = e.data.frequencyData;
-      currentState.isPlaying = e.data.isPlaying ?? false;
-      if (isFinite(e.data.mouseX)) currentState.mouseX = e.data.mouseX;
-      if (isFinite(e.data.mouseY)) currentState.mouseY = e.data.mouseY;
-      if (e.data.isDepth !== undefined) currentState.isDepth = e.data.isDepth;
-      if (e.data.mode) currentState.mode = e.data.mode;
-      render();
-      break;
-    }
-
-    case 'resize': {
-      if (canvas) {
-        canvas.width  = e.data.width;
-        canvas.height = e.data.height;
-      }
-      currentState.width  = e.data.width;
-      currentState.height = e.data.height;
-      render();
-      break;
-    }
-
-    case 'stop': {
-      running = false;
-      break;
-    }
+  } else if (type === 'stop') {
+    running = false;
   }
 };

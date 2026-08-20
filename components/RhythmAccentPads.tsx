@@ -120,10 +120,10 @@ export function RhythmAccentPads({ themeColor = '#D8163F' }: RhythmAccentPadsPro
       const gain = ctx.createGain();
 
       osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(1800, now);
-      osc.frequency.exponentialRampToValueAtTime(120, now + 0.15);
+      osc.frequency.setValueAtTime(1400, now);
+      osc.frequency.exponentialRampToValueAtTime(120, now + 0.16);
 
-      gain.gain.setValueAtTime(0.6, now);
+      gain.gain.setValueAtTime(0.65, now);
       gain.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
 
       osc.connect(gain);
@@ -133,6 +133,25 @@ export function RhythmAccentPads({ themeColor = '#D8163F' }: RhythmAccentPadsPro
       osc.stop(now + 0.17);
     }
   };
+
+  // Keyboard hotkey finger drumming: Z, X, C, V
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const activeEl = document.activeElement;
+      if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA')) return;
+      if (e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+
+      const key = e.key.toLowerCase();
+      if (key === 'z') {
+        triggerAnalogSound('808_KICK');
+      } else if (key === 'x') {
+        triggerAnalogSound('909_CLAP');
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   return (
     <div className="bg-zinc-950 border-t border-zinc-900 font-mono select-none">
@@ -144,7 +163,7 @@ export function RhythmAccentPads({ themeColor = '#D8163F' }: RhythmAccentPadsPro
             ANALOG ACCENT PADS // 808 & 909 LIVE SAMPLER
           </span>
           <span className="text-[7px] text-zinc-500 font-bold">
-            [{activeBpm.toFixed(0)} BPM SYNC]
+            [{activeBpm.toFixed(0)} BPM SYNC] [KEYS: Z, X]
           </span>
         </div>
 
@@ -173,7 +192,7 @@ export function RhythmAccentPads({ themeColor = '#D8163F' }: RhythmAccentPadsPro
                 : "bg-zinc-950 border-zinc-800 text-zinc-300 hover:border-red-600/50 hover:bg-zinc-900"
             )}
           >
-            <span className="text-[7px] font-black text-red-400">PAD 1</span>
+            <span className="text-[7px] font-black text-red-400">PAD 1 [Z]</span>
             <span className="text-[8.5px] font-bold uppercase mt-0.5">808 KICK</span>
             <span className="text-[6px] text-zinc-500 font-mono">SUB 42HZ</span>
           </button>
@@ -188,7 +207,7 @@ export function RhythmAccentPads({ themeColor = '#D8163F' }: RhythmAccentPadsPro
                 : "bg-zinc-950 border-zinc-800 text-zinc-300 hover:border-cyan-500/50 hover:bg-zinc-900"
             )}
           >
-            <span className="text-[7px] font-black text-cyan-400">PAD 2</span>
+            <span className="text-[7px] font-black text-cyan-400">PAD 2 [X]</span>
             <span className="text-[8.5px] font-bold uppercase mt-0.5">909 CLAP</span>
             <span className="text-[6px] text-zinc-500 font-mono">BURST NOISE</span>
           </button>

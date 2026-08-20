@@ -39,12 +39,19 @@ export function HotCuePads({
           return (
             <button
               key={pad}
-              onPointerDown={() => onHotCuePress(pad)}
+              onPointerDown={(e) => {
+                if (e.shiftKey || deleteMode) {
+                  e.preventDefault();
+                  onDeleteCue?.(pad);
+                } else {
+                  onHotCuePress(pad);
+                }
+              }}
               onContextMenu={(e) => {
                 e.preventDefault();
                 onDeleteCue?.(pad);
               }}
-              title={hasCue ? `Hot Cue ${pad} (${hotCues[pad]!.toFixed(1)}s) - Right click to clear` : `Set Hot Cue ${pad}`}
+              title={hasCue ? `Hot Cue ${pad} (${hotCues[pad]!.toFixed(1)}s) - Shift+Click or Right-Click to clear` : `Set Hot Cue ${pad}`}
               className={cn(
                 "rounded-none font-mono tracking-widest font-black uppercase border transition-all cursor-pointer flex items-center justify-center relative",
                 isCompact ? "h-6 text-[8.5px]" : "h-8 text-[11px]",
